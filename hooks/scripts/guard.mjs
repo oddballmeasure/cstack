@@ -11,6 +11,9 @@ import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 
 const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
+// The config decides autonomy and hidden paths, so no session may rewrite it through a file tool.
+// setup-cstack writes it with Bash (jq), which a human reviews before committing.
+const ALWAYS_OFF = [".cstack/config.json"];
 const PRIVILEGED_ROLES = new Set(["e2e-author", "grader"]);
 
 function findRoot(start) {
@@ -105,7 +108,7 @@ function main() {
   if (cfg._error) block("config", `.cstack/config.json does not parse: ${cfg._error}`);
 
   const hidden = Array.isArray(cfg.paths_hidden) ? cfg.paths_hidden : [];
-  const offLimits = [...(Array.isArray(cfg.paths_off_limits) ? cfg.paths_off_limits : []), ".git/**", ...VENDOR];
+  const offLimits = [...(Array.isArray(cfg.paths_off_limits) ? cfg.paths_off_limits : []), ".git/**", ...VENDOR, ...ALWAYS_OFF];
   const privileged = PRIVILEGED_ROLES.has(process.env.CSTACK_ROLE || "");
 
   // Path fields per tool. Agent and Skill prompts are free text and are never matched (ADR-001 finding 1).

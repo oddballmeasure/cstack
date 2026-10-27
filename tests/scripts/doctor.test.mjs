@@ -14,7 +14,7 @@ const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investi
 
 chmodSync(path.join(FAKE_BIN, "gh"), 0o755);
 
-function target(cfg = {}, { gitignore = ".cstack/runs/\n", writeConfig = true } = {}) {
+function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", writeConfig = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "cstack-doctor-"));
   spawnSync("git", ["init", "-q", root]);
   if (gitignore !== null) writeFileSync(path.join(root, ".gitignore"), gitignore);
