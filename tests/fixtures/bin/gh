@@ -1,0 +1,17 @@
+#!/bin/sh
+# Fake gh for tests. Behaviour comes from env:
+#   FAKE_GH_AUTH=0       auth status fails
+#   FAKE_GH_BRANCHES     space-separated branches that exist (default: main)
+#   FAKE_GH_LABELS       newline-separated label names
+#   FAKE_GH_LOG          file to append argv to
+[ -n "${FAKE_GH_LOG:-}" ] && printf '%s\n' "$*" >> "$FAKE_GH_LOG"
+case "$1 $2" in
+  "auth status") [ "${FAKE_GH_AUTH:-1}" = "1" ] ;;
+  "repo view") echo '{"name":"x"}' ;;
+  "label list") printf '%s\n' "${FAKE_GH_LABELS:-}" ;;
+  api*)
+    b=${2##*/branches/}
+    for x in ${FAKE_GH_BRANCHES:-main}; do [ "$x" = "$b" ] && { echo '{}'; exit 0; }; done
+    echo "HTTP 404" >&2; exit 1 ;;
+  *) echo "fake gh: unhandled: $*" >&2; exit 1 ;;
+esac
