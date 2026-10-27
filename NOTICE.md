@@ -14,6 +14,10 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/unslop/SKILL.md` | `skills/unslop/SKILL.md` |
 | `skills/technical-writing/SKILL.md` | `skills/technical-writing/SKILL.md` |
 | `skills/show-me-your-work/SKILL.md`, `scripts/log.sh`, `references/decision-log-template.tsv` | `skills/show-me-your-work/` |
+| `skills/how/` | `skills/how/` |
+| `skills/tdd/SKILL.md` | `skills/tdd/SKILL.md` |
+| `skills/implement-ticket/SKILL.md` | `skills/poteto-mode/playbooks/feature.md`, `bug-fix.md` |
+| `skills/verify-head/SKILL.md` | `skills/principle-prove-it-works/SKILL.md` |
 | `gates/orch.mjs`, `gates/lib/store.mjs` | `skills/poteto-mode/scripts/orch/` (pstack plugin source, same commit) |
 
 ## tstack, by Theo Browne (MIT)
@@ -23,6 +27,11 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 | cstack file | tstack source |
 |---|---|
 | `gates/pr-wait.mjs` | `skills/babysit-pr/scripts/pr-wait` |
+| `skills/file-pr/SKILL.md` | `skills/file-pr/SKILL.md` |
+| `skills/babysit-pr/SKILL.md` | `skills/babysit-pr/SKILL.md` |
+| `skills/sync-base/SKILL.md` | `skills/modernize/SKILL.md` (conflict guidance) |
+| `skills/merge-gate/SKILL.md` | `skills/full-send/SKILL.md`, `skills/full-stop/SKILL.md` (merge gate, verdicts) |
+| `skills/unit/SKILL.md`, `skills/prove/SKILL.md` | `skills/full-send/SKILL.md` (proof, pending-work rule) |
 
 ## Cardinal
 

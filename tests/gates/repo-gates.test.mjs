@@ -65,6 +65,13 @@ test("check-commit rejects each failure mode", () => {
   assert.match(res.json.findings.find((f) => f.check === "trailers").detail, /Refs: #7/);
 });
 
+test("check-commit flags a change to the cstack config", () => {
+  const { wt, config } = isolated();
+  commit(wt, { ".cstack/config.json": JSON.stringify({ ...config, autonomy: "send" }), "test/x.test.js": "t\n" }, "F" + trailers("U1"));
+  const detail = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--json"]).json.findings.find((f) => f.check === "paths").detail;
+  assert.match(detail, /\.cstack\/config\.json is off limits/);
+});
+
 test("check-commit reports timeouts and commands that cannot start", () => {
   const a = isolated({ test_command: ["sh", "-c", "sleep 5"], limits: { test_timeout_seconds: 1 } });
   commit(a.wt, { "src/f.js": "1\n" }, "F" + trailers("U1"));
