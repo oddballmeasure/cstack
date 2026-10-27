@@ -25,7 +25,7 @@ Setup prepares one target repo. Run it from inside that repo. It is safe to run 
    - `autonomy` (default: `stop`, which means cstack never merges).
    - Model per role (defaults: code `opus`, judge `fable`, review `sonnet`, gather `haiku`). Judge and review should differ from code.
 6. **Write the config.** Start from `templates/config.json` in the plugin root (two directories up from this skill). Write `.cstack/config.json` with 2-space JSON. Show the user the final file.
-7. **Ignore the run store.** Add `.cstack/runs/` to `.gitignore` if it is not there.
+7. **Ignore local state.** Make sure `.gitignore` has the two lines `.cstack/*` and `!.cstack/config.json`, so the run store and the repo profile stay local and only the config is committed.
 8. **Create the labels.** For each state in `ready`, `in-progress`, `done`, `error`, `needs-human`, `investigate`, `proposed`, run `gh label create "<prefix>:<state>" --repo <repo> --color <color> --description "<text>" --force`. Colors: ready `0e8a16`, in-progress `fbca04`, done `5319e7`, error `b60205`, needs-human `d93f0b`, investigate `1d76db`, proposed `c5def5`.
 9. **Verify.** Run `cstack:doctor` on the repo. Setup is done only when doctor exits 0. Report the WARN lines.
 10. **Commit.** Do not commit. Tell the user which files changed (`.cstack/config.json`, `.gitignore`) so they can review and commit them.

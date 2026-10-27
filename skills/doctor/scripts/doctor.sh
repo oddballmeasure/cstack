@@ -95,8 +95,8 @@ check_cmd "setup_command" "$(jq -r '.setup_command[0] // empty' "$cfg")"
 check_cmd "e2e_command" "$(jq -r '.e2e_command[0] // empty' "$cfg")"
 
 # Run store
-if grep -qsx '\.cstack/runs/\?' "$root/.gitignore"; then pass "gitignore" ".cstack/runs/ is ignored"
-else warn "gitignore" ".cstack/runs/ is not in .gitignore"; fi
+if git -C "$root" check-ignore -q .cstack/runs/x && git -C "$root" check-ignore -q .cstack/profile.json; then pass "gitignore" "local cstack state is ignored"
+else warn "gitignore" ".cstack/runs/ or .cstack/profile.json is not ignored (setup adds .cstack/* and !.cstack/config.json)"; fi
 if mkdir -p "$root/.cstack/runs" 2>/dev/null && [ -w "$root/.cstack/runs" ]; then pass "run store" ".cstack/runs is writable"
 else fail "run store" ".cstack/runs is not writable"; fi
 

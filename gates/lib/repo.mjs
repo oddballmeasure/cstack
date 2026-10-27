@@ -20,7 +20,7 @@ export function pathViolations(files, config) {
   for (const f of files) {
     const h = matchesAny(f, config.paths_hidden);
     if (h) out.push(`${f} is hidden (${h})`);
-    const o = matchesAny(f, [...(config.paths_off_limits || []), ".git/**"]);
+    const o = matchesAny(f, [...config.paths_off_limits, ".git/**", ".cstack/config.json"]);
     if (o) out.push(`${f} is off limits (${o})`);
   }
   return out;
