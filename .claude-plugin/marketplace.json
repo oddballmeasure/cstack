@@ -1,0 +1,14 @@
+{
+  "name": "cstack",
+  "description": "cstack plugin marketplace",
+  "owner": {
+    "name": "oddballmeasure"
+  },
+  "plugins": [
+    {
+      "name": "cstack",
+      "source": "./",
+      "description": "Agent-only coding harness: Cardinal's lifecycle, pstack's playbooks, tstack's proof and PR discipline."
+    }
+  ]
+}

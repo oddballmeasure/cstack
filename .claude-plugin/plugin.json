@@ -1,0 +1,8 @@
+{
+  "name": "cstack",
+  "version": "0.0.1",
+  "description": "Agent-only coding harness: Cardinal's lifecycle, pstack's playbooks, tstack's proof and PR discipline.",
+  "author": { "name": "oddballmeasure" },
+  "repository": "https://github.com/oddballmeasure/cstack",
+  "license": "MIT"
+}
