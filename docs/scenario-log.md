@@ -12,3 +12,12 @@
 | 2026-10-27 | base-conflict | PASS | 696 | SYNC kept both sides |
 | 2026-10-27 | happy-merge | PASS | 676 | merged under autonomy send |
 | 2026-10-27 | f1-spec-e2e (P4 exit) | PASS | 1298 | 32 R, 20 E, 46 lanes all red; 16 mutations caught; PR #0 touched only the suite and config |
+| 2026-10-27 | post-merge-red | FAIL | 0 | search index lag hid the filed issue; lookup switched to list |
+| 2026-10-27 | usage-window | FAIL | 0 | real bug: ExecStopPost truncated worker output; fixed with append |
+| 2026-10-27 | usage-window | PASS | 0 | usage_limit classified, re-queued at the 3pm New York reset |
+| 2026-10-27 | post-merge-red | PASS | 0 | one rerun, exactly one follow-up, idempotent second judgement |
+| 2026-10-27 | scope-creep | PASS | 173 | unrelated refactor declined, follow-up filed as proposed |
+| 2026-10-27 | worker-killed | FAIL | 358 | fuzzy PR search counted an unrelated PR; lookup made exact |
+| 2026-10-27 | worker-killed | PASS | 445 | killed worker restarted once, resumed without repeats |
+| 2026-10-27 | coordinator-compaction | PASS | 363 | fresh session adopted live workers; usage limit hit at the end |
+| 2026-10-27 | dependency-order | PASS | 1211 | B started only after A merged (autonomy send) |

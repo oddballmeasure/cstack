@@ -74,6 +74,9 @@ function launch(store, unit, args) {
   const role = coordinator
     ? ["--setenv=CSTACK_COORDINATOR=1"]
     : [`--setenv=CSTACK_UNIT=${unit}`, `--property=ExecStopPost=${[process.execPath, SELF, "exit", "--store", store, "--unit", unit].map(quote).join(" ")}`];
+  mkdirSync(path.dirname(workerFile(store, id, "jsonl")), { recursive: true });
+  writeFileSync(workerFile(store, id, "jsonl"), "");
+  writeFileSync(workerFile(store, id, "stderr.log"), "");
   const argv = [
     "--user",
     `--unit=${name}`,
@@ -84,8 +87,10 @@ function launch(store, unit, args) {
     `--setenv=PATH=${PATH}`,
     `--setenv=HOME=${home}`,
     `--setenv=CSTACK_RUN=${slug}`,
-    `--property=StandardOutput=truncate:${workerFile(store, id, "jsonl")}`,
-    `--property=StandardError=truncate:${workerFile(store, id, "stderr.log")}`,
+    // append, not truncate: systemd reopens these files for ExecStopPost, and truncate would wipe the
+    // worker's own output before the exit hook can classify it. The files are emptied once, below.
+    `--property=StandardOutput=append:${workerFile(store, id, "jsonl")}`,
+    `--property=StandardError=append:${workerFile(store, id, "stderr.log")}`,
     ...role,
     "/usr/bin/env",
     "-u",

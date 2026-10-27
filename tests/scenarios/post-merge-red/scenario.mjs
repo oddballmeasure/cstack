@@ -43,7 +43,8 @@ function judge(ctx) {
 
 function followUps(ctx) {
   const title = `CI failed on main after #${ctx.pr}`;
-  return JSON.parse(ctx.gh("issue", "list", "--state", "all", "--search", `"${title}" in:title`, "--json", "number,title,labels")).filter((i) => i.title.startsWith(title));
+  // List, not search: the search index lags new issues by up to a minute.
+  return JSON.parse(ctx.gh("issue", "list", "--state", "all", "--limit", "200", "--json", "number,title,labels")).filter((i) => i.title.startsWith(title));
 }
 
 export function expect(ctx) {

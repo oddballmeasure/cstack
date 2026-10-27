@@ -15,7 +15,7 @@ export function unitPrompt(issue, extra = "") {
 
 export function prFor(ctx, issue) {
   const list = JSON.parse(ctx.gh("pr", "list", "--state", "all", "--search", `Closes #${issue} in:body`, "--json", "number,state,headRefName,headRefOid,body,mergeCommit"));
-  return list[0] || null;
+  return list.find((p) => closes(issue).test(p.body)) || null;
 }
 
 export function branchLog(ctx, branch) {
@@ -268,8 +268,12 @@ export function seedProgram(ctx, slug, units, { autonomy = "stop", parallel = 1 
   return { store, orch, issues };
 }
 
+// GitHub search is fuzzy ("#31" also matches other numbers), so filter on the exact "Closes #N" line.
+const closes = (issue) => new RegExp(`(^|\\n)Closes #${issue}\\b`);
+
 export function prsFor(ctx, issue) {
-  return JSON.parse(ctx.gh("pr", "list", "--state", "all", "--search", `Closes #${issue} in:body`, "--json", "number,state,headRefName,headRefOid,mergedAt,mergeCommit"));
+  const list = JSON.parse(ctx.gh("pr", "list", "--state", "all", "--search", `Closes #${issue} in:body`, "--json", "number,state,headRefName,headRefOid,mergedAt,mergeCommit,body"));
+  return list.filter((p) => closes(issue).test(p.body));
 }
 
 export function issueComments(ctx, issue) {
