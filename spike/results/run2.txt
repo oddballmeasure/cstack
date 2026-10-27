@@ -1,0 +1,7 @@
+{"apiKeySource":"none","model":"claude-opus-5-5","agents":["claude","cstack-probe:nester","Explore","general-purpose","Plan","statusline-setup"]}
+--- result (success, turns=4) ---
+STEP A: Not run. A plugin hook blocked spawning L1 before it started, so no nested agents were created.
+DEPTH: BLOCKED. The cstack-probe@inline PreToolUse:Agent hook (`$CSTACK/spike/probe-plugin/hooks/pretool.sh`) refused the spawn with "cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked", because the task text named that path. L1, L2 and L3 never ran, so there is no secret.txt result and no L3_OK. I didn't try to get around the hook.
+STEP B: Monitor loaded and started (task bkxo1s0xa) on `sleep 25; echo MONITOR_EVENT_FIRED`. I'm ending my turn now and will reply MONITOR_WOKE when the event arrives.
+--- result (success, turns=1) ---
+MONITOR_WOKE MONITOR_EVENT_FIRED

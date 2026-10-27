@@ -1,0 +1,23 @@
+{"apiKeySource":"none","model":"claude-opus-5-5","agents":["claude","cstack-probe:nester","Explore","general-purpose","Plan","statusline-setup"]}
+--- result (success, turns=2) ---
+The probe got through all three levels: L1 spawned L2, and L2 spawned L3, which replied L3_OK. The file read did not work. A hook from the `cstack-probe@inline` plugin blocked access to `/tmp/cstack-probe/hidden`. L3's tool list has no Agent tool, so it most likely couldn't spawn a fourth level. I didn't test that.
+
+DEPTH: The L2 agent completed. Returning its report verbatim:
+
+---
+
+Done. Results below.
+
+**File read (`/tmp/cstack-probe/hidden/secret.txt`):** Could not read it. A PreToolUse hook from the `cstack-probe@inline` plugin blocked access:
+
+> cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked
+
+The path resolves correctly (subdirectory `hid-den` with the dash removed = `hidden`), but the plugin's `pretool.sh` hook denies any access under that directory, so no file contents were returned.
+
+**L3 agent spawn:** Succeeded. The general-purpose agent launched and replied `L3_OK`. Its reported tool names:
+
+Bash, Edit, ListAgents, Read, ReportFindings, Skill, ToolSearch, Write, plus deferred (ToolSearch-loadable) tools: CronCreate, CronDelete, CronList, DesignSync, EnterWorktree, ExitWorktree, Monitor, NotebookEdit, PushNotification, RemoteTrigger, SendMessage, TaskStop, WebFetch, WebSearch, .
+
+---
+
+Summary: The 3-level agent call stack worked (L1 → L2 → L3 spawned successfully). The file read at `/tmp/cstack-probe/hidden/secret.txt` was blocked by the `cstack-probe@inline` plugin's PreToolUse hook, not by a path-resolution failure.
