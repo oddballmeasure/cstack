@@ -1,0 +1,25 @@
+{
+  "issue": 42,
+  "classification": "feature",
+  "summary": "Add a --json flag to `notes list` so scripts can read notes.",
+  "requirements": [
+    { "id": "R1", "text": "`notes list --json` prints a JSON array of {id, text}, oldest first." },
+    { "id": "R2", "text": "`notes list --json` with no notes prints `[]`." }
+  ],
+  "tickets": [
+    {
+      "id": "T1",
+      "title": "Serialize the note store as JSON",
+      "requirements": ["R1"],
+      "depends_on": [],
+      "target_files": ["src/store.mjs", "new:test/store-json.test.mjs"]
+    },
+    {
+      "id": "T2",
+      "title": "Wire --json into notes list, including the empty case",
+      "requirements": ["R2"],
+      "depends_on": ["T1"],
+      "target_files": ["bin/notes.mjs"]
+    }
+  ]
+}
