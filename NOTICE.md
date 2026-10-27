@@ -18,6 +18,9 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/tdd/SKILL.md` | `skills/tdd/SKILL.md` |
 | `skills/implement-ticket/SKILL.md` | `skills/poteto-mode/playbooks/feature.md`, `bug-fix.md` |
 | `skills/verify-head/SKILL.md` | `skills/principle-prove-it-works/SKILL.md` |
+| `skills/create-verification-skill/SKILL.md`, `references/feature-map-example/` (3 files) | `skills/create-verification-skill/` |
+| `skills/maintain-verification-skill/SKILL.md` | `skills/maintain-verification-skill/SKILL.md` |
+| `skills/sharpen/SKILL.md` | `skills/sharpen/SKILL.md` |
 | `gates/orch.mjs`, `gates/lib/store.mjs` | `skills/poteto-mode/scripts/orch/` (pstack plugin source, same commit) |
 
 ## tstack, by Theo Browne (MIT)
