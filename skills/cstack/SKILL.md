@@ -41,6 +41,9 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A fork you want to ask about ("which approach", "what should this do"). Classify it first. If running something can answer it (behaviour, timing, output, perf), it is not the human's question. Build a throwaway sketch and let the result decide. Ask only for a product or preference call that no experiment can settle.
 - Two fixes on one premise failed the same gate. Stop and apply [Attack the Premise](references/principles/attack-the-premise.md).
 - A number you measured (speedup, regression, eval score). Apply [Explain the Number](references/principles/explain-the-number.md) before you report or act on it.
+- A guideline prompt that needs a spec. Use `cstack:spec`. If the guideline is thin, run `cstack:sharpen` on it first.
+- A spec that needs its hidden end-to-end suite. Use `cstack:e2e-plan`. It launches the plugin's `cstack-e2e-author` agent and ships the suite as PR #0.
+- A repo with no scripted way to drive its app as a user does. Use `cstack:create-verification-skill`. To audit an existing `verify-<app>` skill, use `cstack:maintain-verification-skill`.
 - Work one GitHub issue end to end. Use `cstack:unit`. It owns the whole path in `docs/unit-flow.md` (intake, implement, verify, sync, PR, babysit, merge gate, settle).
 - A question about how code works, or a walkthrough before a change. Use `cstack:how`.
 - A bug with a cheap local test target, or a request for a failing test first. Use `cstack:tdd`.
