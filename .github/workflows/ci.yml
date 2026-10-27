@@ -14,4 +14,6 @@ jobs:
       - name: L0 lint
         run: node tests/lint/lint.mjs
       - name: Unit tests (hooks, lint, scripts)
-        run: node --test 'tests/**/*.test.mjs'
+        run: npm test
+      - name: Gate coverage (100% lines and branches)
+        run: npm run coverage:gates

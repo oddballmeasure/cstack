@@ -4,6 +4,8 @@
 #   FAKE_GH_BRANCHES     space-separated branches that exist (default: main)
 #   FAKE_GH_LABELS       newline-separated label names
 #   FAKE_GH_LOG          file to append argv to
+#   FAKE_GH_SCENARIO     JSON scenario file; hands every call to fake-gh.mjs (see there)
+if [ -n "${FAKE_GH_SCENARIO:-}" ]; then exec node "$(dirname "$0")/fake-gh.mjs" "$@"; fi
 [ -n "${FAKE_GH_LOG:-}" ] && printf '%s\n' "$*" >> "$FAKE_GH_LOG"
 case "$1 $2" in
   "auth status") [ "${FAKE_GH_AUTH:-1}" = "1" ] ;;
