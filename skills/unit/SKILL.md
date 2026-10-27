@@ -48,9 +48,9 @@ Create this TodoWrite list at the start, one item per stage, verbatim:
 ```
 0 Preflight
 1 Claim
-2 Profile
-3 Intake
-4 Isolate
+2 Isolate
+3 Profile
+4 Intake
 5 Implement
 6 Verify
 7 Sync
@@ -61,7 +61,7 @@ Create this TodoWrite list at the start, one item per stage, verbatim:
 12 Settle
 ```
 
-Mark a stage `in_progress` when you start it and `completed` when its gate passes. Mark a skipped stage completed and rename it `<n> <Stage> (skip: <reason>)`, for example `2 Profile (skip: profile current)`. When a back edge sends the unit to an earlier stage, set that stage and every later one back to `pending`.
+Mark a stage `in_progress` when you start it and `completed` when its gate passes. Mark a skipped stage completed and rename it `<n> <Stage> (skip: <reason>)`, for example `3 Profile (skip: profile current)`. When a back edge sends the unit to an earlier stage, set that stage and every later one back to `pending`.
 
 ## Decision log
 
@@ -108,33 +108,7 @@ Owner: `cstack:settle`.
 
 Pass: stage 2. Fail: stop with failure `github`.
 
-### 2 Profile
-
-Owner: `cstack:profile-repo`. Gate: the profile covers all tracked files.
-
-```bash
-node <root>/gates/profile-diff.mjs <repo>
-```
-
-The script always exits 0. Read its last line. `gate profile-diff: approved` means no new, changed or removed files: skip (`skip: profile current`). Otherwise run `cstack:profile-repo`, then run the gate again. Pass: stage 3. Fail: stop with failure `setup`.
-
-### 3 Intake
-
-Owner: `cstack:intake`. It writes `<store>/intake-<unit>.json`. Gate:
-
-```bash
-node <root>/gates/check-intake.mjs <store>/intake-<unit>.json --repo <repo>
-```
-
-On a gate failure, give the findings back to `cstack:intake` once. A second failure is failure `invalid_output`.
-
-Route by `classification`:
-
-- `feature`, `bug`, `chore`: stage 4.
-- `question` or `needs_human`: settle as needs a decision with the intake's question. Stop.
-- `reject`: settle as not taken with the intake's summary as the reason. Stop.
-
-### 4 Isolate
+### 2 Isolate
 
 Owner: this skill. If `<wt>` exists and is on `<branch>`, skip (`skip: worktree exists`). Otherwise:
 
@@ -143,7 +117,35 @@ node <root>/gates/isolate.mjs <repo> <branch> <wt>
 <orch> unit set <unit> --branch <branch>
 ```
 
-Pass: stage 5. Fail: failure `git`.
+Pass: stage 3. Fail: failure `git`.
+
+Isolate comes before profile and intake on purpose. Every explorer and planner from here on reads code only inside `<wt>`, where the hidden suite is not on disk. The main checkout still holds it.
+
+### 3 Profile
+
+Owner: `cstack:profile-repo`. Gate: the profile covers all tracked files.
+
+```bash
+node <root>/gates/profile-diff.mjs <repo>
+```
+
+The script always exits 0. Read its last line. `gate profile-diff: approved` means no new, changed or removed files: skip (`skip: profile current`). Otherwise run `cstack:profile-repo`, then run the gate again. Explorers read files from `<wt>`, never from `<repo>`. The profile file stays at `<repo>/.cstack/profile.json`. Pass: stage 4. Fail: stop with failure `setup`.
+
+### 4 Intake
+
+Owner: `cstack:intake`. It writes `<store>/intake-<unit>.json`. Gate:
+
+```bash
+node <root>/gates/check-intake.mjs <store>/intake-<unit>.json --repo <repo>
+```
+
+Run it against `<repo>` (the base checkout), not `<wt>`. On resume the branch already holds the files the intake marks `new:`, so checking the worktree would reject a correct intake. On a gate failure, give the findings back to `cstack:intake` once. A second failure is failure `invalid_output`.
+
+Route by `classification`:
+
+- `feature`, `bug`, `chore`: stage 5.
+- `question` or `needs_human`: settle as needs a decision with the intake's question. Stop.
+- `reject`: settle as not taken with the intake's summary as the reason. Stop.
 
 ### 5 Implement
 

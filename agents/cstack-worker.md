@@ -28,6 +28,8 @@ Cstack-Ticket: <ticket id>
 Refs: #<issue>
 ```
 
+   Keep every trailer in ONE final paragraph. If you add `Co-Authored-By` or any other trailer, put it directly under these lines with no blank line between. Git ignores trailers above a blank line, and the commit gate reads them the way git does.
+
 For a SYNC ticket, the merge is already in progress. Resolve the markers as the ticket says, then conclude it with `git commit` and the same trailers.
 
 ## Never

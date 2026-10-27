@@ -1,6 +1,6 @@
 ---
 name: profile-repo
-description: "Use when a cstack unit or plan needs the repo profile (stage 2), or the profile at .cstack/profile.json is missing or stale. Describes each tracked file (summary, capabilities, active/legacy/support) so planning can find the code that owns a behaviour. Re-describes only new and changed files, in batches of 5 per read-only explorer."
+description: "Use when a cstack unit or plan needs the repo profile (stage 3), or the profile at .cstack/profile.json is missing or stale. Describes each tracked file (summary, capabilities, active/legacy/support) so planning can find the code that owns a behaviour. Re-describes only new and changed files, in batches of 5 per read-only explorer."
 ---
 
 # Profile repo
@@ -35,7 +35,7 @@ Profilable files are the tracked files (`git ls-files`), minus vendor directorie
 
 ## Procedure
 
-`<root>` is the plugin root (two directories up from this skill's base directory). `<repo>` is the repo root, absolute.
+`<root>` is the plugin root (two directories up from this skill's base directory). `<repo>` is the repo root, absolute. `<wt>` is the unit worktree when a unit calls this skill. Explorers read files only from `<wt>`, where the hidden suite is not on disk. Pass `<wt>` paths in their briefs. Without a unit, use `<repo>` and remind each explorer that paths_hidden are off limits.
 
 1. Read the [cstack mode skill](../cstack/SKILL.md). Read config `models.gather` and `paths_hidden` with `jq`.
 2. Run `node <root>/gates/profile-diff.mjs <repo> --json`. If `approved` is true, the profile is current. Stop and reuse it.

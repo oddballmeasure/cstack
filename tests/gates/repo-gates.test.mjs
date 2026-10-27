@@ -65,6 +65,14 @@ test("check-commit rejects each failure mode", () => {
   assert.match(res.json.findings.find((f) => f.check === "trailers").detail, /Refs: #7/);
 });
 
+test("check-commit explains trailers split by a blank line", () => {
+  const { wt } = isolated();
+  commit(wt, { "src/f.js": "1\n" }, "Add f\n\nCstack-Unit: U1\nCstack-Ticket: T1\nRefs: #7\n\nCo-Authored-By: X <x@y>");
+  const res = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--issue", "7"]);
+  assert.equal(res.code, 1);
+  assert.match(res.out, /ONE final paragraph/);
+});
+
 test("check-commit flags a change to the cstack config", () => {
   const { wt, config } = isolated();
   commit(wt, { ".cstack/config.json": JSON.stringify({ ...config, autonomy: "send" }), "test/x.test.js": "t\n" }, "F" + trailers("U1"));

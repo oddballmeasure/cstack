@@ -1,5 +1,5 @@
-// Scenario 2: the base moves under a finished unit and conflicts with it.
-// The branch already holds a complete T1; main then changes the same line. Expect a SYNC ticket,
+// Scenario 2: the base moves under a finished unit and conflicts with it textually, not semantically.
+// The branch already holds a complete T1; main then edits the same lines in a compatible way. Expect a SYNC ticket,
 // a "Merge main into" commit, no conflict markers, and an approval at the new head.
 import { slug, createIssue, unitPrompt, seedUnit, tickets, ledgerApproved, assert } from "../lib.mjs";
 import { writeFileSync } from "node:fs";
@@ -34,10 +34,11 @@ export function setup(ctx) {
       },
     ],
   });
-  // Main changes the same line: add() gains a doc comment and a different body shape.
+  // Main touches the same lines without contradicting the issue: a doc comment on add() and a new export
+  // right below it. The text conflicts; the behaviours do not, so a good resolution keeps both.
   ctx.git("checkout", "-q", "main");
-  writeFileSync(path.join(ctx.testbed, "src/math.js"), "/** Sum two values. */\nexport const add = (a, b) => Number(a) + Number(b);\n");
-  ctx.git("commit", "-qam", "Coerce add() arguments to numbers");
+  writeFileSync(path.join(ctx.testbed, "src/math.js"), "/** Sum of two numbers. */\nexport const add = (a, b) => a + b;\nexport const ZERO = 0;\n");
+  ctx.git("commit", "-qam", "Document add() and export ZERO");
   ctx.git("push", "-q", "origin", "main");
   return { issue, prompt: unitPrompt(issue) };
 }
@@ -52,6 +53,7 @@ export function expect(ctx) {
   const src = ctx.git("show", `${head}:src/math.js`);
   assert.doesNotMatch(src, /^(<{7}|>{7}|={7})/m, "no conflict markers");
   assert.match(src, /TypeError/, "the unit's behaviour survived the merge");
+  assert.match(src, /export const ZERO = 0/, "main's new export survived the merge");
   assert.ok(ledgerApproved(ctx, ctx.issue, head), "the merged head is approved");
 }
 
