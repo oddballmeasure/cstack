@@ -1,3 +1,4 @@
 .cstack/runs/
 node_modules/
 *.log
+tests/scenarios/results/

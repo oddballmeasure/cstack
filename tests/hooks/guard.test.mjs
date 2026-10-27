@@ -81,12 +81,13 @@ test("e2e-author may not write outside the hidden area", () => {
 
 test("off-limits blocks writes to configured paths, .git and vendor dirs", () => {
   const r = repo();
-  for (const p of [".github/workflows/ci.yml", ".git/config", "node_modules/x/index.js"]) {
+  for (const p of [".github/workflows/ci.yml", ".git/config", "node_modules/x/index.js", ".cstack/config.json"]) {
     const out = run(r, "Write", { file_path: p });
     assert.equal(out.code, 2, p);
     assert.match(out.err, /off-limits/);
   }
   assert.equal(run(r, "Read", { file_path: ".github/workflows/ci.yml" }).code, 0, "reads stay allowed");
+  assert.equal(run(r, "Write", { file_path: ".cstack/runs/issue-1/intake.json" }).code, 0, "the run store stays writable");
 });
 
 test("no-sleep-loops blocks polling loops and long sleeps", () => {

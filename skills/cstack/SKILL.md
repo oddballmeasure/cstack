@@ -41,16 +41,18 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A fork you want to ask about ("which approach", "what should this do"). Classify it first. If running something can answer it (behaviour, timing, output, perf), it is not the human's question. Build a throwaway sketch and let the result decide. Ask only for a product or preference call that no experiment can settle.
 - Two fixes on one premise failed the same gate. Stop and apply [Attack the Premise](references/principles/attack-the-premise.md).
 - A number you measured (speedup, regression, eval score). Apply [Explain the Number](references/principles/explain-the-number.md) before you report or act on it.
+- Work one GitHub issue end to end. Use `cstack:unit`. It owns the whole path in `docs/unit-flow.md` (intake, implement, verify, sync, PR, babysit, merge gate, settle).
+- A question about how code works, or a walkthrough before a change. Use `cstack:how`.
+- A bug with a cheap local test target, or a request for a failing test first. Use `cstack:tdd`.
+- About to claim a change works. Use `cstack:prove`: the same reproduction before and after.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
 
 Coming in later phases (not available yet, do the work by hand with the principles):
 
-- how and why (explain code and decisions)
+- why (decision history)
 - architect (parallel design exploration before implementing)
 - arena and swarm (design bakeoffs and parallel fan-out)
 - interrogate (multi-model adversarial review)
-- tdd (failing test first)
-- babysit-pr and merge-gate (drive a PR to merge-ready, then gate the merge)
 - program, full-send, full-stop, scout (run-level entry points)
 
 ## Principles
