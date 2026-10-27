@@ -1,6 +1,6 @@
 ---
 name: plan
-description: "Use when cstack needs a multi-unit plan from a spec and e2e plan, for example at step 4 of a program run after PR #0 merged. Writes <store>/plan.md and <store>/units.tsv (through orch unit add) that pass gates/check-plan.mjs, settles one-way doors with cstack:architect or cstack:arena and factual forks with cstack:prototype, then files one GitHub issue per unit labelled <prefix>:ready. Human gate H2 (approve the plan) unless config autonomy is send."
+description: "Use when cstack needs a multi-unit plan from a spec and e2e plan, for example at step 4 of a program run after PR #0 merged. Writes <store>/plan.md and <store>/units.tsv (through orch unit add) that pass gates/check-plan.mjs, settles one-way doors with cstack:architect or cstack:arena and factual forks with cstack:prototype, then files one GitHub issue per unit (labelled <prefix>:ready only when its dependencies are met). Human gate H2 (approve the plan) unless config autonomy is send."
 argument-hint: "--run <slug>"
 ---
 
@@ -109,11 +109,11 @@ Brief: <store>/units/U<n>.md
 Then:
 
 ```sh
-gh issue create --repo <repo> --title "<unit title>" --body-file <store>/issue-U<n>.md --label "<prefix>:ready"
+gh issue create --repo <repo> --title "<unit title>" --body-file <store>/issue-U<n>.md $LABEL
 <orch> unit set U<n> --issue <number from the URL> --state ready
 ```
 
-Set `--state ready` only for units whose dependencies are met. Others stay `planned`. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`gh issue list --repo <repo> --search "<title> in:title" --state open --json number,title`). Reuse it when it exists, so a resumed plan never files twice.
+Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`gh issue list --repo <repo> --search "<title> in:title" --state open --json number,title`). Reuse it when it exists, so a resumed plan never files twice.
 
 ### 8. Log
 
