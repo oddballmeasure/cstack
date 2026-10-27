@@ -401,6 +401,10 @@ test("plan: units.tsv has the fixed header and column count", () => {
   rejects(plan({ units: "" }), "format", "units");
 });
 
+test("plan: the E2E row of PR #0 is skipped", () => {
+  approves(plan({ units: UNITS + "E2E\te2e\tmerged\tcstack/1-e2e\t2\tabc\t1\t\t\t\n" }));
+});
+
 test("plan: unit ids match U<n> and are unique", () => {
   rejects(plan({ units: edit(UNITS, "U2\tcore", "Unit2\tcore") }), "unit-ids");
   rejects(plan({ units: edit(UNITS, "U2\tcore", "U1\tcore") }), "units-unique");

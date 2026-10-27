@@ -2,7 +2,8 @@
 // L3 scenario runner. Runs one scenario against the private testbed with a real headless Claude Code session.
 // Usage: node tests/scenarios/run.mjs <scenario> [--keep]
 // A scenario is tests/scenarios/<name>/scenario.mjs exporting:
-//   setup(ctx)   prepare the testbed (issues, branches, store) and return { prompt, issue? }
+//   setup(ctx)   prepare the testbed (issues, branches, store) and return { prompt, issue?, env? }
+//                env: extra variables for the session, for example CSTACK_COORDINATOR and CSTACK_RUN
 //   expect(ctx)  assertions after the session; throw on failure
 //   timeoutMinutes (default 60)
 // ctx: { name, testbed (a fresh clone), cstack, repo, outDir, sh, gh, git, issue, result }
@@ -44,12 +45,13 @@ sh("gh", ["repo", "clone", REPO, TESTBED, "--", "-q"]);
 git("config", "user.name", "cstack-scenario");
 git("config", "user.email", "cstack@users.noreply.github.com");
 
-const { prompt, issue } = await mod.setup(ctx);
+const { prompt, issue, env = {} } = await mod.setup(ctx);
 ctx.issue = issue;
 ctx.result = { exit: 0, seconds: 0, events: [], final: "" };
-if (prompt) await session(prompt);
+if (prompt) await session(prompt, env);
 
-async function session(prompt) {
+async function session(prompt, env) {
+const extra = Object.entries(env).map(([k, v]) => `${k}=${JSON.stringify(String(v))} `).join("");
 writeFileSync(path.join(outDir, "prompt.txt"), prompt);
 
 // Run the session detached under systemd so a long run survives this process (ADR-001).
@@ -58,7 +60,7 @@ writeFileSync(
   script,
   `#!/bin/sh
 cd ${JSON.stringify(TESTBED)}
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN PATH=${JSON.stringify(path.dirname(process.execPath) + ":" + process.env.HOME + "/.local/bin:/usr/local/bin:/usr/bin:/bin")} \\
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN ${extra}PATH=${JSON.stringify(path.dirname(process.execPath) + ":" + process.env.HOME + "/.local/bin:/usr/local/bin:/usr/bin:/bin")} \\
   claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${JSON.stringify(CSTACK)} --dangerously-skip-permissions \\
   "$(cat ${JSON.stringify(path.join(outDir, "prompt.txt"))})" > ${JSON.stringify(path.join(outDir, "session.jsonl"))} 2> ${JSON.stringify(path.join(outDir, "stderr.log"))}
 `,
@@ -86,7 +88,7 @@ ctx.result = { exit: run.status, seconds, apiKeySource: init.apiKeySource, final
 let verdict;
 const seconds = ctx.result.seconds;
 try {
-  if (ctx.result.apiKeySource && ctx.result.apiKeySource !== "none") throw new Error(`session billed through ${init.apiKeySource}; scenarios must run on the subscription`);
+  if (ctx.result.apiKeySource && ctx.result.apiKeySource !== "none") throw new Error(`session billed through ${ctx.result.apiKeySource}; scenarios must run on the subscription`);
   await mod.expect(ctx);
   verdict = { scenario: name, pass: true, seconds };
 } catch (err) {

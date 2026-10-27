@@ -33,7 +33,7 @@ Write the comment to `<store>/comment-<unit>-<outcome>.md`. The first line start
 
 | Outcome | `--state` | First line starts with | Unit state (`orch unit set --state`) |
 |---|---|---|---|
-| merged | `done` | `cstack resolved this in` | `merged` |
+| merged | `done` | `cstack resolved this in` | `merged`, with `--sha <merge sha>` so `cstack:post-merge-ci` finds the merge commit |
 | merge-ready (autonomy stop) | `in-progress` (unchanged) | `cstack: ready to merge` | `pr-open` (unchanged) |
 | needs a decision | `needs-human` | `cstack needs a decision before continuing` | `needs-human` |
 | not taken | `needs-human` | `cstack is not taking this issue:` | `needs-human` |
