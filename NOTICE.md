@@ -1,8 +1,24 @@
 # Notices
 
-cstack adapts material from these MIT-licensed projects. Each adapted file names its source in a comment or frontmatter note.
+cstack adapts material from these MIT-licensed projects. Each adapted file names its source in an attribution comment.
 
-- pstack, by Lauren Tan: https://github.com/cursor/plugins/tree/main/pstack (MIT)
-- tstack, by Theo Browne: https://github.com/t3dotgg/tstack (MIT)
+## pstack, by Lauren Tan (MIT)
 
-No files are adapted yet (Phase 0).
+https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/pstack/claude-code` at commit 519d36a.
+
+| cstack file | pstack source |
+|---|---|
+| `skills/cstack/SKILL.md` | `skills/poteto-mode/SKILL.md` |
+| `skills/cstack/references/principles/<name>.md` (24 files) | `skills/principle-<name>/SKILL.md` |
+| `skills/cstack/references/claude-code-notes.md` | `docs/harness/claude-code.md` |
+| `skills/unslop/SKILL.md` | `skills/unslop/SKILL.md` |
+| `skills/technical-writing/SKILL.md` | `skills/technical-writing/SKILL.md` |
+| `skills/show-me-your-work/SKILL.md`, `scripts/log.sh`, `references/decision-log-template.tsv` | `skills/show-me-your-work/` |
+
+## tstack, by Theo Browne (MIT)
+
+https://github.com/t3dotgg/tstack at commit 92e38e2. No files adapted yet.
+
+## Cardinal
+
+`docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner.

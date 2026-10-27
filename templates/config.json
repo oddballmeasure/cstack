@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "repo": "owner/name",
+  "base_branch": "main",
+  "test_command": ["npm", "test"],
+  "e2e_command": null,
+  "required_checks": [],
+  "paths_off_limits": [".github/workflows/**"],
+  "paths_hidden": ["tests/acceptance/**"],
+  "label_prefix": "cstack",
+  "autonomy": "stop",
+  "parallel": 1,
+  "models": {
+    "code": "opus",
+    "judge": "fable",
+    "review": "sonnet",
+    "gather": "haiku"
+  },
+  "limits": {
+    "coder_attempts": 3,
+    "verify_rounds": 2,
+    "ci_repair_rounds": 1,
+    "base_sync_rounds": 2,
+    "review_rounds": 3,
+    "test_timeout_seconds": 1500,
+    "ci_timeout_seconds": 2400
+  }
+}
