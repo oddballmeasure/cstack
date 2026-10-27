@@ -1,0 +1,128 @@
+#!/bin/sh
+# cstack doctor: read-only health check of a target repo.
+# Usage: doctor.sh [--offline] [repo-dir]
+# Prints one line per check: PASS|WARN|FAIL <check>: <detail>. Exit 1 if any FAIL.
+# --offline skips every check that calls GitHub.
+set -u
+
+offline=0
+if [ "${1:-}" = "--offline" ]; then offline=1; shift; fi
+dir=${1:-.}
+here=$(cd "$(dirname "$0")" && pwd)
+plugin_root=$(cd "$here/../../.." && pwd)
+fails=0
+
+pass() { printf 'PASS %s: %s\n' "$1" "$2"; }
+warn() { printf 'WARN %s: %s\n' "$1" "$2"; }
+fail() { printf 'FAIL %s: %s\n' "$1" "$2"; fails=$((fails + 1)); }
+
+# Tools
+for t in git jq node; do
+  if command -v "$t" >/dev/null 2>&1; then pass "tool $t" "$(command -v "$t")"; else fail "tool $t" "not on PATH"; fi
+done
+if command -v node >/dev/null 2>&1; then
+  major=$(node -p 'process.versions.node.split(".")[0]' 2>/dev/null || echo 0)
+  if [ "$major" -ge 22 ]; then pass "node version" "v$major"; else fail "node version" "v$major is below 22 (hooks need path.matchesGlob)"; fi
+fi
+if [ "$offline" -eq 0 ]; then
+  if ! command -v gh >/dev/null 2>&1; then fail "tool gh" "not on PATH"
+  elif gh auth status >/dev/null 2>&1; then pass "gh auth" "logged in"
+  else fail "gh auth" "not logged in (run gh auth login)"; fi
+fi
+
+# Repo
+if ! root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null); then
+  fail "git repo" "$dir is not inside a git repository"
+  printf '%s\n' "doctor: $fails failed"
+  exit 1
+fi
+pass "git repo" "$root"
+
+cfg="$root/.cstack/config.json"
+if [ ! -f "$cfg" ]; then
+  fail "config" ".cstack/config.json not found (run the setup-cstack skill)"
+  printf '%s\n' "doctor: $fails failed"
+  exit 1
+fi
+if ! jq empty "$cfg" 2>/dev/null; then
+  fail "config" ".cstack/config.json does not parse"
+  printf '%s\n' "doctor: $fails failed"
+  exit 1
+fi
+pass "config" "parses"
+
+# Schema. Each jq expression prints an error string, or nothing when the field is valid.
+schema_errors=$(jq -r '
+  def need(cond; msg): if cond then empty else msg end;
+  need(.version == 1; "version must be 1"),
+  need((.repo | type) == "string" and (.repo | test("^[^/]+/[^/]+$")) and .repo != "owner/name"; "repo must be owner/name"),
+  need((.base_branch | type) == "string" and (.base_branch | length) > 0; "base_branch must be a non-empty string"),
+  need((.test_command | type) == "array" and (.test_command | length) > 0 and all(.test_command[]; type == "string"); "test_command must be a non-empty array of strings"),
+  need(.e2e_command == null or ((.e2e_command | type) == "array" and (.e2e_command | length) > 0); "e2e_command must be null or a non-empty array"),
+  need((.required_checks | type) == "array"; "required_checks must be an array"),
+  need((.paths_off_limits | type) == "array"; "paths_off_limits must be an array"),
+  need((.paths_hidden | type) == "array"; "paths_hidden must be an array"),
+  need((.label_prefix | type) == "string" and (.label_prefix | test("^[a-z][a-z0-9-]*$")); "label_prefix must be lowercase letters, digits or dashes"),
+  need(.autonomy == "stop" or .autonomy == "send"; "autonomy must be stop or send"),
+  need((.parallel | type) == "number" and .parallel >= 1 and .parallel <= 8; "parallel must be 1 to 8"),
+  need((.models | type) == "object"; "models must be an object"),
+  (.models // {} | ["code","judge","review","gather"][] as $r
+     | need((.[$r] // "") | IN("opus","sonnet","haiku","fable","inherit"); "models.\($r) must be opus, sonnet, haiku, fable or inherit")),
+  (.limits // {} | ["coder_attempts","verify_rounds","ci_repair_rounds","base_sync_rounds","review_rounds","test_timeout_seconds","ci_timeout_seconds"][] as $k
+     | need((.[$k] | type) == "number" and .[$k] >= 1; "limits.\($k) must be a number >= 1")),
+  (keys - ["version","repo","base_branch","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits"]
+     | .[] | "unknown key \(.)")
+' "$cfg")
+if [ -n "$schema_errors" ]; then
+  printf '%s\n' "$schema_errors" | while IFS= read -r e; do printf 'FAIL config schema: %s\n' "$e"; done
+  fails=$((fails + $(printf '%s\n' "$schema_errors" | wc -l)))
+else
+  pass "config schema" "all keys valid"
+fi
+
+# Commands resolve. A repo-relative path (contains /) must be an executable file under the repo root.
+check_cmd() {
+  label=$1; exe=$2
+  [ -z "$exe" ] && return
+  case "$exe" in
+    */*) if [ -x "$root/$exe" ] || [ -x "$exe" ]; then pass "$label" "$exe"; else fail "$label" "$exe is not an executable file"; fi ;;
+    *) if command -v "$exe" >/dev/null 2>&1; then pass "$label" "$exe on PATH"; else fail "$label" "$exe not on PATH"; fi ;;
+  esac
+}
+check_cmd "test_command" "$(jq -r '.test_command[0] // empty' "$cfg")"
+check_cmd "e2e_command" "$(jq -r '.e2e_command[0] // empty' "$cfg")"
+
+# Run store
+if grep -qsx '\.cstack/runs/\?' "$root/.gitignore"; then pass "gitignore" ".cstack/runs/ is ignored"
+else warn "gitignore" ".cstack/runs/ is not in .gitignore"; fi
+if mkdir -p "$root/.cstack/runs" 2>/dev/null && [ -w "$root/.cstack/runs" ]; then pass "run store" ".cstack/runs is writable"
+else fail "run store" ".cstack/runs is not writable"; fi
+
+# Hooks: the guard blocks a known-bad call
+guard="$plugin_root/hooks/scripts/guard.mjs"
+if [ -f "$guard" ]; then
+  if printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 1"},"cwd":"/"}' | node "$guard" >/dev/null 2>&1; then
+    fail "hooks" "guard did not block a direct merge"
+  else
+    pass "hooks" "guard self-test blocks a direct merge"
+  fi
+else
+  fail "hooks" "guard not found at $guard"
+fi
+
+# GitHub
+if [ "$offline" -eq 0 ]; then
+  repo=$(jq -r .repo "$cfg"); base=$(jq -r .base_branch "$cfg"); prefix=$(jq -r .label_prefix "$cfg")
+  if gh repo view "$repo" --json name >/dev/null 2>&1; then pass "github repo" "$repo"; else fail "github repo" "cannot view $repo"; fi
+  if gh api "repos/$repo/branches/$base" >/dev/null 2>&1; then pass "base branch" "$base exists on $repo"; else fail "base branch" "$base not found on $repo"; fi
+  labels=$(gh label list --repo "$repo" --limit 500 --json name --jq '.[].name' 2>/dev/null || true)
+  missing=""
+  for l in ready in-progress done error needs-human investigate proposed; do
+    printf '%s\n' "$labels" | grep -qx "$prefix:$l" || missing="$missing $prefix:$l"
+  done
+  if [ -z "$missing" ]; then pass "labels" "all $prefix:* labels exist"; else fail "labels" "missing:$missing (run the setup-cstack skill)"; fi
+  if [ "$(jq '.required_checks | length' "$cfg")" -eq 0 ]; then warn "required checks" "none configured; the merge gate will not wait for CI"; fi
+fi
+
+if [ "$fails" -gt 0 ]; then printf '%s\n' "doctor: $fails failed"; exit 1; fi
+printf '%s\n' "doctor: ok"
