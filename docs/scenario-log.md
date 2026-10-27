@@ -11,3 +11,4 @@
 | 2026-10-27 | base-conflict | FAIL | 461 | semantic conflict; agent correctly asked a human; scenario redesigned |
 | 2026-10-27 | base-conflict | PASS | 696 | SYNC kept both sides |
 | 2026-10-27 | happy-merge | PASS | 676 | merged under autonomy send |
+| 2026-10-27 | f1-spec-e2e (P4 exit) | PASS | 1298 | 32 R, 20 E, 46 lanes all red; 16 mutations caught; PR #0 touched only the suite and config |

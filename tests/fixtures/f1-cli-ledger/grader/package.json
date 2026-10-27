@@ -1,0 +1,6 @@
+{
+  "name": "f1-cli-ledger-grader",
+  "private": true,
+  "type": "module",
+  "main": "index.js"
+}
