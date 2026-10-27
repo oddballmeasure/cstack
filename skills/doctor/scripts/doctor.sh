@@ -58,6 +58,7 @@ schema_errors=$(jq -r '
   need((.repo | type) == "string" and (.repo | test("^[^/]+/[^/]+$")) and .repo != "owner/name"; "repo must be owner/name"),
   need((.base_branch | type) == "string" and (.base_branch | length) > 0; "base_branch must be a non-empty string"),
   need((.test_command | type) == "array" and (.test_command | length) > 0 and all(.test_command[]; type == "string"); "test_command must be a non-empty array of strings"),
+  need(.setup_command == null or ((.setup_command | type) == "array" and (.setup_command | length) > 0); "setup_command must be null or a non-empty array"),
   need(.e2e_command == null or ((.e2e_command | type) == "array" and (.e2e_command | length) > 0); "e2e_command must be null or a non-empty array"),
   need((.required_checks | type) == "array"; "required_checks must be an array"),
   need((.paths_off_limits | type) == "array"; "paths_off_limits must be an array"),
@@ -70,7 +71,7 @@ schema_errors=$(jq -r '
      | need((.[$r] // "") | IN("opus","sonnet","haiku","fable","inherit"); "models.\($r) must be opus, sonnet, haiku, fable or inherit")),
   (.limits // {} | ["coder_attempts","verify_rounds","ci_repair_rounds","base_sync_rounds","review_rounds","test_timeout_seconds","ci_timeout_seconds"][] as $k
      | need((.[$k] | type) == "number" and .[$k] >= 1; "limits.\($k) must be a number >= 1")),
-  (keys - ["version","repo","base_branch","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits"]
+  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits"]
      | .[] | "unknown key \(.)")
 ' "$cfg")
 if [ -n "$schema_errors" ]; then
@@ -90,6 +91,7 @@ check_cmd() {
   esac
 }
 check_cmd "test_command" "$(jq -r '.test_command[0] // empty' "$cfg")"
+check_cmd "setup_command" "$(jq -r '.setup_command[0] // empty' "$cfg")"
 check_cmd "e2e_command" "$(jq -r '.e2e_command[0] // empty' "$cfg")"
 
 # Run store

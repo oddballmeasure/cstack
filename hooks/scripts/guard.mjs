@@ -45,8 +45,8 @@ function globPrefix(glob) {
 function matches(rel, globs) {
   for (const g of globs) {
     if (path.matchesGlob(rel, g)) return g;
-    const prefix = globPrefix(g);
-    if (prefix && (rel === prefix || rel.startsWith(prefix + "/"))) return g;
+    // "dir/**" also covers the directory itself.
+    if (g.endsWith("/**") && rel === g.slice(0, -3)) return g;
   }
   return null;
 }

@@ -2,11 +2,19 @@
   "version": 1,
   "repo": "owner/name",
   "base_branch": "main",
-  "test_command": ["npm", "test"],
+  "setup_command": null,
+  "test_command": [
+    "npm",
+    "test"
+  ],
   "e2e_command": null,
   "required_checks": [],
-  "paths_off_limits": [".github/workflows/**"],
-  "paths_hidden": ["tests/acceptance/**"],
+  "paths_off_limits": [
+    ".github/workflows/**"
+  ],
+  "paths_hidden": [
+    "tests/acceptance/**"
+  ],
   "label_prefix": "cstack",
   "autonomy": "stop",
   "parallel": 1,

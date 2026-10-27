@@ -14,10 +14,15 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/unslop/SKILL.md` | `skills/unslop/SKILL.md` |
 | `skills/technical-writing/SKILL.md` | `skills/technical-writing/SKILL.md` |
 | `skills/show-me-your-work/SKILL.md`, `scripts/log.sh`, `references/decision-log-template.tsv` | `skills/show-me-your-work/` |
+| `gates/orch.mjs`, `gates/lib/store.mjs` | `skills/poteto-mode/scripts/orch/` (pstack plugin source, same commit) |
 
 ## tstack, by Theo Browne (MIT)
 
-https://github.com/t3dotgg/tstack at commit 92e38e2. No files adapted yet.
+https://github.com/t3dotgg/tstack at commit 92e38e2.
+
+| cstack file | tstack source |
+|---|---|
+| `gates/pr-wait.mjs` | `skills/babysit-pr/scripts/pr-wait` |
 
 ## Cardinal
 
