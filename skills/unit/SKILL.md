@@ -103,7 +103,7 @@ Pass (exit 0): stage 1. Fail: stop with failure `setup`. Report the FAIL lines.
 Owner: `cstack:settle`.
 
 1. Standalone and no store yet: `<orch> init`, then `<orch> unit add <unit> --track issue --issue <N> --state ready`.
-2. Under orchestrate: confirm `<orch> unit get <unit>` exists and names issue `<N>`.
+2. Under orchestrate: confirm `<orch> unit get <unit>` exists and names issue `<N>`. Read `<orch> standing show` and obey every line. Put each line in every worker and verifier brief under FORBIDDEN or CONTEXT.
 3. Gate: `node <root>/gates/settle.mjs <N> --state in-progress --repo-dir <repo>`. Then `<orch> unit set <unit> --state in-progress`.
 
 Pass: stage 2. Fail: stop with failure `github`.
@@ -243,7 +243,7 @@ Pass `--merge` only under config `autonomy: send`. Never `--admin`.
 
 ### 12 Settle
 
-Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. Under orchestrate, also push the final report: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
+Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. After a merge, record the merge commit too: `<orch> unit set <unit> --state merged --sha <merge sha>`. Under orchestrate, also push the final report: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
 
 ## On failure
 

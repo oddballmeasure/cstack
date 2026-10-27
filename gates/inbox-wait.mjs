@@ -1,0 +1,75 @@
+#!/usr/bin/env node
+// Watcher for the orchestrate coordinator, made for the Monitor tool. Prints one line per event:
+//   inbox <agent> <unit> <status> <report>     a new inbox entry (peeked, never drained)
+//   worker <unit> <state>                      a Level B worker seen not alive on the first poll
+//   worker <unit> <old> -> <new>               a worker's systemd state changed
+// and exits 0 with a last line:
+//   done: all units terminal                   every unit is merged, done, error or needs-human
+//   idle: no live worker (<n> units open)      nothing runs any more; the coordinator must act
+//   deadline: <iso>                            --until passed (the wait for a usage-limit reset)
+// With --until it waits for the deadline instead of exiting idle.
+// While it runs it holds <store>/watchers/<pid>, which tells the pending-work Stop hook that the
+// coordinator is waiting correctly.
+// Usage: inbox-wait.mjs --store <dir> [--interval-ms 15000] [--until <iso>]
+// Exit 0 when it stops for a reason above, 2 on usage or store errors.
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { main, parseArgs, UsageError, loadConfig } from "./lib/common.mjs";
+import { openStore } from "./lib/store.mjs";
+import { IN_FLIGHT_STATES, TERMINAL_STATES, workerName, workerState } from "./lib/workers.mjs";
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const say = (line) => process.stdout.write(`${line}\n`);
+
+main(async (argv) => {
+  const args = parseArgs(argv, { options: ["store", "interval-ms", "until"] });
+  const interval = Number(args["interval-ms"] ?? 15000);
+  const until = args.until === undefined ? null : Date.parse(args.until);
+  if (args._.length || !args.store || !Number.isInteger(interval) || interval < 1 || Number.isNaN(until)) {
+    throw new UsageError("usage: inbox-wait.mjs --store <dir> [--interval-ms n] [--until <iso>]");
+  }
+  const store = path.resolve(args.store);
+  const { config } = loadConfig(store);
+  const snapshot = () => {
+    const s = openStore(store);
+    try {
+      return { units: s.units.list(), inbox: s.inbox.peek() };
+    } finally {
+      s.close();
+    }
+  };
+  snapshot();
+  const mark = path.join(store, "watchers", String(process.pid));
+  mkdirSync(path.dirname(mark), { recursive: true });
+  writeFileSync(mark, `${new Date().toISOString()}\n`);
+  process.on("exit", () => rmSync(mark, { force: true }));
+  for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => process.exit(0));
+
+  const seen = new Set();
+  const workers = new Map();
+  for (;;) {
+    const { units, inbox } = snapshot();
+    for (const p of inbox) {
+      if (seen.has(p.file)) continue;
+      seen.add(p.file);
+      say(`inbox ${p.agent} ${p.unit} ${p.status} ${p.report}`.trimEnd());
+    }
+    let live = 0;
+    for (const u of units.filter((u) => IN_FLIGHT_STATES.includes(u.state))) {
+      const { state, alive } = workerState(workerName(config.repo, store, u.id));
+      if (alive) live++;
+      const before = workers.get(u.id);
+      if (before === undefined && !alive) say(`worker ${u.id} ${state}`);
+      if (before !== undefined && before !== state) say(`worker ${u.id} ${before} -> ${state}`);
+      workers.set(u.id, state);
+    }
+    const open = units.filter((u) => !TERMINAL_STATES.includes(u.state)).length;
+    if (open === 0) return say("done: all units terminal"), 0;
+    if (until !== null) {
+      if (Date.now() >= until) return say(`deadline: ${new Date(until).toISOString()}`), 0;
+    } else if (live === 0) {
+      return say(`idle: no live worker (${open} units open)`), 0;
+    }
+    await sleep(interval);
+  }
+});
