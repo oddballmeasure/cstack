@@ -37,9 +37,9 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 |---|---|---|---|---|---|
 | 0 | Preflight | `cstack:doctor` | `doctor.sh` | 1 | stop, failure `setup` |
 | 1 | Claim | `cstack:settle` | `gates/settle.mjs --state in-progress` | 2 | stop, failure `github` |
-| 2 | Profile | `cstack:profile-repo` | profile covers all tracked files | 3 | stop, failure `setup` |
-| 3 | Intake | `cstack:intake` | `check-intake.mjs` (one corrective retry) | 4 if feature/bug/chore | settle `needs-human` (question, needs_human, reject) or failure `invalid_output` |
-| 4 | Isolate | `cstack:unit` | `isolate.mjs` | 5 | failure `git` |
+| 2 | Isolate | `cstack:unit` | `isolate.mjs` | 3 | failure `git` |
+| 3 | Profile | `cstack:profile-repo` | profile covers all tracked files | 4 | stop, failure `setup` |
+| 4 | Intake | `cstack:intake` | `check-intake.mjs` (one corrective retry) | 5 if feature/bug/chore | settle `needs-human` (question, needs_human, reject) or failure `invalid_output` |
 | 5 | Implement | `cstack:implement-ticket`, one ticket at a time in dependency order | `check-commit.mjs` | next ticket, then 6 | `cstack:repair` up to `coder_attempts` per ticket, then failure `tests_failed` or `no_change` |
 | 6 | Verify | `cstack:verify-head` | `check-verdict.mjs`, recorded with `orch ledger record` | 7 | REPAIR ticket → 5, up to `verify_rounds`, then failure `verification` |
 | 7 | Sync | `cstack:sync-base` | `gates/sync-base.mjs` | 8 (unchanged), or re-run 5's gate then 6 (merged) | conflict → SYNC ticket → 5, up to `base_sync_rounds`, then failure `base_conflict` |
@@ -50,6 +50,8 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 | 12 | Settle | `cstack:settle` | `gates/settle.mjs` | done | |
 
 After any new commit, the old verdict is void. Stage 6 must run again before 8.
+
+Isolate runs before profile and intake, so explorers and planners read code only in the sparse worktree, where the hidden suite is not on disk.
 
 ## Subagents
 

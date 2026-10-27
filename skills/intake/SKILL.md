@@ -1,11 +1,11 @@
 ---
 name: intake
-description: "Use when a cstack unit reaches intake (stage 3) for a GitHub issue. Decides whether cstack takes the issue (feature, bug, chore, question, reject, needs_human) and, if so, splits it into 1 to 4 tickets in dependency order, each requirement covered exactly once, with target files taken from the repo profile. Writes <store>/intake-<unit>.json that must pass gates/check-intake.mjs."
+description: "Use when a cstack unit reaches intake (stage 4) for a GitHub issue. Decides whether cstack takes the issue (feature, bug, chore, question, reject, needs_human) and, if so, splits it into 1 to 4 tickets in dependency order, each requirement covered exactly once, with target files taken from the repo profile. Writes <store>/intake-<unit>.json that must pass gates/check-intake.mjs."
 ---
 
 # Intake
 
-Intake turns one issue into one intake decision. It follows Cardinal's orchestrator (oddballmeasure/cardinal, `skills/orchestrator/SKILL.md` and `roles/orchestrator.py`). The format is the header of `gates/check-intake.mjs`. The example is `templates/intake.json`. The routing is in `docs/unit-flow.md`, stage 3.
+Intake turns one issue into one intake decision. It follows Cardinal's orchestrator (oddballmeasure/cardinal, `skills/orchestrator/SKILL.md` and `roles/orchestrator.py`). The format is the header of `gates/check-intake.mjs`. The example is `templates/intake.json`. The routing is in `docs/unit-flow.md`, stage 4.
 
 Intake is read-only for the repo. It writes only into the run store.
 

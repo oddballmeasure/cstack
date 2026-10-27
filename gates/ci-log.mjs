@@ -35,8 +35,9 @@ await main(async (argv) => {
     const job = String(c.details_url).match(/\/actions\/runs\/\d+\/job\/(\d+)/);
     let tail;
     if (job) {
-      const r = run("gh", ["api", `repos/${repo}/actions/jobs/${job[1]}/logs`], { cwd: dir });
-      tail = r.code === 0 ? r.stdout : `(job log unavailable: ${r.stderr.trim()})`;
+      // Job logs carry terminal color codes; gh refuses them unless allowed, so allow and strip them.
+      const r = run("gh", ["api", "--allow-escape-sequences", `repos/${repo}/actions/jobs/${job[1]}/logs`], { cwd: dir });
+      tail = r.code === 0 ? r.stdout.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "") : `(job log unavailable: ${r.stderr.trim()})`;
     } else {
       tail = [c.output.summary, c.output.text].filter(Boolean).join("\n") || "(no output)";
     }

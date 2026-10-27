@@ -171,8 +171,8 @@ test("ci-log returns tails for failed checks only", () => {
         },
       ],
     },
-    { match: "^api repos/o/r/actions/jobs/42/logs", responses: [{ stdout: log + "\n" }] },
-    { match: "^api repos/o/r/actions/jobs/43/logs", responses: [{ code: 1, stderr: "HTTP 410" }] },
+    { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/42/logs", responses: [{ stdout: log.replace("line 99", "\u001b[31mline 99\u001b[0m") + "\n" }] },
+    { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/43/logs", responses: [{ code: 1, stderr: "HTTP 410" }] },
   ]);
   const res = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--lines", "3", "--json"], { env });
   assert.equal(res.code, 1, res.out + res.err);
