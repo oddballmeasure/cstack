@@ -22,6 +22,14 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/maintain-verification-skill/SKILL.md` | `skills/maintain-verification-skill/SKILL.md` |
 | `skills/sharpen/SKILL.md` | `skills/sharpen/SKILL.md` |
 | `gates/orch.mjs`, `gates/lib/store.mjs` | `skills/poteto-mode/scripts/orch/` (pstack plugin source, same commit) |
+| `skills/plan/SKILL.md` | `skills/poteto-mode/playbooks/multi-phase-plan.md` |
+| `skills/architect/SKILL.md`, `references/` (3 files) | `skills/architect/` |
+| `skills/arena/SKILL.md` | `skills/arena/SKILL.md` |
+| `skills/prototype/SKILL.md` | `skills/poteto-mode/playbooks/prototype.md` |
+| `skills/orchestrate/SKILL.md` | `skills/poteto-mode/playbooks/orchestrate.md` |
+| `skills/resume-run/SKILL.md` | `skills/poteto-mode/playbooks/session-pickup.md` |
+| `skills/pause-safely/SKILL.md` | `skills/poteto-mode/playbooks/pause-safely.md` |
+| `skills/status/SKILL.md` | `skills/ketchup/SKILL.md` (voice rules) |
 
 ## tstack, by Theo Browne (MIT)
 
@@ -38,4 +46,4 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 
 ## Cardinal
 
-`docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner.
+`docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner. Phase 5 ports Cardinal's daemon rules: `gates/post-merge.mjs` and `skills/post-merge-ci/` from `daemon/post_merge.py`, and the worker loop in `gates/worker.mjs` and `skills/orchestrate/` from `daemon/workers.py` and `daemon/loop.py`.

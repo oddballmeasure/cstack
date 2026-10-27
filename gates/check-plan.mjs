@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Gate: units.tsv (and plan.md when given) cover spec.md through the lanes of e2e-plan.md.
+// Rows on track e2e (PR #0, the hidden suite) are skipped.
 // A unit covers requirement R when one of its lanes lists R in Covers. plan.md has no
 // Requirements line: the e2e plan is the one place requirements meet lanes.
 // Usage: node gates/check-plan.mjs --units <units.tsv> --spec <spec.md> --e2e <e2e-plan.md> [--plan <plan.md>] [--json]
@@ -11,7 +12,11 @@ const SIZES = ["S", "M", "L"];
 main((argv) => {
   const args = parseArgs(argv, { flags: ["json"], options: ["units", "spec", "e2e", "plan"] });
   if (args._.length) throw new UsageError("usage: check-plan.mjs --units <units.tsv> --spec <spec.md> --e2e <e2e-plan.md> [--plan <plan.md>] [--json]");
-  const { units, problems } = parseUnits(readDoc(args.units, "units (--units)"));
+  // A program store also holds PR #0's row (unit E2E, track e2e, from cstack:e2e-plan). It ships the
+  // suite, not requirements, so the plan rules skip it.
+  const parsed = parseUnits(readDoc(args.units, "units (--units)"));
+  const { problems } = parsed;
+  const units = parsed.units.filter((u) => u.track !== "e2e");
   const spec = parseSpec(readDoc(args.spec, "spec (--spec)"));
   const e2e = parseE2e(readDoc(args.e2e, "e2e plan (--e2e)"));
   const plan = args.plan ? parsePlan(readDoc(args.plan, "plan (--plan)")) : null;

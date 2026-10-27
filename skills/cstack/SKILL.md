@@ -48,13 +48,21 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A question about how code works, or a walkthrough before a change. Use `cstack:how`.
 - A bug with a cheap local test target, or a request for a failing test first. Use `cstack:tdd`.
 - About to claim a change works. Use `cstack:prove`: the same reproduction before and after.
+- A spec and e2e plan that need units, issues and an order. Use `cstack:plan`. It ends at human gate H2 (skipped under autonomy `send`).
+- A one-way door: a public interface, an on-disk format, a module boundary several units build on. Use `cstack:architect`. It runs `cstack:arena`.
+- One attempt at a non-trivial artifact would lock in the wrong shape. Use `cstack:arena`.
+- A factual fork that a run can settle. Use `cstack:prototype` instead of asking.
+- A planned program of units to run to the end. Use `cstack:orchestrate`. It runs each unit through `cstack:unit` and judges every merge with `cstack:post-merge-ci`.
+- A merge whose base-branch CI is not judged yet. Use `cstack:post-merge-ci`.
+- A run whose coordinator died, was compacted, or was paused. Use `cstack:resume-run`.
+- The human asks to pause or stop for now (not "keep going"). Use `cstack:pause-safely`.
+- The human asks how a run is going, or a run closes. Use `cstack:status`.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
 
 Coming in later phases (not available yet, do the work by hand with the principles):
 
 - why (decision history)
-- architect (parallel design exploration before implementing)
-- arena and swarm (design bakeoffs and parallel fan-out)
+- swarm (parallel fan-out)
 - interrogate (multi-model adversarial review)
 - program, full-send, full-stop, scout (run-level entry points)
 

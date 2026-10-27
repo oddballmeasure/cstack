@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+// Fake systemctl for tests. Handles `systemctl --user is-active <name>` only.
+//   FAKE_SYSTEMCTL_STATES  JSON file {"<unit name>": "<state>"}, read on every call (default state: inactive)
+//   FAKE_SYSTEMCTL_LOG     file to append argv to
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
+const argv = process.argv.slice(2);
+if (process.env.FAKE_SYSTEMCTL_LOG) appendFileSync(process.env.FAKE_SYSTEMCTL_LOG, argv.join(" ") + "\n");
+if (argv[0] !== "--user" || argv[1] !== "is-active" || argv.length !== 3) {
+  process.stderr.write(`fake systemctl: unhandled: ${argv.join(" ")}\n`);
+  process.exit(1);
+}
+const file = process.env.FAKE_SYSTEMCTL_STATES;
+const states = file && existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : {};
+const state = states[argv[2]] ?? "inactive";
+process.stdout.write(state + "\n");
+process.exit(state === "active" ? 0 : 3);

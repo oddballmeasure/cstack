@@ -91,3 +91,17 @@ Every comment and PR body ends with the badge line from `templates/footer.md`.
 | `gates/publish.mjs <worktree>` | Push with `--force-with-lease` pinned to the observed remote head, then confirm the remote SHA equals local HEAD. |
 | `gates/ci-log.mjs <pr>` | Failed required or other checks on the PR head with a bounded log tail each (Actions job logs, else the check's output summary). |
 | `gates/profile-diff.mjs <repo> [--write]` | Tracked files whose sha256 changed against `.cstack/profile.json`. |
+
+## Under orchestrate (Phase 5)
+
+`cstack:orchestrate` runs many units from one store. Level A runs `cstack:unit` in the coordinator session. Level B runs each unit as a detached worker, `gates/worker.mjs launch`, under `systemd-run --user` as `cstack-<repo name>-<slug>-<unit>`.
+
+| Thing | Contract |
+|---|---|
+| Worker prompt | `/cstack:unit <N> --run <slug> --unit <id>`, with `CSTACK_RUN` and `CSTACK_UNIT` set, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_COORDINATOR` unset, an explicit PATH, `--strict-mcp-config`. |
+| Worker files | `<store>/workers/<unit>.{jsonl,stderr.log,launches,exit.txt,not-before}` (header of `gates/lib/workers.mjs`). |
+| Exit entry | systemd `ExecStopPost` runs `worker.mjs exit`, which pushes one inbox entry from agent `worker` with status `setup`, the unit's settled state, `usage_limit`, or `crash`. It runs after SIGKILL too. |
+| Usage limit | `worker.mjs exit` sets the unit back to `ready` and writes `not-before` from "resets <time>" in the output (else one hour). `worker.mjs next` defers the unit until then. |
+| Standing orders | The unit reads `orch standing show` at stage 1 and carries each line into its briefs. |
+| Merge SHA | After a merge, stage 12 sets the unit's `sha` column to the merge commit. `gates/post-merge.mjs` judges that commit's checks. |
+| Waiting | The coordinator waits under the Monitor tool on `gates/inbox-wait.mjs`, which holds `<store>/watchers/<pid>`. The `pending-work` Stop hook blocks a coordinator (`CSTACK_COORDINATOR=1`, `CSTACK_RUN=<slug>`) from ending its turn while units are in flight and no watcher is alive. |
