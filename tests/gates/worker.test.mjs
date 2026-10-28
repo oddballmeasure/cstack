@@ -219,3 +219,24 @@ test("launch --coordinator starts the run's coordinator with CSTACK_COORDINATOR=
   assert.match(res.out, /launched cstack-r-prog-coordinator \(launch 1\)/);
   assert.equal(launchCount(p.store, "coordinator"), 1);
 });
+
+test("CSTACK_PROGRAM_AUTONOMY reaches a worker only when this process has it as send", () => {
+  const p = program();
+  p.orch("unit", "add", "U1", "--track", "core", "--issue", "7", "--state", "ready");
+  const dry = (env) => JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], env).out);
+  assert.ok(dry({ CSTACK_PROGRAM_AUTONOMY: "send" }).includes("--setenv=CSTACK_PROGRAM_AUTONOMY=send"));
+  assert.ok(dry({ CSTACK_PROGRAM_AUTONOMY: "stop" }).includes("--setenv=CSTACK_PROGRAM_AUTONOMY="), "anything else is passed empty");
+  assert.ok(dry({}).includes("--setenv=CSTACK_PROGRAM_AUTONOMY="), "unset is passed empty, masking the systemd manager's value");
+});
+
+test("a program store relaunches its coordinator as /cstack:program --resume; run.json sets parallel", () => {
+  const p = program({ parallel: 1 });
+  writeFileSync(path.join(p.store, "run.json"), JSON.stringify({ entry: "program", slug: "prog", autonomy: "send", parallel: 2 }));
+  for (const extra of [[], ["--resume"]]) {
+    const dry = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", ...extra, "--dry-run"]).out);
+    assert.equal(dry.at(-1), "/cstack:program --resume prog");
+  }
+  p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  p.orch("unit", "add", "U2", "--track", "core", "--state", "ready");
+  assert.equal(p.worker(["next", "--store", p.store]).out, "launch U1\nlaunch U2\nslots 2/2\n");
+});

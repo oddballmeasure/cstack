@@ -17,6 +17,7 @@ A **unit** is one piece of work that ends as one PR. `cstack:unit` drives it. Th
 | Review ledger | `<store>/review-<unit>-rounds.tsv` and `<store>/review-<unit>.tsv`, kept by `cstack:review-loop`. |
 | Feedback | `<store>/feedback-<unit>.md`. Append-only. The latest section is what the implementer must act on. |
 | Decision log | `<store>/decisions.tsv` via `cstack:show-me-your-work`. One row per stage transition and per failed gate. |
+| Run record | `<store>/run.json`, written by `cstack:program`, `cstack:full-send` or `cstack:full-stop`. Per-run `autonomy` and `parallel`. Read them with `gates/run-settings.mjs --store <store>` (ADR-006). |
 
 ## Commit trailers
 
@@ -48,7 +49,7 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 | 9 | PR | `cstack:file-pr` | PR exists for the branch, body starts `Closes #N` | 10 | failure `github` |
 | 10 | Babysit | `cstack:babysit-pr` | `pr-wait.mjs --until green` under Monitor | 10b | failed check → `gates/ci-log.mjs` → CI-REPAIR ticket → 5, up to `ci_repair_rounds`, then failure `ci_failed`. DIRTY → 7. |
 | 10b | Review (sub-step of 10, once per new head; skipped for docs-only diffs) | `cstack:review-loop` | ledger: an `APPROVE` round at HEAD, no open blocker or should | 11 | agreed finding → REPAIR ticket (`cstack:repair` source `review`) → 5, up to `review_rounds` rounds (5 for security, auth, data loss, concurrency). Dispute after two replies or budget end → settle `needs-human`. |
-| 11 | Merge gate | `cstack:merge-gate` | `check-merge.mjs` (`--merge` merges only under `autonomy: send`; also requires a review-loop APPROVE round at HEAD and no open blocker or should, unless the diff is docs-only) | 12 | head moved → 6, base moved → 7, else failure `pr_violation` |
+| 11 | Merge gate | `cstack:merge-gate` | `check-merge.mjs` (`--merge` merges only under the run's effective autonomy `send`, from config and `<store>/run.json` per ADR-006; also requires a review-loop APPROVE round at HEAD and no open blocker or should, unless the diff is docs-only, or unit `E2E` touches only `paths_hidden` and the config) | 12 | head moved → 6, base moved → 7, else failure `pr_violation` |
 | 12 | Settle | `cstack:settle` | `gates/settle.mjs` | done | |
 
 After any new commit, the old verdict is void. Stage 6 must run again before 8.

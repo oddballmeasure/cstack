@@ -53,7 +53,7 @@ The `pending-work` Stop hook keeps a coordinator from ending its turn while unit
 
 ## Choose the level
 
-Count the U units (skip track `e2e`). Read config `parallel` (default 1).
+Count the U units (skip track `e2e`). Read the run's `parallel` and autonomy with `node <root>/gates/run-settings.mjs --store <store>`: `<store>/run.json` overrides config for one run (ADR-006). `<worker> next` applies the same `parallel`.
 
 - **Level A** when there are 5 units or fewer and `parallel` is 1. You run each unit yourself, in this session, one at a time.
 - **Level B** otherwise. Each unit runs as a detached headless worker. Workers survive your compaction, crashes and restarts. You read their results from the store.
@@ -91,7 +91,7 @@ Each pass runs Drain, Launch, Wait, in that order. A fresh session starts at Dra
 | Unit state, worker | What it means | Do |
 |---|---|---|
 | `merged` | Its merge gate merged it. | **Land** it. |
-| `pr-open`, worker not active | Merge-ready under autonomy stop. | Nothing. It waits on the human. Dependents wait too. |
+| `pr-open`, worker not active | Merge-ready under the run's autonomy stop. | Nothing. It waits on the human. Dependents wait too. |
 | `error` or `needs-human` | The unit settled the issue and stopped. | Nothing. Its dependents stay blocked. Report it. |
 | `in-progress` or `verifying`, worker active | Running. | Nothing. |
 | `ready`, entry `usage_limit` | The wrapper re-queued it and wrote `workers/<unit>.not-before`. | Nothing. `next` defers it until the reset. Log the reset time. |
@@ -118,7 +118,7 @@ If `<orch> standing show` has a line that starts with `STOP` (written by `cstack
 <worker> next --store <store>
 ```
 
-It prints `launch <unit>` lines for the free slots (config `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` follows Cardinal's rule: nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset.
+It prints `launch <unit>` lines for the free slots (the run's `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` follows Cardinal's rule: nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset.
 
 For each `launch` line:
 

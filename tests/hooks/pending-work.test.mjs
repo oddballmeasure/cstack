@@ -77,3 +77,13 @@ test("pr-open counts as in flight only under autonomy send", () => {
   assert.equal(stop({ cwd: repo({ states: ["pr-open"], config: "{broken" }).root }).code, 0, "an unreadable config reads as stop");
   assert.equal(stop({ cwd: repo({ states: [], config: false }).root }).code, 0);
 });
+
+test("run.json can lower autonomy for the hook; raising needs CSTACK_PROGRAM_AUTONOMY=send", () => {
+  const lowered = repo({ states: ["pr-open"], autonomy: "send" });
+  writeFileSync(path.join(lowered.store, "run.json"), JSON.stringify({ autonomy: "stop" }));
+  assert.equal(stop({ cwd: lowered.root }).code, 0, "run.json stop lowers config send");
+  const raised = repo({ states: ["pr-open"] });
+  writeFileSync(path.join(raised.store, "run.json"), JSON.stringify({ autonomy: "send" }));
+  assert.equal(stop({ cwd: raised.root }, { CSTACK_PROGRAM_AUTONOMY: "" }).code, 0, "run.json alone cannot raise");
+  assert.equal(stop({ cwd: raised.root }, { CSTACK_PROGRAM_AUTONOMY: "send" }).code, 2, "a human-launched send run still merges pr-open units");
+});
