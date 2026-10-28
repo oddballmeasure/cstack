@@ -4,7 +4,7 @@ The plan (section 7.1) says cstack is done only when each Cardinal capability ha
 
 Status:
 
-- **Live**: a real headless run passed (an L3 scenario or the L4 f1 fixture, see `docs/scenario-log.md`).
+- **Live**: a real headless run passed (an L3 scenario or an L4 fixture: f1, f2 or f3, see `docs/scenario-log.md`).
 - **Tested**: unit tests at 100% line and branch coverage (`npm run coverage:gates`), or a hook test. No live run yet.
 - **Partial**: what is missing is named in the row.
 

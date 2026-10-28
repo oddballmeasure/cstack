@@ -22,3 +22,5 @@
 | 2026-10-27 | coordinator-compaction | PASS | 363 | fresh session adopted live workers; usage limit hit at the end |
 | 2026-10-27 | dependency-order | PASS | 1211 | B started only after A merged (autonomy send) |
 | 2026-10-28 | f1-cli-ledger (L4, P7 exit) | PASS | 3193 | grader 24/24, own e2e 37/37, 0 questions, 3 PRs merged under send, 1 CI-REPAIR |
+| 2026-10-28 | f2-http-shortener (L4, P8 exit) | PASS | 7049 | grader 30/30, own e2e 44/44, 4 PRs merged under send, parallel 2, 0 questions, 1 CI-REPAIR |
+| 2026-10-28 | f3-web-kanban (L4, P8 exit) | PASS | 12063 | grader 25/25 (Playwright), own e2e 37/37, 4 PRs merged, 0 questions, 2 REPAIR + 1 CI-REPAIR |
