@@ -34,7 +34,7 @@ export function makeRepo(cfg = {}) {
   sh(base, "git", ["init", "-q", "--bare", "-b", "main", origin]);
   sh(base, "git", ["clone", "-q", origin, root]);
   git(root, "checkout", "-q", "-b", "main");
-  const config = { ...TEMPLATE, repo: "o/r", test_command: ["./scripts/test.sh"], e2e_command: ["./scripts/e2e.sh"], ...cfg };
+  const config = { ...TEMPLATE, autonomy: "stop", repo: "o/r", test_command: ["./scripts/test.sh"], e2e_command: ["./scripts/e2e.sh"], ...cfg };
   write(root, ".cstack/config.json", JSON.stringify(config, null, 2));
   write(root, "scripts/test.sh", "#!/bin/sh\n[ -e src/broken ] && { echo 'unit test failed: broken'; exit 1; }\necho 'ok 1 - unit'\n", 0o755);
   write(

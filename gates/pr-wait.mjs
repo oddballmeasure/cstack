@@ -3,7 +3,8 @@
 //
 // pr-wait: watch one GitHub pull request and print one line per real event.
 //
-//   node gates/pr-wait.mjs <pr|url> [--repo owner/name] [--until ready|green|any-change]
+//   node gates/pr-wait.mjs <pr|url> [--repo owner/name] [--until ready|green|any-change] [--store <run store>]
+//   While it runs it registers <store>/watchers/<pid> (store from --store, else CSTACK_RUN) for the Stop hook.
 //                          [--interval 20] [--state-dir <dir>]
 //
 // <pr> is a PR number or PR URL. Without --repo, the repo comes from the URL or from the
@@ -47,11 +48,12 @@
 // comes after. State older than 6 hours is discarded.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, renameSync, statSync, linkSync, unlinkSync, writeSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, statSync, linkSync, unlinkSync, writeSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs, loadConfig } from "./lib/common.mjs";
+import { registerWatcher } from "./lib/workers.mjs";
 
 // Review bots. A gating bot must review the head before `ready`. An advisory bot is reported only.
 const GATING_BOTS = ["greptile", "macroscope"];
@@ -631,10 +633,23 @@ class Watcher {
   }
 }
 
+// The run store this watcher serves, so the pending-work Stop hook counts it: --store, else the store
+// named by CSTACK_RUN under the configured repo the watcher runs in. No store means nothing to register.
+function watcherStore(explicit) {
+  if (explicit) return path.resolve(explicit);
+  if (!process.env.CSTACK_RUN) return null;
+  try {
+    const store = path.join(loadConfig(process.cwd()).root, ".cstack", "runs", process.env.CSTACK_RUN);
+    return existsSync(store) ? store : null;
+  } catch {
+    return null;
+  }
+}
+
 async function main(argv) {
   let args;
   try {
-    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir"] });
+    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir", "store"] });
   } catch (err) {
     fail(err.message);
   }
@@ -651,6 +666,8 @@ async function main(argv) {
   mkdirSync(stateDir, { recursive: true });
   const lock = new Lock(path.join(stateDir, `${repo.replace("/", "__")}__${pr}.lock`));
   process.on("exit", () => lock.release());
+  const store = watcherStore(args.store);
+  if (store) registerWatcher(store, "pr-wait");
   await new Watcher({ repo, pr, until, interval, stateDir, lock }).run();
 }
 

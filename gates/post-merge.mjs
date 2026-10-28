@@ -19,6 +19,7 @@
 // --wait judges again every CSTACK_POST_MERGE_POLL_MS (default 60000) until nothing is waiting.
 // Exit 0 when nothing is red, 1 when a merge is filed, filing, expired or failed to file, 2 on usage errors.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { registerWatcher } from "./lib/workers.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
@@ -174,6 +175,7 @@ main(async (argv) => {
   const { config } = loadConfig(dir);
   const ctx = { repo: config.repo, base: config.base_branch, prefix: config.label_prefix, dir, store, file: path.join(store, "post-merge.tsv"), lines };
   const poll = Number(process.env.CSTACK_POST_MERGE_POLL_MS || 60000);
+  if (args.wait) registerWatcher(store, "post-merge");
   for (;;) {
     const r = round(ctx, args.json);
     if (!args.wait || r.pending === 0) return r.gate.finish({ merges: r.merges, pending: r.pending });

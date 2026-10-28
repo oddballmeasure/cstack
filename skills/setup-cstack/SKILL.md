@@ -22,7 +22,7 @@ Setup prepares one target repo. Run it from inside that repo. It is safe to run 
 5. **Ask once.** Use AskUserQuestion for the decisions only the user can make, each with a default:
    - `paths_off_limits` (default: `.github/workflows/**`).
    - `paths_hidden` (default: `tests/acceptance/**`).
-   - `autonomy` (default: `stop`, which means cstack never merges).
+   - `autonomy` (default: `send`, which means the merge gate merges once every check, the verifier and the review loop pass; choose `stop` to merge every PR yourself).
    - Model per role (defaults: code `opus`, judge `fable`, review `sonnet`, gather `haiku`). Judge and review should differ from code.
 6. **Write the config.** Start from `templates/config.json` in the plugin root (two directories up from this skill). Write `.cstack/config.json` with 2-space JSON. Show the user the final file.
 7. **Ignore local state.** Make sure `.gitignore` has the two lines `.cstack/*` and `!.cstack/config.json`, so the run store and the repo profile stay local and only the config is committed.
