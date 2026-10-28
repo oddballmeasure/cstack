@@ -21,3 +21,4 @@
 | 2026-10-27 | worker-killed | PASS | 445 | killed worker restarted once, resumed without repeats |
 | 2026-10-27 | coordinator-compaction | PASS | 363 | fresh session adopted live workers; usage limit hit at the end |
 | 2026-10-27 | dependency-order | PASS | 1211 | B started only after A merged (autonomy send) |
+| 2026-10-28 | f1-cli-ledger (L4, P7 exit) | PASS | 3193 | grader 24/24, own e2e 37/37, 0 questions, 3 PRs merged under send, 1 CI-REPAIR |

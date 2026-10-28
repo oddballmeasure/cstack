@@ -34,6 +34,8 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/blast-radius/SKILL.md` | `skills/blast-radius/SKILL.md` |
 | `skills/no-comments/SKILL.md` | `skills/no-comments/SKILL.md` |
 | `agents/comment-sicko.md` | `agents/comment-sicko.md` |
+| `skills/cstack-help/SKILL.md`, `references/recipes.md` | `skills/poteto-help/SKILL.md`, `references/recipes.md` |
+| `skills/program/SKILL.md` (step list, decision trail) | `skills/poteto-mode/playbooks/orchestrate.md` |
 
 ## tstack, by Theo Browne (MIT)
 
@@ -50,6 +52,9 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 | `skills/review-loop/SKILL.md` | `skills/sol-loop/SKILL.md` |
 | `skills/council/SKILL.md` | `skills/council/SKILL.md` |
 | `skills/leaving-pr-comments/SKILL.md` | `skills/leaving-pr-comments/SKILL.md` |
+| `skills/full-send/SKILL.md` | `skills/full-send/SKILL.md` |
+| `skills/full-stop/SKILL.md` | `skills/full-stop/SKILL.md` |
+| `skills/program/SKILL.md` (stay-active rule) | `skills/full-send/SKILL.md` |
 
 ## Cardinal
 

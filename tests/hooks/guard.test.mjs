@@ -110,6 +110,22 @@ test("no-admin-merge blocks direct merges", () => {
   assert.equal(run(r, "Bash", { command: "gh pr view 3 --json mergeable" }).code, 0);
 });
 
+test("no-autonomy-raise blocks setting CSTACK_PROGRAM_AUTONOMY and allows reading it", () => {
+  const r = repo();
+  for (const cmd of [
+    "CSTACK_PROGRAM_AUTONOMY=send node gates/check-merge.mjs 5 --unit U1 --merge",
+    "export CSTACK_PROGRAM_AUTONOMY",
+    "env CSTACK_PROGRAM_AUTONOMY = send x",
+    "systemctl --user set-environment CSTACK_PROGRAM_AUTONOMY",
+    "systemd-run --user --setenv=CSTACK_PROGRAM_AUTONOMY=send claude -p x",
+  ]) {
+    const out = run(r, "Bash", { command: cmd });
+    assert.equal(out.code, 2, cmd);
+    assert.match(out.err, /no-autonomy-raise/);
+  }
+  assert.equal(run(r, "Bash", { command: "printenv CSTACK_PROGRAM_AUTONOMY" }).code, 0);
+});
+
 test("Bash rules apply even without a config; path rules do not", () => {
   const r = repo(null);
   assert.equal(run(r, "Read", { file_path: "tests/acceptance/x" }).code, 0);
