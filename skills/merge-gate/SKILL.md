@@ -9,7 +9,7 @@ description: "Use when a cstack unit's PR is green and must be judged for merge 
 
 This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator runs it after `cstack:babysit-pr` reports green.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Read `autonomy` from `.cstack/config.json` with `jq`.
+`<root>` is the plugin root, two directories up from this skill's base directory. Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`, not from config. It is config `autonomy`, overridden for one run by `<store>/run.json`, which `cstack:program`, `cstack:full-send` and `cstack:full-stop` write. `run.json` may always lower autonomy. It raises it to `send` only when this session has `CSTACK_PROGRAM_AUTONOMY=send` from the human's launch (ADR-006). The gate applies the same rule itself, so the two never disagree.
 
 ## The only way to merge
 
@@ -17,7 +17,7 @@ This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator ru
 
 - the PR is open and not a draft;
 - the run ledger holds an approval for this unit at exactly this head SHA;
-- `cstack:review-loop` recorded an APPROVE round at exactly this head and no blocker or should finding is open, unless every changed file is docs (a `review` finding sends the unit back to step 10b);
+- `cstack:review-loop` recorded an APPROVE round at exactly this head and no blocker or should finding is open, unless every changed file is docs, or the unit is `E2E` and touches only `paths_hidden` and `.cstack/config.json` (a reviewer may not read the hidden suite, so `check-e2e` judges PR #0). A `review` finding sends the unit back to step 10b;
 - every required check is green on this SHA;
 - no review requests changes;
 - GitHub's merge state is not DIRTY, BEHIND, BLOCKED or UNKNOWN;
@@ -27,13 +27,13 @@ Never run `gh pr merge` yourself. The guard hook blocks it. Never use `--admin`,
 
 ## Run it
 
-Under `autonomy: send`:
+Under effective autonomy `send`:
 
 ```bash
 node <root>/gates/check-merge.mjs <pr> --unit <unit> --repo-dir <worktree> --store <store> --merge --json
 ```
 
-Under `autonomy: stop`, leave out `--merge`. The gate then judges only. If you pass `--merge` under stop, the gate refuses with an `autonomy` finding. That is not a failure of the PR.
+Under effective autonomy `stop`, leave out `--merge`. The gate then judges only. If you pass `--merge` under stop, the gate refuses with an `autonomy` finding. That is not a failure of the PR.
 
 ## Read the result
 

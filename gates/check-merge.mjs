@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 // The only path to merge (tstack merge gate + Cardinal merge rules).
 // Usage: check-merge.mjs <pr> --unit <id> [--repo-dir <dir>] [--store <dir>] [--merge] [--json]
-// Checks: PR open and not draft; ledger approval for the exact head SHA; required checks green on that SHA;
+// Checks: PR open and not draft; ledger approval for the exact head SHA; a review-loop APPROVE round at that
+// head (not for docs-only diffs, nor for unit E2E when it touches only paths_hidden and the config); required checks green on that SHA;
 // no change requests; GitHub merge state not DIRTY/BEHIND/BLOCKED/UNKNOWN; base has not moved under the PR's files.
-// --merge merges only when every check passes AND config autonomy is "send". It runs
+// --merge merges only when every check passes AND the run's effective autonomy is "send": config autonomy,
+// overridden by <store>/run.json, which may only lower it unless this session has
+// CSTACK_PROGRAM_AUTONOMY=send (gates/lib/run.mjs, ADR-006). It runs
 // `gh pr merge --merge --match-head-commit <sha>` as a subprocess (the guard hook blocks the model from doing that).
 // A merge command that reports an error still counts when GitHub shows the PR merged at the verified head.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { Gate, main, parseArgs, UsageError, loadConfig, run, git } from "./lib/common.mjs";
+import { Gate, main, parseArgs, UsageError, loadConfig, run, git, matchesAny } from "./lib/common.mjs";
 import { isDoc } from "./lib/repo.mjs";
+import { effectiveAutonomy } from "./lib/run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PR_FIELDS = "number,state,isDraft,headRefOid,baseRefName,baseRefOid,mergeStateStatus,reviewDecision,mergeCommit,files";
@@ -46,9 +50,14 @@ await main(async (argv) => {
   // Review loop (unit stage 10b): a diff that touches more than docs needs an APPROVE round at this exact
   // head and no open blocker or should finding. The files come from cstack:review-loop.
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
+  // PR #0 (unit E2E) holds only the hidden suite and the config line that runs it. A reviewer may not
+  // read paths_hidden, so check-e2e, the red check and the mutation spot-check judge it instead (ADR-006).
   const code = p.files.map((f) => f.path).filter((f) => !isDoc(f));
+  const suiteOnly = args.unit === "E2E" && code.every((f) => f === ".cstack/config.json" || matchesAny(f, config.paths_hidden));
   if (!code.length) {
     gate.pass("review", "docs-only change; no review round needed");
+  } else if (suiteOnly) {
+    gate.pass("review", "hidden e2e suite change; judged by check-e2e, not a reviewer");
   } else {
     const rows = (name) => {
       const file = path.join(store, name);
@@ -110,9 +119,11 @@ await main(async (argv) => {
 
   let merged = null;
   if (args.merge && gate.approved) {
-    if (config.autonomy !== "send") {
-      gate.fail("autonomy", "autonomy is stop; the PR is merge-ready and a human merges it");
+    const autonomy = effectiveAutonomy(config, store);
+    if (autonomy.level !== "send") {
+      gate.fail("autonomy", `autonomy is stop (${autonomy.source}${autonomy.note ? `; ${autonomy.note}` : ""}); the PR is merge-ready and a human merges it`);
     } else {
+      gate.pass("autonomy", `send (${autonomy.source})`);
       const m = gh(["pr", "merge", String(pr), "--repo", repo, "--merge", "--match-head-commit", sha], repoDir);
       const after = prView(pr, repo, repoDir);
       const ok = after.state === "MERGED" && after.headRefOid === sha && after.mergeCommit?.oid;

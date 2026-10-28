@@ -65,11 +65,9 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - Any GitHub comment or thread reply on the human's behalf. Use `cstack:leaving-pr-comments`.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
 
-Coming in later phases (not available yet, do the work by hand with the principles):
-
-- why (decision history)
-- swarm (parallel fan-out)
-- program, full-send, full-stop, scout (run-level entry points)
+- An idea or guideline to run from spec to a merged, verified SHA. `cstack:program` is user-only, so ask the human to run `/cstack:program <guideline> [--autonomy=stop|send]`.
+- The human says "full send" or "full stop" about an issue or an idea. `cstack:full-send` and `cstack:full-stop` are user-only, so ask the human to run `/cstack:full-send <issue or guideline>` or `/cstack:full-stop <issue or guideline>`. They set autonomy for that run only.
+- A question about which cstack skill fits, how to set up, or how cstack is tested. Use `cstack:cstack-help`. It never starts the work.
 
 ## Principles
 
@@ -116,7 +114,7 @@ Read the leaf file in full before you cite or apply a principle.
 
 ## Autonomy
 
-Config `autonomy` sets the level.
+Config `autonomy` sets the level. `<store>/run.json` overrides it for one run (`/cstack:program --autonomy=...`, `cstack:full-send`, `cstack:full-stop`). Read the effective level with `gates/run-settings.mjs --store <store>` from the plugin root (two directories up from this file). `run.json` may always lower it. It raises `stop` to `send` only in a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send` (ADR-006). Never set that variable yourself. The guard blocks it.
 
 - `stop` (full-stop). Never merge. End the run with the PR merge-ready and report.
 - `send` (full-send). Merge only through the merge gate. Never use `--admin` or another bypass.

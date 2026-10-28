@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { makeRepo, commit, gate, git, failChecks, path } from "./helpers.mjs";
 
 // A repo whose origin has a PR branch, plus a ledger store and a fake gh scenario.
-function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [], extraRules = [] } = {}) {
+function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [], extraRules = [], runJson, env = {} } = {}) {
   const r = makeRepo(cfg);
   const baseSha = git(r.root, "rev-parse", "HEAD");
   git(r.root, "checkout", "-q", "-b", "cstack/u1");
@@ -14,6 +14,7 @@ function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [
   git(r.root, "checkout", "-q", "main");
 
   const store = mkdtempSync(path.join(tmpdir(), "cstack-store-"));
+  if (runJson !== undefined) writeFileSync(path.join(store, "run.json"), typeof runJson === "string" ? runJson : JSON.stringify(runJson));
   const orch = (...a) => gate("orch.mjs", ["--store", store, ...a]);
   assert.equal(orch("init").code, 0);
   if (approve) assert.equal(orch("ledger", "record", "U1", head, "approved", "--pr", "5", "--evidence", "check-verdict approved", "--verifier", "fable").code, 0, "ledger record");
@@ -46,7 +47,7 @@ function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [
       ],
     }),
   );
-  const run = (...a) => gate("check-merge.mjs", ["5", "--unit", "U1", "--repo-dir", r.root, "--store", store, "--json", ...a], { env: { FAKE_GH_SCENARIO: scenario, FAKE_GH_LOG: path.join(r.base, "gh.log") } });
+  const run = (...a) => gate("check-merge.mjs", ["5", "--unit", "U1", "--repo-dir", r.root, "--store", store, "--json", ...a], { env: { FAKE_GH_SCENARIO: scenario, FAKE_GH_LOG: path.join(r.base, "gh.log"), ...env } });
   return { ...r, head, baseSha, run, store, scenario };
 }
 
@@ -90,6 +91,21 @@ test("review: an open should finding blocks; a docs-only diff needs no review", 
   assert.match(ok.out, /docs-only change/);
 });
 
+test("review: unit E2E touching only the hidden suite and config needs no review round; anything else does", () => {
+  const suite = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }, { path: ".cstack/config.json" }, { path: "docs/e2e.md" }] } });
+  const ledger = (s) => gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E", s.head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e"]);
+  assert.equal(ledger(suite).code, 0);
+  const e2e = (s) => gate("check-merge.mjs", ["5", "--unit", "E2E", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario } });
+  const ok = e2e(suite);
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /hidden e2e suite change/);
+  const mixed = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }, { path: "src/f.js" }] } });
+  assert.equal(ledger(mixed).code, 0);
+  assert.deepEqual(failChecks(e2e(mixed)), ["review"], "product code in PR #0 needs a review");
+  const other = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }] } });
+  assert.deepEqual(failChecks(other.run()), ["review"], "only unit E2E gets the exemption");
+});
+
 test("base moves: refuses when new base commits touch PR files, allows otherwise", () => {
   const s = setup();
   commit(s.root, { "src/f.js": "conflict\n" }, "base edit");
@@ -128,6 +144,38 @@ test("--merge under autonomy send merges at the verified head", () => {
   const res = s.run("--merge");
   assert.equal(res.code, 0, res.out);
   assert.equal(res.json.merge_sha, "m".repeat(40));
+});
+
+const mergeRules = [
+  { match: "^pr merge 5 --repo o/r --merge --match-head-commit [0-9a-f]{40}$", responses: [{ stdout: "" }] },
+  ({ view }) => ({ match: "^pr view 5", responses: [{ json: view }, { json: { ...view, state: "MERGED", mergeCommit: { oid: "c".repeat(40) } } }] }),
+];
+
+test("run.json autonomy stop lowers config send: no merge", () => {
+  const s = setup({ cfg: { autonomy: "send" }, runJson: { autonomy: "stop" }, env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules });
+  const res = s.run("--merge");
+  assert.deepEqual(failChecks(res), ["autonomy"]);
+  assert.match(res.out, /autonomy is stop \(run\.json\)/);
+});
+
+test("run.json autonomy send raises config stop only with CSTACK_PROGRAM_AUTONOMY=send", () => {
+  const refused = setup({ runJson: { autonomy: "send" }, extraRules: mergeRules }).run("--merge");
+  assert.deepEqual(failChecks(refused), ["autonomy"], "a run.json written by anyone cannot raise autonomy");
+  assert.match(refused.out, /may only lower autonomy/);
+
+  const launched = setup({ runJson: { autonomy: "send" }, env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules }).run("--merge");
+  assert.equal(launched.code, 0, launched.out);
+  assert.equal(launched.json.merge_sha, "c".repeat(40));
+  assert.match(launched.out, /send \(run\.json \+ CSTACK_PROGRAM_AUTONOMY\)/);
+
+  const envOnly = setup({ env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules }).run("--merge");
+  assert.deepEqual(failChecks(envOnly), ["autonomy"], "the env alone does not raise config stop");
+});
+
+test("an unreadable run.json fails closed: no merge even under config send", () => {
+  const res = setup({ cfg: { autonomy: "send" }, runJson: "{broken", env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules }).run("--merge");
+  assert.deepEqual(failChecks(res), ["autonomy"]);
+  assert.match(res.out, /does not parse/);
 });
 
 test("a merge error still counts when GitHub shows it merged at the head; otherwise fails", () => {

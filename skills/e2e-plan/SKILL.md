@@ -207,8 +207,8 @@ PR #0 goes through the ship stages of `docs/unit-flow.md` with unit id `E2E`, is
 |---|---|---|
 | 8 Publish | `cstack:unit` | `<orch> ledger check E2E <head>` must exit 0 first. Then `node <root>/gates/publish.mjs <wt>`. |
 | 9 PR | `cstack:file-pr` | The body starts `Closes #<N>`. It lists the lanes by id and title (from the plan, not the suite source), the red-check summary and the mutation summary. If step 4 ran, add a section "Config change for review" that names the `e2e_command` it set. |
-| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. |
-| 11 Merge gate | `cstack:merge-gate` | Merges only under `autonomy: send`, as for any unit. |
+| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` when the diff touches only `paths_hidden` and `.cstack/config.json` (ADR-006). Log `skip: hidden suite`. |
+| 11 Merge gate | `cstack:merge-gate` | Merges only under the run's effective autonomy `send` (`gates/run-settings.mjs`), as for any unit. |
 | 12 Settle | `cstack:settle` | Settle `<N>` and set the unit state. |
 
 When step 4 changed the config, put the config change first in the final report so the human reviews it. Under `autonomy: stop` the human reviews it before merging. Under `send` the human reviews it after the merge. The change is one revertible line.
