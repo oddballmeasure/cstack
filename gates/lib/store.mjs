@@ -734,6 +734,10 @@ export function openStore(directory, options = {}) {
       };
       const box = path.join(dir, "inbox");
       if (!existsSync(box)) throw notInitialized(dir);
+      // Pushes run under the store lock, so make each timestamp strictly later than the newest pointer.
+      // Two pushes in the same millisecond would otherwise tie and sort by their random suffix.
+      const newest = readPointers(dir).at(-1);
+      if (newest && ptr.ts <= newest.ts) ptr.ts = new Date(Date.parse(newest.ts) + 1).toISOString();
       ptr.file = `${ptr.ts.replace(/[:.]/g, "-")}-${process.pid}-${randomUUID()}.tsv`;
       atomicWrite(path.join(box, ptr.file), `${[ptr.agent, ptr.unit, ptr.status, ptr.report].join("\t")}\n`);
       return ptr;
