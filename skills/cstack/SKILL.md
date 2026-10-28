@@ -57,13 +57,18 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A run whose coordinator died, was compacted, or was paused. Use `cstack:resume-run`.
 - The human asks to pause or stop for now (not "keep going"). Use `cstack:pause-safely`.
 - The human asks how a run is going, or a run closes. Use `cstack:status`.
+- A diff to review before it ships, or unit stage 10 on a new head. Use `cstack:review-loop`. A reviewer on a different model reviews in rounds with a ledger. Budget end is not approval.
+- A final program review, or a contested design that needs three scored opinions. Use `cstack:council`.
+- A request to interrogate, stress-test, or tear apart a change from several angles. Use `cstack:interrogate`. It changes nothing.
+- A small diff you do not trust, or "what could this break". Use `cstack:blast-radius`. Prove the one fact it is safe because of.
+- Comments to cut from a diff: narration, commented-out code, "do not remove" warnings, lint suppressions. Use `cstack:no-comments`.
+- Any GitHub comment or thread reply on the human's behalf. Use `cstack:leaving-pr-comments`.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
 
 Coming in later phases (not available yet, do the work by hand with the principles):
 
 - why (decision history)
 - swarm (parallel fan-out)
-- interrogate (multi-model adversarial review)
 - program, full-send, full-stop, scout (run-level entry points)
 
 ## Principles

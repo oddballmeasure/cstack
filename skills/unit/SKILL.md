@@ -57,6 +57,7 @@ Create this TodoWrite list at the start, one item per stage, verbatim:
 8 Publish
 9 PR
 10 Babysit
+10b Review
 11 Merge gate
 12 Settle
 ```
@@ -83,6 +84,7 @@ Before stage 0, check whether this unit already ran. It ran if `<store>/units.ts
    - Stage 6 passed if `<orch> ledger check <unit> $(git -C <wt> rev-parse HEAD)` exits 0.
    - Stage 8 passed if `git -C <wt> ls-remote origin refs/heads/<branch>` shows HEAD.
    - Stage 9 passed if `cstack:file-pr`'s gate query finds the PR.
+   - Step 10b passed if `<store>/review-<unit>-rounds.tsv` has an `APPROVE` round at HEAD and `<store>/review-<unit>.tsv` has no `open` blocker or should.
 4. Re-run the stage 5 gate on HEAD once before you trust step 2. A failed attempt can leave a commit with a trailer. If the gate fails, the newest ticket is not done.
 5. Resume at the first stage whose gate has not passed for the current HEAD. Mark the earlier stages completed in the TodoWrite list.
 
@@ -221,11 +223,21 @@ Owner: `cstack:babysit-pr`. You run it. Never a subagent. Arm the `Monitor` tool
 Order: conflicts, then review threads, then CI.
 
 - DIRTY, BEHIND, or base moved under the PR's files: stage 7.
-- A real review finding: REPAIR ticket through `cstack:repair` (source `verify`), stage 5. Cap `limits.review_rounds`.
+- A real review finding on a GitHub thread: REPAIR ticket through `cstack:repair` (source `verify`), stage 5. Cap `limits.review_rounds`. Write every reply with `cstack:leaving-pr-comments`.
 - A failed check: `node <root>/gates/ci-log.mjs <pr> --repo-dir <wt>`, then a `CI-REPAIR-<n>` ticket through `cstack:repair`, stage 5. Limit `limits.ci_repair_rounds`, then failure `ci_failed`. Pending past `limits.ci_timeout_seconds`: failure `ci_timeout`.
-- pr-wait exits 0 and no actionable thread is left: stage 11.
+- pr-wait exits 0 and no actionable thread is left: step 10b.
 
 After any new commit, stages 6, 7 and 8 run before you arm the Monitor again.
+
+#### 10b Review (sub-step of 10)
+
+Owner: `cstack:review-loop`, as `cstack:babysit-pr` step 10b describes. It runs once per new head, after pr-wait exits 0 and before the merge gate. Skip it when every changed path is documentation (`skip: docs only`), or when the ledger already holds a round at HEAD.
+
+The reviewer is the plugin's `cstack-reviewer` agent on `models.review`, fresh each round. It must differ from `models.code`. The budget is `limits.review_rounds` rounds over the unit's life, up to 5 for security, auth, data loss or concurrency.
+
+- Approved: stage 11. The PR body carries `Reviewed with review-loop: <N> rounds with <model>. Verdict: approved`.
+- Agreed blocker or should: `cstack:repair` with source `review` returns `retry REPAIR-<n>`. Go to stage 5, then 6, 7, 8 and 10.
+- A dispute open after two replies, or budget end with a blocker or should open: settle as needs a decision. Budget end is not approval.
 
 ### 11 Merge gate
 

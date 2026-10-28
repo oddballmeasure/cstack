@@ -14,6 +14,7 @@ A **unit** is one piece of work that ends as one PR. `cstack:unit` drives it. Th
 | Worktree | `~/.local/state/cstack/worktrees/<owner>-<repo>/<branch with / replaced by ->`. Create it only with `gates/isolate.mjs`. |
 | Intake | `<store>/intake-<unit>.json` (one per unit, so a program store can hold many). Format: header of `gates/check-intake.mjs`, example in `templates/intake.json`. |
 | Verdict | `<store>/verdict-<unit>-<sha12>.json`. Format: header of `gates/check-verdict.mjs`. |
+| Review ledger | `<store>/review-<unit>-rounds.tsv` and `<store>/review-<unit>.tsv`, kept by `cstack:review-loop`. |
 | Feedback | `<store>/feedback-<unit>.md`. Append-only. The latest section is what the implementer must act on. |
 | Decision log | `<store>/decisions.tsv` via `cstack:show-me-your-work`. One row per stage transition and per failed gate. |
 
@@ -45,8 +46,9 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 | 7 | Sync | `cstack:sync-base` | `gates/sync-base.mjs` | 8 (unchanged), or re-run 5's gate then 6 (merged) | conflict → SYNC ticket → 5, up to `base_sync_rounds`, then failure `base_conflict` |
 | 8 | Publish | `cstack:unit` | `gates/publish.mjs` (remote SHA equals verified SHA) | 9 | failure `git` |
 | 9 | PR | `cstack:file-pr` | PR exists for the branch, body starts `Closes #N` | 10 | failure `github` |
-| 10 | Babysit | `cstack:babysit-pr` | `pr-wait.mjs --until green` under Monitor | 11 | failed check → `gates/ci-log.mjs` → CI-REPAIR ticket → 5, up to `ci_repair_rounds`, then failure `ci_failed`. DIRTY → 7. |
-| 11 | Merge gate | `cstack:merge-gate` | `check-merge.mjs` (`--merge` merges only under `autonomy: send`) | 12 | head moved → 6, base moved → 7, else failure `pr_violation` |
+| 10 | Babysit | `cstack:babysit-pr` | `pr-wait.mjs --until green` under Monitor | 10b | failed check → `gates/ci-log.mjs` → CI-REPAIR ticket → 5, up to `ci_repair_rounds`, then failure `ci_failed`. DIRTY → 7. |
+| 10b | Review (sub-step of 10, once per new head; skipped for docs-only diffs) | `cstack:review-loop` | ledger: an `APPROVE` round at HEAD, no open blocker or should | 11 | agreed finding → REPAIR ticket (`cstack:repair` source `review`) → 5, up to `review_rounds` rounds (5 for security, auth, data loss, concurrency). Dispute after two replies or budget end → settle `needs-human`. |
+| 11 | Merge gate | `cstack:merge-gate` | `check-merge.mjs` (`--merge` merges only under `autonomy: send`; also requires a review-loop APPROVE round at HEAD and no open blocker or should, unless the diff is docs-only) | 12 | head moved → 6, base moved → 7, else failure `pr_violation` |
 | 12 | Settle | `cstack:settle` | `gates/settle.mjs` | done | |
 
 After any new commit, the old verdict is void. Stage 6 must run again before 8.
@@ -60,7 +62,7 @@ Isolate runs before profile and intake, so explorers and planners read code only
 | Implementer | `cstack-worker` | `code` | inside the unit worktree; it never sees the hidden suite |
 | Verifier | `cstack-verifier` | `judge` | same worktree, read-only; it never wrote this code |
 | Explorer | `cstack-explorer` | `gather` | read-only, for profile and how |
-| Reviewer | `cstack-reviewer` | `review` | read-only, Phase 6 |
+| Reviewer | `cstack-reviewer` | `review`, never the same model as `code` | read-only, fresh per round, step 10b (`cstack:review-loop`) and `cstack:council` |
 
 The unit skill is the coordinator. It never edits product code itself. Every implementer and verifier brief includes: the absolute path of the `cstack` mode skill (read it first), the worktree path, the ticket or unit, requirement ids and text, lane ids, the feedback file path, and the exact gate the work must pass.
 
@@ -80,7 +82,7 @@ On failure: settle `error` with the comment `cstack stopped at <stage> (<kind>):
 | not taken | `needs-human` | `cstack is not taking this issue:` |
 | failed | `error` | `cstack stopped at` |
 
-Every comment and PR body ends with the badge line from `templates/footer.md`.
+Every comment and PR body ends with the badge line from `templates/footer.md`. Replies on PR threads also start with the callout header from `cstack:leaving-pr-comments`.
 
 ## Scripts this flow adds (Phase 3)
 
