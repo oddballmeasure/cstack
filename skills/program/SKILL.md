@@ -34,7 +34,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 ## Arguments
 
 - **Guideline.** Everything that is not a flag. A readable file path, or the text itself. `cstack:spec` copies it to `<store>/guideline.md`.
-- **`--autonomy=stop|send`.** Overrides config `autonomy` for this run only. Without the flag, config decides, and cstack's default stays `stop`.
+- **`--autonomy=stop|send`.** Overrides config `autonomy` for this run only. Without the flag, config decides. cstack's default is `send` (ADR-007).
 - **`--parallel=N`.** A positive integer. Overrides config `parallel` for this run only.
 - **`--slug <s>`.** The run slug.
 - **`--resume <slug>`.** Continue an existing run. See **Resume**.

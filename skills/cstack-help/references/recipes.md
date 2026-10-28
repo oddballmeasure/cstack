@@ -11,7 +11,7 @@ Swap in the real paths, issue numbers and done checks. Informal wording works.
 
 ## From an idea
 
-- `/cstack:program docs/idea.md` (autonomy from config, stop by default)
+- `/cstack:program docs/idea.md` (autonomy from config, send by default)
 - `/cstack:program docs/idea.md --autonomy=send --parallel=2` (in a session launched with `CSTACK_PROGRAM_AUTONOMY=send claude`)
 - `/cstack:program --resume ledger-cli`
 - `/cstack:sharpen <the idea you are about to hand to program>`

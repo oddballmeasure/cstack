@@ -26,13 +26,13 @@ claude --plugin-dir /path/to/cstack
    ```
    /cstack:program docs/idea.md
    ```
-   The default autonomy is `stop`: cstack never merges. The program stops when PR #0 (the hidden e2e suite) is merge-ready. Merge it, then run `/cstack:program --resume <slug>`.
-3. To let the merge gate merge for one run, launch Claude Code with the variable set, then pass the flag:
+   The default autonomy is `send` (ADR-007): the merge gate merges each PR once CI, the independent verifier and the review loop pass. It never merges past a failing gate.
+3. To merge everything yourself, set `"autonomy": "stop"` in `.cstack/config.json`, or pass `--autonomy=stop` for one run. Each PR then ends merge-ready. Merge it, then run `/cstack:program --resume <slug>`.
+   In a repo whose config says `stop`, raising one run to `send` needs the variable as well as the flag (ADR-006):
    ```
    CSTACK_PROGRAM_AUTONOMY=send claude
    /cstack:program docs/idea.md --autonomy=send --parallel=2
    ```
-   Without the variable, `--autonomy=send` stays `stop` (ADR-006).
 
 One issue instead of an idea: `/cstack:unit <issue>`, `/cstack:full-send <issue>` or `/cstack:full-stop <issue>`. For "which skill?", ask `/cstack:cstack-help`.
 

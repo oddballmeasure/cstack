@@ -16,7 +16,7 @@
     "tests/acceptance/**"
   ],
   "label_prefix": "cstack",
-  "autonomy": "stop",
+  "autonomy": "send",
   "parallel": 1,
   "models": {
     "code": "opus",

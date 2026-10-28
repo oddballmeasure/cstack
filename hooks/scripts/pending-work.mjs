@@ -3,7 +3,7 @@
 // Active only when CSTACK_COORDINATOR=1 and CSTACK_RUN names a run store under <repo>/.cstack/runs/.
 // Blocks (exit 2, reason on stderr) when the store has units in-progress or verifying (or pr-open under
 // effective autonomy send, from config and <store>/run.json, where the run still merges them) and no
-// inbox-wait watcher is alive for the store (inbox-wait holds <store>/watchers/<pid>). Allows (exit 0) otherwise, and on the second stop in a row
+// watcher is alive for the store. inbox-wait, pr-wait and post-merge --wait each hold <store>/watchers/<pid>. Allows (exit 0) otherwise, and on the second stop in a row
 // (stop_hook_active), so a session that cannot comply is nudged once and never trapped.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
@@ -66,7 +66,7 @@ function main() {
   const watchers = path.join(found.store, "watchers");
   if (existsSync(watchers) && readdirSync(watchers).some(alive)) return 0;
   process.stderr.write(
-    `cstack pending-work: units in flight (${pending.join(", ")}) and no watcher is armed. Do not end the turn. ` +
+    `cstack pending-work: units in flight (${pending.join(", ")}) and no watcher is armed (inbox-wait, pr-wait --store, or post-merge --wait). Do not end the turn. ` +
       `Drain with \`node ${ROOT}/gates/orch.mjs --store ${found.store} inbox drain\`, then arm the Monitor tool on ` +
       `\`node ${ROOT}/gates/inbox-wait.mjs --store ${found.store}\` and wait for its events.\n`,
   );
