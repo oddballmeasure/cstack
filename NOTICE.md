@@ -30,6 +30,10 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/resume-run/SKILL.md` | `skills/poteto-mode/playbooks/session-pickup.md` |
 | `skills/pause-safely/SKILL.md` | `skills/poteto-mode/playbooks/pause-safely.md` |
 | `skills/status/SKILL.md` | `skills/ketchup/SKILL.md` (voice rules) |
+| `skills/interrogate/SKILL.md`, `references/` (4 files) | `skills/interrogate/` |
+| `skills/blast-radius/SKILL.md` | `skills/blast-radius/SKILL.md` |
+| `skills/no-comments/SKILL.md` | `skills/no-comments/SKILL.md` |
+| `agents/comment-sicko.md` | `agents/comment-sicko.md` |
 
 ## tstack, by Theo Browne (MIT)
 
@@ -43,6 +47,9 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 | `skills/sync-base/SKILL.md` | `skills/modernize/SKILL.md` (conflict guidance) |
 | `skills/merge-gate/SKILL.md` | `skills/full-send/SKILL.md`, `skills/full-stop/SKILL.md` (merge gate, verdicts) |
 | `skills/unit/SKILL.md`, `skills/prove/SKILL.md` | `skills/full-send/SKILL.md` (proof, pending-work rule) |
+| `skills/review-loop/SKILL.md` | `skills/sol-loop/SKILL.md` |
+| `skills/council/SKILL.md` | `skills/council/SKILL.md` |
+| `skills/leaving-pr-comments/SKILL.md` | `skills/leaving-pr-comments/SKILL.md` |
 
 ## Cardinal
 

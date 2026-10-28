@@ -8,7 +8,9 @@
 // A merge command that reports an error still counts when GitHub shows the PR merged at the verified head.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { existsSync, readFileSync } from "node:fs";
 import { Gate, main, parseArgs, UsageError, loadConfig, run, git } from "./lib/common.mjs";
+import { isDoc } from "./lib/repo.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PR_FIELDS = "number,state,isDraft,headRefOid,baseRefName,baseRefOid,mergeStateStatus,reviewDecision,mergeCommit,files";
@@ -40,6 +42,28 @@ await main(async (argv) => {
   const storeArgs = args.store ? ["--store", args.store] : [];
   const ledger = run(process.execPath, [path.join(HERE, "orch.mjs"), ...storeArgs, "ledger", "check", args.unit, sha], { cwd: repoDir });
   gate.check(ledger.code === 0, "ledger", `approval recorded for ${args.unit} at ${sha.slice(0, 12)}`, `no approval for ${args.unit} at ${sha.slice(0, 12)}; verify this head first`);
+
+  // Review loop (unit stage 10b): a diff that touches more than docs needs an APPROVE round at this exact
+  // head and no open blocker or should finding. The files come from cstack:review-loop.
+  const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
+  const code = p.files.map((f) => f.path).filter((f) => !isDoc(f));
+  if (!code.length) {
+    gate.pass("review", "docs-only change; no review round needed");
+  } else {
+    const rows = (name) => {
+      const file = path.join(store, name);
+      if (!existsSync(file)) return [];
+      return readFileSync(file, "utf8").split("\n").filter(Boolean).map((l) => l.split("\t"));
+    };
+    const approved = rows(`review-${args.unit}-rounds.tsv`).some((r) => r[1] === sha && r[3] === "APPROVE");
+    const open = rows(`review-${args.unit}.tsv`).filter((r) => ["blocker", "should"].includes(r[2]) && r[5] === "open").map((r) => r[0]);
+    gate.check(
+      approved && !open.length,
+      "review",
+      `review-loop approved ${sha.slice(0, 12)}`,
+      !approved ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head` : `open review findings: ${open.join(", ")}`,
+    );
+  }
 
   const required = config.required_checks;
   if (required.length) {

@@ -1,6 +1,6 @@
 ---
 name: repair
-description: "Use when a cstack unit failed a gate and the implementer must try again: check-commit findings, verifier findings, a failed CI check (ci-log.mjs tail), or a merge conflict from sync-base. Turns the failure into a feedback section or a repair ticket (REPAIR-n, CI-REPAIR-n, SYNC-n) in the feedback file, counts rounds against config limits, and returns the failure kind when the limit is spent."
+description: "Use when a cstack unit failed a gate and the implementer must try again: check-commit findings, verifier findings, agreed review-loop findings, a failed CI check (ci-log.mjs tail), or a merge conflict from sync-base. Turns the failure into a feedback section or a repair ticket (REPAIR-n, CI-REPAIR-n, SYNC-n) in the feedback file, counts rounds against config limits, and returns the failure kind when the limit is spent."
 ---
 
 <!-- Based on Cardinal's coder/verifier roles. -->
@@ -14,8 +14,8 @@ The unit coordinator runs this skill after a failed gate. It writes what the imp
 ## Inputs
 
 - Store, unit id, issue `N`, base branch, worktree.
-- Source: `check-commit`, `verify`, `ci` or `sync`.
-- The findings: gate findings as `check: detail` lines, `gates/ci-log.mjs <pr>` output, or the conflicted file list from `gates/sync-base.mjs`.
+- Source: `check-commit`, `verify`, `review`, `ci` or `sync`.
+- The findings: gate findings as `check: detail` lines, agreed `cstack:review-loop` findings as `review-loop <id> [<severity>] <path:line> <claim>. Fix: <fix>` lines, `gates/ci-log.mjs <pr>` output, or the conflicted file list from `gates/sync-base.mjs`.
 - For `check-commit` only: the ticket id and its attempt number.
 
 ## The feedback file
@@ -27,7 +27,7 @@ Each section has this shape:
 ```
 ## <heading>
 
-Source: <check-commit | verify | ci | sync>
+Source: <check-commit | verify | review | ci | sync>
 Head: <full HEAD sha when the gate ran>
 Written: <UTC ISO8601>
 
@@ -46,6 +46,7 @@ Headings are exact, because rounds are counted from them:
 |---|---|---|
 | `check-commit` | `## <ticket> attempt <k>` | unchanged (`T1`, `REPAIR-1`, ...) |
 | `verify` | `## REPAIR-<n>` | `REPAIR-<n>` |
+| `review` | `## REPAIR-<n>` | `REPAIR-<n>` |
 | `ci` | `## CI-REPAIR-<n>` | `CI-REPAIR-<n>` |
 | `sync` | `## SYNC-<n>` | `SYNC-<n>` |
 
@@ -56,7 +57,8 @@ Read the limit from config `limits`. Count the existing headings with `grep -cE`
 | Source | Count | Limit | Exhausted kind |
 |---|---|---|---|
 | `check-commit` | `^## <ticket> attempt [0-9]+$` plus 1 (attempt 1 has no section) | `coder_attempts` | see below |
-| `verify` | `^## REPAIR-[0-9]+$` | `verify_rounds` | `verification` |
+| `verify` | `^Source: verify$` | `verify_rounds` | `verification` |
+| `review` | `^Source: review$` | `review_rounds` | `review` |
 | `ci` | `^## CI-REPAIR-[0-9]+$` | `ci_repair_rounds` | `ci_failed` |
 | `sync` | `^## SYNC-[0-9]+$` | `base_sync_rounds` | `base_conflict` |
 
@@ -66,7 +68,7 @@ For `check-commit`, the failed attempt is attempt `count`. If `count` is at leas
 - `no_change` when every finding is `non-empty diff` or `no change`.
 - `tests_failed` otherwise.
 
-For the other sources, if `count` is at least the limit, the source is exhausted. Otherwise the new ticket is number `count + 1`.
+For the other sources, if `count` is at least the limit, the source is exhausted. Otherwise the new ticket is number `count + 1`. `verify` and `review` share the `REPAIR-<n>` ids but not the limit: their `<n>` is the count of `^## REPAIR-[0-9]+$` headings plus 1.
 
 When exhausted, append nothing. Log the row (see below) and return `exhausted <kind>` with one line naming the last findings. The caller settles the failure per the contract.
 
@@ -95,6 +97,18 @@ Title: Resolve the verifier's findings.
 Findings are the `check-verdict.mjs` findings, which include the verifier's own. An e2e finding names only a lane id and a one-line reason. Pass it on as it is. Never add hidden-suite content.
 
 Acceptance: `Every finding is resolved`, `The repository's test command passes`.
+
+### review: `## REPAIR-<n>`
+
+Title: Resolve the agreed review findings.
+
+> A reviewer on another model reviewed the branch at <sha12>. The coordinator re-graded each finding and agreed with the ones below. Make the smallest fix for each. Prefer deleting or narrowing code over adding a lock, cache, helper or option. Add one focused test only where a finding names a missing test.
+
+Findings are the `review-loop` lines verbatim. Never add findings the coordinator declined.
+
+Acceptance: `Every finding is resolved with the smallest change`, `The repository's test command passes`.
+
+An `exhausted review` return is not a failure. The caller, `cstack:review-loop`, treats it as budget end and settles the unit as needs a decision.
 
 ### ci: `## CI-REPAIR-<n>`
 
