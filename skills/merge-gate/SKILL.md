@@ -17,6 +17,7 @@ This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator ru
 
 - the PR is open and not a draft;
 - the run ledger holds an approval for this unit at exactly this head SHA;
+- `cstack:review-loop` recorded an APPROVE round at exactly this head and no blocker or should finding is open, unless every changed file is docs (a `review` finding sends the unit back to step 10b);
 - every required check is green on this SHA;
 - no review requests changes;
 - GitHub's merge state is not DIRTY, BEHIND, BLOCKED or UNKNOWN;

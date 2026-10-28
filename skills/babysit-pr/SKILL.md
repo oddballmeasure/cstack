@@ -1,13 +1,13 @@
 ---
 name: babysit-pr
-description: "Use when a cstack unit has an open PR and must drive it to green (unit stage 10). Waits with the Monitor tool on gates/pr-wait.mjs, then handles conflicts, review threads and failed CI in that order, each through its own unit stage. Only the unit coordinator runs it, never a subagent."
+description: "Use when a cstack unit has an open PR and must drive it to green (unit stage 10). Waits with the Monitor tool on gates/pr-wait.mjs, then handles conflicts, review threads and failed CI in that order, each through its own unit stage, and runs cstack:review-loop once per new head before the merge gate. Writes every reply with cstack:leaving-pr-comments. Only the unit coordinator runs it, never a subagent."
 ---
 
 <!-- Adapted from tstack skills/babysit-pr/SKILL.md @ 92e38e2 (MIT, Theo Browne). -->
 
 # Babysit PR
 
-This is stage 10 of the unit flow (`docs/unit-flow.md`). It starts after `cstack:file-pr` and ends when `pr-wait.mjs --until green` exits 0 and no actionable review thread is left. Then the unit goes to stage 11, `cstack:merge-gate`.
+This is stage 10 of the unit flow (`docs/unit-flow.md`). It starts after `cstack:file-pr` and ends when `pr-wait.mjs --until green` exits 0, no actionable review thread is left, and step 10b (the review loop) approved the head or was skipped. Then the unit goes to stage 11, `cstack:merge-gate`.
 
 `<root>` is the plugin root, two directories up from this skill's base directory. Read `repo`, `label_prefix` and `limits` from `.cstack/config.json` with `jq`.
 
@@ -61,9 +61,9 @@ For each finding:
 1. **Verify it against the source.** Read the cited code in the worktree. Bots are useful and often wrong. A finding counts only when the code shows the problem. A human finding counts by default, but still check it.
 2. **Classify it.**
    - A real bug in the intended case. Run `cstack:repair` with source `verify` and the verified findings as `review: <path:line> <finding>` lines. It returns `retry REPAIR-<n>` (the unit goes back to stage 5, then 6, 7 and 8) or `exhausted verification` (the unit fails). Also cap review rounds at `limits.review_rounds`, counted from this stage's `fix` rows in the decision log. Past that cap, the stage fails with kind `pr_violation`.
-   - A false positive. Reply on the thread with a one-line reason that cites the code, then resolve the thread.
+   - A false positive. Reply on the thread with a one-line reason that cites the code. Resolve the thread only after the reply posted.
    - Scope creep. Decline it (see **Fight scope**).
-3. **Reply** with `gh api` on the thread or review. Every comment you post ends with the footer line from `<root>/templates/footer.md`.
+3. **Reply** with `gh api` on the thread or review. Write every reply with `cstack:leaving-pr-comments`: the callout header, the direct style, the secret check, and the footer line from `<root>/templates/footer.md` last.
 
 CodeRabbit is advisory. Treat its findings like any other, but never wait for it.
 
@@ -93,7 +93,7 @@ Review loops grow a PR one cheap fix at a time. Keep it at the size the issue ne
 gh issue create --repo <repo> --label "<label_prefix>:proposed" --title "<one line>" --body-file <file>
 ```
 
-The body links the PR and the thread, says why it was left out, and ends with the footer line. Reply on the thread with the new issue's link and resolve it.
+The body links the PR and the thread, says why it was left out, and ends with the footer line. Reply on the thread with the new issue's link, per `cstack:leaving-pr-comments`, and resolve it.
 
 ## GitHub rate limits
 
@@ -106,7 +106,20 @@ pr-wait exited 0. Before you leave the stage:
 - If the PR merged outside cstack, record it and go to stage 12 with outcome merged.
 - If the PR closed without a merge, the stage fails with kind `pr_violation`. Do not reopen it.
 - Check for review threads that arrived after the last event and are still unresolved. Handle them per step 2.
+- Run step 10b below.
 - Then go to stage 11, `cstack:merge-gate`.
+
+## 10b. Review loop
+
+A sub-step of stage 10. It runs once per new head, after pr-wait exited 0 on that head and before the merge gate.
+
+1. List the changed paths: `git -C <worktree> diff --name-only <base>...HEAD`. If every path is documentation (`*.md`, `*.mdx`, `*.rst`, `*.txt`, `docs/**`, `LICENSE*`), skip it. Log `skip: docs only`.
+2. If the review ledger already has a round at this HEAD, do not run another. Use that round's result.
+3. Otherwise run `cstack:review-loop` for one round on the PR diff, with the author model `models.code`. It keeps its ledger in `<store>/review-<unit>.tsv` and `<store>/review-<unit>-rounds.tsv`.
+4. Act on its result:
+   - Approved: go to stage 11. The loop has added its line to the PR body.
+   - Agreed blockers or shoulds: it ran `cstack:repair` with source `review`, which returned `retry REPAIR-<n>`. The unit goes to stage 5, then 6, 7, 8 and back to stage 10 on the new head.
+   - Disputed after two replies, or budget end: settle as needs a decision through `cstack:settle`, with both sides. Do not go to the merge gate. Budget end is not approval.
 
 Log one row in `<store>/decisions.tsv` per round (`cstack:show-me-your-work`): what arrived, what you did, the evidence (check name, thread id, commit SHA), and the result.
 
