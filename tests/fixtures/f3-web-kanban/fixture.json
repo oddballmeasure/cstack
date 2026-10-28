@@ -1,0 +1,28 @@
+{
+  "slug": "f3",
+  "entry": { "env": "KANBAN_ENTRY", "path": "server.mjs" },
+  "grader": {
+    "setup": ["npm", "ci", "--no-audit", "--no-fund"],
+    "command": ["npx", "playwright", "test", "--config", "playwright.config.mjs"],
+    "timeout_seconds": 900
+  },
+  "project": {
+    "package": {
+      "name": "kanban",
+      "version": "0.0.0",
+      "private": true,
+      "type": "module",
+      "engines": { "node": ">=22" },
+      "scripts": { "start": "node server.mjs", "test": "node --test 'test/**/*.test.mjs'" },
+      "devDependencies": { "@playwright/test": "1.63.0" }
+    },
+    "smoke": "no-runtime-dependencies",
+    "gitignore": [".cstack/*", "!.cstack/config.json", "node_modules/", "data/", "test-results/", "playwright-report/"],
+    "readme": "# kanban\n\nA small self-hosted kanban board: a Node server with a JSON API and a vanilla JS page. Built by a cstack L4 fixture run.\n"
+  },
+  "ci": { "install": true, "playwright": true },
+  "config": {
+    "parallel": 2,
+    "setup_command": ["sh", "-c", "npm ci && npx playwright install chromium"]
+  }
+}

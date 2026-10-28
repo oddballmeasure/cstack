@@ -36,6 +36,9 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `agents/comment-sicko.md` | `agents/comment-sicko.md` |
 | `skills/cstack-help/SKILL.md`, `references/recipes.md` | `skills/poteto-help/SKILL.md`, `references/recipes.md` |
 | `skills/program/SKILL.md` (step list, decision trail) | `skills/poteto-mode/playbooks/orchestrate.md` |
+| `skills/reflect/SKILL.md`, `references/` (4 files) | `skills/reflect/` |
+| `skills/correct/SKILL.md` | `skills/correct/SKILL.md` |
+| `skills/eval-skill/SKILL.md` | `skills/poteto-mode/playbooks/eval.md` |
 
 ## tstack, by Theo Browne (MIT)
 
@@ -55,7 +58,16 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 | `skills/full-send/SKILL.md` | `skills/full-send/SKILL.md` |
 | `skills/full-stop/SKILL.md` | `skills/full-stop/SKILL.md` |
 | `skills/program/SKILL.md` (stay-active rule) | `skills/full-send/SKILL.md` |
+| `skills/takeover/SKILL.md` | `skills/takeover/SKILL.md` |
+| `skills/modernize/SKILL.md` | `skills/modernize/SKILL.md` |
 
 ## Cardinal
 
-`docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner. Phase 5 ports Cardinal's daemon rules: `gates/post-merge.mjs` and `skills/post-merge-ci/` from `daemon/post_merge.py`, and the worker loop in `gates/worker.mjs` and `skills/orchestrate/` from `daemon/workers.py` and `daemon/loop.py`.
+`docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner. Phase 5 ports Cardinal's daemon rules: `gates/post-merge.mjs` and `skills/post-merge-ci/` from `daemon/post_merge.py`, and the worker loop in `gates/worker.mjs` and `skills/orchestrate/` from `daemon/workers.py` and `daemon/loop.py`. Phase 8 ports the rest:
+
+| cstack file | Cardinal source |
+|---|---|
+| `skills/scout/SKILL.md`, `references/` (4 files) | `scout/once.py`, `skills/scout/`, `skills/scout-planner/`, `skills/scout-reviewer/`, `skills/scout-repro/` |
+| `gates/scout-check.mjs`, `gates/scout-gate.mjs`, `gates/lib/scout.mjs` | `scout/checks.py`, `scout/gate.py`, `scout/outcomes.py`, `scout/render.py`, `roles/scout_planner.py`, `roles/scout_repro.py` |
+| `skills/daemon/`, `gates/daemon-tick.mjs` | `daemon/loop.py`, `examples/cardinal-scout@.service` (unit layout) |
+| `skills/deploy/SKILL.md`, `gates/deploy.mjs` | `skills/deployment-manager/`, `deploy/committed.py`, `deploy/hosts.py`, `deploy/service.py` |

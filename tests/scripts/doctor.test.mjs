@@ -60,6 +60,45 @@ test("schema errors are each reported", () => {
   assert.match(r.out, /unknown key extra/);
 });
 
+test("optional retry_after_hours, scout and deploy are checked when present", () => {
+  const ok = doctor(target({ retry_after_hours: 24, scout: { autonomy: "auto", categories: ["bug"] }, deploy: { transport: "local", local_directory: "~/deploys", auto: false } }));
+  assert.equal(ok.code, 0, ok.out);
+  const ssh = doctor(target({ deploy: { transport: "ssh" }, scout: null }));
+  assert.equal(ssh.code, 0, ssh.out);
+  const bad = doctor(
+    target({
+      retry_after_hours: 2,
+      scout: { autonomy: "yes", categories: ["chore"], areas_per_pass: 7, cooldown_days: -1, max_proposals_per_pass: 1.5, max_files: 0, repro: "y", auto_min_decided: 0, auto_min_approval: 2, auto_min_done: -1, at: "09:00" },
+      deploy: { transport: "local", local_directory: 3, auto: "no", host: "x" },
+    }),
+  );
+  assert.equal(bad.code, 1);
+  for (const msg of [
+    "retry_after_hours must be null or a number >= 24",
+    "scout.autonomy must be propose or auto",
+    "scout.categories must be",
+    "scout.areas_per_pass must be an integer 1 to 6",
+    "scout.cooldown_days must be",
+    "scout.max_proposals_per_pass must be an integer 1 to 10",
+    "scout.max_files must be",
+    "scout.repro must be true or false",
+    "scout.auto_min_decided must be",
+    "scout.auto_min_approval must be 0 to 1",
+    "scout.auto_min_done must be 0 to 1",
+    "unknown key scout.at",
+    "deploy.local_directory is required for transport local",
+    "deploy.local_directory must be a string",
+    "deploy.auto must be true or false",
+    "unknown key deploy.host",
+  ]) {
+    assert.ok(bad.out.includes(`FAIL config schema: ${msg}`), msg);
+  }
+  const shapes = doctor(target({ scout: [], deploy: "ssh" }));
+  assert.match(shapes.out, /scout must be an object or null/);
+  assert.match(shapes.out, /deploy must be an object or null/);
+  assert.match(doctor(target({ deploy: { transport: "ftp" } })).out, /deploy.transport must be local or ssh/);
+});
+
 test("placeholder repo name fails", () => {
   const r = doctor(target({ repo: "owner/name" }));
   assert.match(r.out, /FAIL config schema: repo must be owner\/name/);
