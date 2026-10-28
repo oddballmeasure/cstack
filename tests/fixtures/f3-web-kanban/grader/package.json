@@ -1,0 +1,11 @@
+{
+  "name": "f3-web-kanban-grader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test --config playwright.config.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

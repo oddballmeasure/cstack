@@ -11,7 +11,7 @@ Every skill, agent, hook and script in this repo follows these rules. The L0 lin
 ## Frontmatter
 
 - Required: `name` and `description`. The description is 1024 characters or fewer. **[lint]**
-- User-only entry skills (`program`, `full-send`, `full-stop`, `setup-cstack`, `scout`) set `disable-model-invocation: true`.
+- User-only entry skills (`program`, `full-send`, `full-stop`, `setup-cstack`, `scout`, `daemon`, `reflect`, `correct`, `eval-skill`) set `disable-model-invocation: true`.
 - Chainable skills keep model invocation on. Their description starts with a narrow trigger, for example "Use when a cstack unit needs to …".
 - No Cursor-only keys (`icon`, `color`). **[lint]**
 

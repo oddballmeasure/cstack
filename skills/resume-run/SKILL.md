@@ -66,10 +66,13 @@ Log each orphan: `<log> "resume" "orphan <unit>" "<state>, worker <is-active out
 Resume it through `cstack:unit`. Its Resume section rebuilds from trailers, the ledger and the PR, so no ticket, commit or comment repeats.
 
 - **Level B** (the unit has a launches file). Count the earlier `restart <unit>` rows in the decision log. None: log `restart <unit>` and run `<worker> launch --store <store> --unit <unit>`. One already: settle as failed with kind `crash` through `cstack:settle`, and `<orch> unit set <unit> --state error`.
-- **Level A**, or a standalone `issue-<N>` run. Run `cstack:unit <issue> --run <slug> --unit <unit>` in this session.
+- **Level A**, or a standalone `issue-<N>` run with no launches file. Run `cstack:unit <issue> --run <slug> --unit <unit>` in this session.
+
+A standalone `issue-<N>` run with a launches file was started by `cstack:daemon`. It takes the Level B path above. Never run its unit in this session.
 
 ### 6. Continue
 
+- A daemon run (`issue-<N>` with `workers/U1.launches`): stop after step 5 and report. The daemon's next tick drains it.
 - A program run (more than one U unit, or `workers/` exists): run `cstack:orchestrate --run <slug>`. It starts at Drain.
 - A standalone run: the `cstack:unit` run from step 5 is the continuation. Give its final report.
 

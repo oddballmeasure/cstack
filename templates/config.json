@@ -24,6 +24,20 @@
     "review": "sonnet",
     "gather": "haiku"
   },
+  "retry_after_hours": null,
+  "scout": {
+    "autonomy": "propose",
+    "categories": ["bug", "regression", "docs", "enhancement", "feature"],
+    "areas_per_pass": 2,
+    "cooldown_days": 7,
+    "max_proposals_per_pass": 3,
+    "max_files": 3,
+    "repro": true,
+    "auto_min_decided": 10,
+    "auto_min_approval": 0.8,
+    "auto_min_done": 0.7
+  },
+  "deploy": null,
   "limits": {
     "coder_attempts": 3,
     "verify_rounds": 2,

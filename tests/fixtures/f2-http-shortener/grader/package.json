@@ -1,0 +1,6 @@
+{
+  "name": "f2-http-shortener-grader",
+  "private": true,
+  "type": "module",
+  "main": "index.js"
+}
