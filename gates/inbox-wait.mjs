@@ -12,11 +12,11 @@
 // coordinator is waiting correctly.
 // Usage: inbox-wait.mjs --store <dir> [--interval-ms 15000] [--until <iso>]
 // Exit 0 when it stops for a reason above, 2 on usage or store errors.
-import { mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import path from "node:path";
 import { main, parseArgs, UsageError, loadConfig } from "./lib/common.mjs";
 import { openStore } from "./lib/store.mjs";
-import { IN_FLIGHT_STATES, TERMINAL_STATES, workerName, workerState } from "./lib/workers.mjs";
+import { IN_FLIGHT_STATES, TERMINAL_STATES, registerWatcher, workerName, workerState } from "./lib/workers.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const say = (line) => process.stdout.write(`${line}\n`);
@@ -39,10 +39,7 @@ main(async (argv) => {
     }
   };
   snapshot();
-  const mark = path.join(store, "watchers", String(process.pid));
-  mkdirSync(path.dirname(mark), { recursive: true });
-  writeFileSync(mark, `${new Date().toISOString()}\n`);
-  process.on("exit", () => rmSync(mark, { force: true }));
+  registerWatcher(store, "inbox-wait");
   for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => process.exit(0));
 
   const seen = new Set();
