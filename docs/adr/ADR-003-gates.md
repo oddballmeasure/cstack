@@ -19,6 +19,7 @@ Every gate lives in `gates/` at the plugin root, not inside the skill that calls
 | `isolate.mjs` | unit (P3) | implementer worktree with the hidden suite excluded by sparse checkout |
 | `orch.mjs` | orchestrate (P5), merge gate | run store: units, ledger, inbox, gates, frontier |
 | `pr-wait.mjs` | babysit-pr (P3) | PR events, one line each, for the Monitor tool |
+| `run-settings.mjs` | program, merge-gate, plan, orchestrate (P7) | the run's effective autonomy and parallel from config and `<store>/run.json` (ADR-006) |
 
 ## Why
 

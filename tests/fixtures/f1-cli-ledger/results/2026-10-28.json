@@ -1,0 +1,66 @@
+{
+  "fixture": "f1-cli-ledger",
+  "date": "2026-10-28",
+  "started_at": "2026-10-28T04:21:19.751Z",
+  "wall_seconds": 3193,
+  "budget": {
+    "hours": 2,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "00225c805974883357bc5e65bc8ae4c1e85a8dfc",
+  "grader": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 37,
+    "total": 37,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f1/e2e-author.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 3
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 1,
+    "SYNC": 0,
+    "total": 1
+  },
+  "decision_rows": 75,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 44,
+      "state": "MERGED",
+      "title": "Add the hidden end-to-end suite that judges the ledger CLI"
+    },
+    {
+      "number": 47,
+      "state": "MERGED",
+      "title": "Add the ledger CLI: record expenses, list them and total them per month"
+    },
+    {
+      "number": 49,
+      "state": "MERGED",
+      "title": "Import a bank CSV into the ledger in one step, all or nothing"
+    }
+  ],
+  "final_message": "The ledger CLI is built and merged to `main` at `00225c805974`. It passes all 37 hidden end-to-end checks at that commit, and `npm test` passes 21 of 21. I ran both myself.\n\n## Waiting on you\n\n1. **Defaults I took at spec approval, since nobody could answer.** I approved the spec as written. I added four end-to-end requirements (E13 to E16) beyond the guideline's 12, so behaviours like comment lines, `--help` and the import errors have their own checks. The done condition counts all 16. Recommend: keep them. They only test behaviour the guideline already defines.\n2. **Config change from PR #44.** `.cstack/config.json` `e2e_command` went from `null` to the command that runs the hidden suite. It is one line and easy to revert. Recommend: keep it, because the test runner needs it.\n3. **Behaviour the spec doesn't define, chosen without you:**\n   - Unknown options, a missing option value, or an extra argument exit 2.\n   - `add` on a broken ledger file exits 1.\n   - A ledger file that can't be read or written exits 1.\n   - Bad CSV quoting exits 1 with `invalid quoting`.\n\n   Recommend: keep them. They match the spec's exit-code rules, and no verifier or reviewer objected.\n4. **#50: a tab in a description breaks the ledger.** I reproduced it: `add` with a tab in the description exits 0, then `list` and every later `add` fail until you fix the file by hand. Tabs in descriptions are a spec non-goal, but the tool shouldn't write a file it can't read back. Recommend: reject them at input. You only need to pick the error text.\n5. **#51: a CSV starting with a byte order mark fails import.** This follows the spec's \"exactly\" for the header line. Recommend: strip it, since Excel and bank exports often add one.\n6. **#48: hand-edited ledger lines.** The reader accepts amounts like `7` or `4.5`, and keeps a stray `\\r` from Windows line endings in the description. Recommend: leave it, since you edit the file by hand.\n\n## Result\n\n| PR | What | Merge | CI after merge |\n|---|---|---|---|\n",
+  "pass": true
+}

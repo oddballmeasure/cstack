@@ -14,14 +14,19 @@
 //   crash        anything else
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
-// pending-work Stop hook applies to it. It has no exit hook and no unit row.
+// pending-work Stop hook applies to it. It has no exit hook and no unit row. When <store>/run.json has
+// "entry": "program", the coordinator runs `/cstack:program --resume <slug>` instead.
 // The PATH comes from CSTACK_WORKER_PATH, else node's directory, ~/.local/bin and the system dirs.
+// CSTACK_PROGRAM_AUTONOMY passes through only when this process has it set to "send" (a human-launched
+// program session); otherwise the worker gets it empty, so a value in the systemd manager's environment
+// cannot raise a run's autonomy (ADR-006). `next` takes parallel from <store>/run.json, else config.
 // Exit 0 on success, 2 on usage or environment errors.
 import { appendFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { openStore } from "./lib/store.mjs";
+import { effectiveParallel, readRun } from "./lib/run.mjs";
 import {
   IN_FLIGHT_STATES,
   TERMINAL_STATES,
@@ -66,10 +71,14 @@ function launch(store, unit, args) {
   const pluginDir = path.resolve(args["plugin-dir"] || PLUGIN_ROOT);
   const home = process.env.HOME;
   const PATH = process.env.CSTACK_WORKER_PATH || [path.dirname(process.execPath), `${home}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+  // A store that cstack:program started resumes the whole program, not just its execute step.
+  const program = readRun(store).run?.entry === "program";
   const prompt = coordinator
-    ? args.resume
-      ? `/cstack:resume-run ${slug}`
-      : `/cstack:orchestrate --run ${slug}`
+    ? program
+      ? `/cstack:program --resume ${slug}`
+      : args.resume
+        ? `/cstack:resume-run ${slug}`
+        : `/cstack:orchestrate --run ${slug}`
     : `/cstack:unit ${row.issue ? `${row.issue} ` : ""}--run ${slug} --unit ${unit}`;
   const role = coordinator
     ? ["--setenv=CSTACK_COORDINATOR=1"]
@@ -87,6 +96,7 @@ function launch(store, unit, args) {
     `--setenv=PATH=${PATH}`,
     `--setenv=HOME=${home}`,
     `--setenv=CSTACK_RUN=${slug}`,
+    `--setenv=CSTACK_PROGRAM_AUTONOMY=${process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : ""}`,
     // append, not truncate: systemd reopens these files for ExecStopPost, and truncate would wipe the
     // worker's own output before the exit hook can classify it. The files are emptied once, below.
     `--property=StandardOutput=append:${workerFile(store, id, "jsonl")}`,
@@ -174,7 +184,7 @@ function exit(store, unit) {
 
 function next(store, json) {
   const { config } = loadConfig(store);
-  const parallel = Number.isInteger(config.parallel) && config.parallel > 0 ? config.parallel : 1;
+  const parallel = effectiveParallel(config, store).value;
   const { rows, ready } = withStore(store, (s) => ({ rows: s.units.list(), ready: s.units.ready() }));
   // A pr-open unit whose worker has exited is merge-ready and waits on the human, so it holds no slot.
   const busy = rows.filter((u) => IN_FLIGHT_STATES.includes(u.state) && (u.state !== "pr-open" || workerState(workerName(config.repo, store, u.id)).alive)).length;

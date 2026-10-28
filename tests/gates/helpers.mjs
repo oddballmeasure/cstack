@@ -75,7 +75,7 @@ export function gate(name, args, { env = {}, cwd = ROOT } = {}) {
   const r = spawnSync(process.execPath, [path.join(GATES, name), ...args], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, CSTACK_ROLE: "", ...env },
+    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, CSTACK_ROLE: "", CSTACK_PROGRAM_AUTONOMY: "", ...env },
   });
   let json = null;
   try {
