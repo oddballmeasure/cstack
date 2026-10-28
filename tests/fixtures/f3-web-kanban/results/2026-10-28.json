@@ -1,0 +1,74 @@
+{
+  "fixture": "f3-web-kanban",
+  "date": "2026-10-28",
+  "started_at": "2026-10-28T18:11:58.770Z",
+  "wall_seconds": 12063,
+  "budget": {
+    "hours": 12,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "65a0be02ec9c4a95ed9299c2fce88517c159e468",
+  "grader": {
+    "passed": 25,
+    "total": 25,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 37,
+    "total": 37,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f3/e2e-author.jsonl": 0,
+      "testbed/.cstack/runs/f3/workers/U1.jsonl": 0,
+      "testbed/.cstack/runs/f3/workers/U2.jsonl": 0,
+      "testbed/.cstack/runs/f3/workers/U3.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 4
+  },
+  "repair_rounds": {
+    "REPAIR": 2,
+    "CI-REPAIR": 1,
+    "SYNC": 0,
+    "total": 3
+  },
+  "decision_rows": 110,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 63,
+      "state": "MERGED",
+      "title": "Add the hidden end-to-end suite that judges the kanban board"
+    },
+    {
+      "number": 67,
+      "state": "MERGED",
+      "title": "Run the kanban server with its JSON API, safe data file and clean shutdown"
+    },
+    {
+      "number": 69,
+      "state": "MERGED",
+      "title": "Use the kanban board in a browser: add, edit and delete cards by mouse or keyboard"
+    },
+    {
+      "number": 70,
+      "state": "MERGED",
+      "title": "Move kanban cards by drag and by keyboard, with every move announced"
+    }
+  ],
+  "final_message": "# Program report: f3, kanban board\n\nThe kanban board is merged to `main` at `65a0be02ec9c`. People can run `node server.mjs`, open the page, and add, edit, delete and move cards with the mouse or the keyboard. Screen readers announce every move, and the board survives reloads and restarts. All 37 hidden end-to-end lanes pass at that SHA and CI is green. The final council review found one real bug that the suite doesn't cover. It is filed as #71.\n\n## Waiting on you\n\n1. **#71: a second open editor saves to the wrong card.** Open Edit on a card in one column, then Edit on a card in another column, then press Save in the first editor. The change goes to the second card, and the first card stays stuck in edit mode. A failed save also throws away what was typed. The Opus council member reproduced it in Chromium, and I traced the cause to `public/app.mjs:314-332`. Recommend: run `/cstack:unit 71` before anyone uses the board. The fix is small and sits in one function.\n2. **Defaults I took because no one could answer (headless run):**\n   - The spec was approved as written.\n   - I added E18 (\"`npm test` exits 0\"), taken from the guideline's Done clause.\n   - I added a few non-goals: search, filter and themes; a detail modal; import and export; auth, CORS and HTTPS.\n   - The plan approval step was skipped because autonomy was `send`.\n\n   Recommend: keep all of them. None changes what the guideline asks for.\n3. **Config change in PR #63.** `e2e_command` was `null` and now runs the hidden suite with `node --test --test-reporter=tap`. Recommend: keep it. It is one line and easy to revert.\n4. **Browser timing flakes when the machine is busy.** In U2, lane E2.1 failed 2 of 6 times on 5-second timeouts. The cause was CPU starvation on the host, not the product: a blank test page stalled too. The final 37/37 result came from a single run. `test/page-load.test.mjs` uses the same 5-second limit and can flake in CI. It is listed in #74. Recommend: run the browser lanes with lower concu",
+  "pass": true
+}
