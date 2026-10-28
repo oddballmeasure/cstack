@@ -2,7 +2,7 @@
 import { describe, test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync } from "node:fs";
+import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -157,6 +157,45 @@ describe("pr-wait", { concurrency: true }, () => {
     const r = await watch(d, scenario({ graphql: [pr({ state: "MERGED" })] }), ["7", "--repo", REPO]);
     assert.equal(r.code, 0);
     assert.deepEqual(r.lines, [`#7 merged: ${URL}`]);
+  });
+
+  test("--store registers a watcher mark while it runs and removes it on exit", async () => {
+    const d = tmp();
+    const store = path.join(d, "store");
+    mkdirSync(store, { recursive: true });
+    let during = null;
+    const r = await watch(d, scenario({ graphql: [pr(), pr({ state: "MERGED" })], checks: [checks(check("build", "pending"))] }), ["7", "--repo", REPO, "--store", store], {
+      onStderr: () => {
+        if (during === null && existsSync(path.join(store, "watchers"))) during = readdirSync(path.join(store, "watchers"));
+      },
+    });
+    assert.equal(r.code, 0, r.stderr);
+    assert.equal(during?.length, 1, "a mark exists while watching");
+    assert.match(readdirSync(path.join(store, "watchers")).join(""), /^$/, "the mark is gone after exit");
+  });
+
+  test("without --store, CSTACK_RUN under a configured repo names the store; otherwise nothing registers", async () => {
+    const d = tmp();
+    const repo = path.join(d, "repo");
+    const store = path.join(repo, ".cstack", "runs", "r1");
+    mkdirSync(store, { recursive: true });
+    writeFileSync(path.join(repo, ".cstack", "config.json"), JSON.stringify({ repo: REPO, required_checks: [] }));
+    let seen = false;
+    const r1 = await watch(d, scenario({ graphql: [pr(), pr({ state: "MERGED" })], checks: [checks(check("build", "pending"))] }), ["7", "--repo", REPO], {
+      cwd: repo,
+      env: { CSTACK_RUN: "r1" },
+      name: "env",
+      onStderr: () => {
+        if (existsSync(path.join(store, "watchers")) && readdirSync(path.join(store, "watchers")).length) seen = true;
+      },
+    });
+    assert.equal(r1.code, 0, r1.stderr);
+    assert.ok(seen, "registered under the CSTACK_RUN store");
+    const r2 = await watch(d, scenario({ graphql: [pr({ state: "MERGED" })] }), ["7", "--repo", REPO], { cwd: repo, env: { CSTACK_RUN: "missing" }, name: "missing" });
+    assert.equal(r2.code, 0, r2.stderr);
+    assert.ok(!existsSync(path.join(repo, ".cstack", "runs", "missing")), "no store is created");
+    const r3 = await watch(d, scenario({ graphql: [pr({ state: "MERGED" })] }), ["7", "--repo", REPO], { cwd: d, env: { CSTACK_RUN: "r1" }, name: "noconfig" });
+    assert.equal(r3.code, 0, r3.stderr);
   });
 
   test("closed PR exits 1", async () => {

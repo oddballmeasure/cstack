@@ -4,8 +4,8 @@
 //   workers/<unit>.launches     one line per launch: <iso ts> <systemd unit>
 //   workers/<unit>.exit.txt     the last exit: <status> <detail>
 //   workers/<unit>.not-before   ISO time before which the unit must not be relaunched (usage limit)
-//   watchers/<pid>              one file per live inbox-wait process
-import { existsSync, readFileSync } from "node:fs";
+//   watchers/<pid>              one file per live watcher (inbox-wait, pr-wait, post-merge --wait): <kind> <iso ts>
+import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { run } from "./common.mjs";
 
@@ -81,3 +81,13 @@ export function parseReset(text, now = new Date()) {
 
 // A worker session that stopped on the subscription usage window.
 export const USAGE_LIMIT = /usage limit|limit reached|hit your limit|out of (?:extra )?usage/i;
+
+// Mark this process as a live watcher for a run store, so the pending-work Stop hook knows the coordinator
+// will be woken. The mark is removed on exit; a mark whose pid is dead is ignored by the hook.
+export function registerWatcher(store, kind) {
+  const mark = path.join(store, "watchers", String(process.pid));
+  mkdirSync(path.dirname(mark), { recursive: true });
+  writeFileSync(mark, `${kind} ${new Date().toISOString()}\n`);
+  process.on("exit", () => rmSync(mark, { force: true }));
+  return mark;
+}

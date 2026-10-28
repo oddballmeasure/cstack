@@ -36,7 +36,7 @@ Check the state that changes the answer, and mention it only when it does:
 2. Run `/cstack:setup-cstack`. It writes `.cstack/config.json` (base branch, test command, hidden paths, required checks, model roles, autonomy), creates the labels, ignores the run store, and ends with `cstack:doctor`.
 3. When something looks wrong, run `cstack:doctor`. It is read-only.
 
-`autonomy` defaults to `stop`: cstack never merges, and every PR ends merge-ready. `send` lets the merge gate merge.
+`autonomy` defaults to `send`: the merge gate merges once CI, the verifier and the review loop pass. `stop` makes cstack end every PR merge-ready for you to merge.
 
 ## Run a whole program
 
