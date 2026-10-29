@@ -140,6 +140,15 @@ if [ -f "$guard" ]; then
 else
   fail "hooks" "guard not found at $guard"
 fi
+# Codex runs plugin hooks only once they are trusted, and skips them silently otherwise (ADR-010). The guard
+# leaves a mark for each Codex session it sees in a cstack context, including the call that started this script.
+if [ -n "${CODEX_SESSION_ID:-}" ]; then
+  if [ -e "$(node -p 'require("os").tmpdir()')/cstack-hook-seen/$CODEX_SESSION_ID" ]; then
+    pass "hooks (codex)" "the guard runs in this Codex session"
+  else
+    fail "hooks (codex)" "the guard did not run in this Codex session: trust cstack's hooks once in /hooks, then run doctor again"
+  fi
+fi
 
 # GitHub
 if [ "$offline" -eq 0 ]; then

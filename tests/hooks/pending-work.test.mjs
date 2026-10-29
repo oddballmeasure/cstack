@@ -28,7 +28,7 @@ function stop(input, env = {}, cwd = undefined) {
     encoding: "utf8",
     cwd,
   });
-  return { code: r.status, err: r.stderr };
+  return { code: r.status, err: r.stderr, out: r.stdout };
 }
 
 test("inert outside a coordinator session or without a run", () => {
@@ -92,4 +92,16 @@ test("run.json can lower autonomy for the hook; raising needs CSTACK_PROGRAM_AUT
   writeFileSync(path.join(raised.store, "run.json"), JSON.stringify({ autonomy: "send" }));
   assert.equal(stop({ cwd: raised.root }, { CSTACK_PROGRAM_AUTONOMY: "" }).code, 0, "run.json alone cannot raise");
   assert.equal(stop({ cwd: raised.root }, { CSTACK_PROGRAM_AUTONOMY: "send" }).code, 2, "a human-launched send run still merges pr-open units");
+});
+
+test("under Codex the block is a decision on stdout with exit 0", () => {
+  const { root, store } = repo({ states: ["in-progress"] });
+  const out = stop({ cwd: root, turn_id: "t1", hook_event_name: "Stop" });
+  assert.equal(out.code, 0);
+  assert.equal(out.err, "");
+  const j = JSON.parse(out.out);
+  assert.equal(j.decision, "block");
+  assert.match(j.reason, /units in flight \(U1 in-progress\)/);
+  assert.ok(j.reason.includes(`gates/inbox-wait.mjs --store ${store}`) && j.reason.includes("in the foreground"), j.reason);
+  assert.equal(stop({ cwd: root, turn_id: "t1", stop_hook_active: true }).out, "", "the second stop is still allowed");
 });

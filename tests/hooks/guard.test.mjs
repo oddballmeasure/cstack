@@ -201,3 +201,58 @@ test("malformed hook input never blocks", () => {
   const r = spawnSync("node", [GUARD], { input: "not json", encoding: "utf8" });
   assert.equal(r.status, 0);
 });
+
+// Codex payloads (ADR-010): edits arrive as apply_patch with the patch text in tool_input.command.
+const patch = (...lines) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
+
+test("apply_patch: hidden, off-limits and config paths are blocked, ordinary edits pass", () => {
+  const r = repo();
+  const ok = run(r, "apply_patch", { command: patch(`*** Add File: ${path.join(r, "src/a.js")}`, "+x", `*** Update File: ${path.join(r, "src/b.js")}`, "@@", "-a", "+b") });
+  assert.equal(ok.code, 0, ok.err);
+  for (const [lines, rule] of [
+    [[`*** Update File: ${path.join(r, "tests/acceptance/e1.test.js")}`, "@@", "-a", "+b"], /hidden-paths/],
+    [["*** Add File: tests/acceptance/new.test.js", "+x"], /hidden-paths/],
+    [[`*** Update File: ${path.join(r, "src/a.js")}`, `*** Move to: ${path.join(r, "tests/acceptance/a.js")}`], /hidden-paths/],
+    [[`*** Delete File: ${path.join(r, ".github/workflows/ci.yml")}`], /off-limits/],
+    [[`*** Update File: ${path.join(r, ".cstack/config.json")}`, "@@", "-a", "+b"], /off-limits/],
+  ]) {
+    const out = run(r, "apply_patch", { command: patch(...lines) });
+    assert.equal(out.code, 2, lines.join(" | "));
+    assert.match(out.err, rule);
+  }
+});
+
+test("apply_patch: the e2e author writes only inside paths_hidden", () => {
+  const r = repo();
+  const env = { CSTACK_ROLE: "e2e-author" };
+  assert.equal(run(r, "apply_patch", { command: patch("*** Add File: tests/acceptance/e1.test.js", "+x") }, env).code, 0);
+  const out = run(r, "apply_patch", { command: patch("*** Add File: src/x.js", "+x") }, env);
+  assert.equal(out.code, 2);
+  assert.match(out.err, /may write only inside paths_hidden/);
+});
+
+test("apply_patch: outside a cstack context, or with an empty or array input, nothing is blocked", () => {
+  const plain = mkdtempSync(path.join(tmpdir(), "cstack-guard-plain-"));
+  assert.equal(run(plain, "apply_patch", { command: patch(`*** Add File: ${path.join(plain, ".git/x")}`, "+x") }).code, 0);
+  const r = repo();
+  assert.equal(run(r, "apply_patch", {}).code, 0);
+  const arr = run(r, "apply_patch", { command: ["*** Begin Patch", "*** Add File: tests/acceptance/a.js", "*** End Patch"] });
+  assert.equal(arr.code, 2);
+});
+
+test("under Codex the guard marks the session as seen, only in a cstack context", async () => {
+  const { existsSync } = await import("node:fs");
+  const seen = (id) => path.join(tmpdir(), "cstack-hook-seen", id);
+  const id = `test-${process.pid}-${Date.now()}`;
+  const r = repo();
+  const send = (cwd, extra) =>
+    spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" }, cwd, ...extra }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "" } });
+  send(r, { session_id: `${id}-claude` });
+  assert.equal(existsSync(seen(`${id}-claude`)), false, "Claude Code payloads have no turn_id");
+  send(mkdtempSync(path.join(tmpdir(), "cstack-guard-plain-")), { session_id: `${id}-plain`, turn_id: "t" });
+  assert.equal(existsSync(seen(`${id}-plain`)), false, "outside a cstack context");
+  send(r, { session_id: "../evil", turn_id: "t" });
+  assert.equal(existsSync(path.join(tmpdir(), "evil")), false);
+  assert.equal(send(r, { session_id: id, turn_id: "t" }).status, 0);
+  assert.equal(existsSync(seen(id)), true);
+});

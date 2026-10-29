@@ -141,3 +141,17 @@ test("missing gitignore entry is only a warning", () => {
   assert.equal(r.code, 0, r.out);
   assert.match(r.out, /WARN gitignore/);
 });
+
+test("under Codex, doctor fails until the guard has seen this session", () => {
+  const root = target();
+  const id = `doctor-${process.pid}-${Date.now()}`;
+  const before = doctor(root, ["--offline"], { CODEX_SESSION_ID: id });
+  assert.equal(before.code, 1);
+  assert.match(before.out, /FAIL hooks \(codex\): .*\/hooks/);
+  mkdirSync(path.join(tmpdir(), "cstack-hook-seen"), { recursive: true });
+  writeFileSync(path.join(tmpdir(), "cstack-hook-seen", id), "");
+  const after = doctor(root, ["--offline"], { CODEX_SESSION_ID: id });
+  assert.equal(after.code, 0, after.out);
+  assert.match(after.out, /PASS hooks \(codex\)/);
+  assert.doesNotMatch(doctor(root, ["--offline"], { CODEX_SESSION_ID: "" }).out, /hooks \(codex\)/);
+});

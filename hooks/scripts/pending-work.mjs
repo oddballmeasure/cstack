@@ -5,6 +5,8 @@
 // effective autonomy send, from config and <store>/run.json, where the run still merges them) and no
 // watcher is alive for the store. inbox-wait, pr-wait and post-merge --wait each hold <store>/watchers/<pid>. Allows (exit 0) otherwise, and on the second stop in a row
 // (stop_hook_active), so a session that cannot comply is nudged once and never trapped.
+// Under Codex (a payload with turn_id, ADR-010) the block is {"decision":"block","reason":…} on stdout with exit 0,
+// the form measured to keep a Codex session going.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -65,11 +67,17 @@ function main() {
   if (pending.length === 0) return 0;
   const watchers = path.join(found.store, "watchers");
   if (existsSync(watchers) && readdirSync(watchers).some(alive)) return 0;
-  process.stderr.write(
+  const codex = typeof input.turn_id === "string";
+  const watch = codex ? "run it in the foreground and act on the line it exits with" : "arm the Monitor tool on it and wait for its events";
+  const reason =
     `cstack pending-work: units in flight (${pending.join(", ")}) and no watcher is armed (inbox-wait, pr-wait --store, or post-merge --wait). Do not end the turn. ` +
-      `Drain with \`node ${ROOT}/gates/orch.mjs --store ${found.store} inbox drain\`, then arm the Monitor tool on ` +
-      `\`node ${ROOT}/gates/inbox-wait.mjs --store ${found.store}\` and wait for its events.\n`,
-  );
+    `Drain with \`node ${ROOT}/gates/orch.mjs --store ${found.store} inbox drain\`, then start ` +
+    `\`node ${ROOT}/gates/inbox-wait.mjs --store ${found.store}\` and ${watch}.`;
+  if (codex) {
+    process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
+    return 0;
+  }
+  process.stderr.write(reason + "\n");
   return 2;
 }
 
