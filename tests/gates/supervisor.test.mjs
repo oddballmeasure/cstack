@@ -6,6 +6,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { FAKE_BIN, GATES, gate, makeRepo } from "./helpers.mjs";
 
 const RUNNER = path.join(GATES, "runner.mjs");
@@ -35,7 +36,7 @@ function sandbox() {
 
 // Runs a snippet against the supervisor module in a child, so its env and PATH apply.
 function lib(s, code, extra = {}) {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `import * as sup from ${JSON.stringify(path.join(GATES, "lib/supervisor.mjs"))};\n${code}`], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `import * as sup from ${JSON.stringify(pathToFileURL(path.join(GATES, "lib/supervisor.mjs")).href)};\n${code}`], {
     encoding: "utf8",
     env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, CSTACK_SUPERVISOR: "", ...s.env, ...extra },
   });
@@ -251,7 +252,8 @@ test("supervise usage errors and backend", () => {
   assert.equal(s.sup(["backend"], { CSTACK_SUPERVISOR: "launchd" }).out.trim(), "launchd");
   const r = makeRepo({ host: { supervisor: "detached" } });
   assert.equal(s.sup(["backend", "--repo-dir", r.root]).out.trim(), "detached");
-  assert.equal(s.sup(["backend", "--repo-dir", path.join(s.dir, "no-repo")]).out.trim(), "systemd", "no config: auto");
+  const auto = { darwin: "launchd", win32: "taskscheduler" }[process.platform] ?? "systemd";
+  assert.equal(s.sup(["backend", "--repo-dir", path.join(s.dir, "no-repo")]).out.trim(), auto, "no config: auto");
 });
 
 test("daemon-file per backend, and daemon-run writes the allowlist then runs claude", () => {

@@ -73,8 +73,9 @@ test("a live watcher lets the coordinator end its turn; dead or junk marks do no
 test("a watcher owned by another user still counts as alive", () => {
   const { root, store } = repo({ states: ["in-progress"] });
   mkdirSync(path.join(store, "watchers"));
-  writeFileSync(path.join(store, "watchers", "1"), "");
-  assert.equal(stop({ cwd: root }).code, 0, "pid 1 exists (EPERM for a normal user, ok for root)");
+  // init on POSIX, the System process on Windows
+  writeFileSync(path.join(store, "watchers", process.platform === "win32" ? "4" : "1"), "");
+  assert.equal(stop({ cwd: root }).code, 0, "the pid exists (EPERM for a normal user, ok for root)");
 });
 
 test("pr-open counts as in flight only under autonomy send", () => {
