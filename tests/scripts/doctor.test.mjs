@@ -184,3 +184,11 @@ test("node version is checked on the node in PATH, which runs the hooks", { skip
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL node version: v18 is below 22/);
 });
+
+test("a gh without pr checks --json or baseRefOid fails (cstack#32)", () => {
+  const ok = doctor(target(), ["--offline"]);
+  assert.match(ok.out, /PASS gh features/);
+  const old = doctor(target(), ["--offline"], { FAKE_GH_OLD: "1" });
+  assert.equal(old.code, 1);
+  assert.match(old.out, /FAIL gh features: this gh lacks/);
+});

@@ -43,6 +43,14 @@ if (!offline) {
   else if (run("gh", ["auth", "status"]).code === 0) pass("gh auth", "logged in");
   else fail("gh auth", "not logged in (run gh auth login)");
 }
+// pr-wait and the merge gate need `gh pr checks --json` and the baseRefOid field; Ubuntu's gh 2.45 has
+// neither (cstack#32). Ask gh itself, offline, rather than compare version numbers.
+if (which("gh")) {
+  const view = run("gh", ["pr", "view", "--json"]);
+  const checks = run("gh", ["pr", "checks", "--help"]);
+  if (/baseRefOid/.test(view.stdout + view.stderr) && /--json/.test(checks.stdout + checks.stderr)) pass("gh features", "pr checks --json, baseRefOid");
+  else fail("gh features", "this gh lacks `pr checks --json` or the baseRefOid field; install a current gh from https://cli.github.com");
+}
 
 // Repo
 const top = run("git", ["-C", dir, "rev-parse", "--show-toplevel"]);

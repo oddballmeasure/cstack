@@ -1,0 +1,63 @@
+{
+  "fixture": "f1-cli-ledger",
+  "harness": "codex",
+  "date": "2026-10-29",
+  "started_at": "2026-10-29T21:15:21.744Z",
+  "wall_seconds": 1326,
+  "budget": {
+    "hours": 2,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "e29e0fb3a9655ada23a06e3ed1e3c4137a914108",
+  "grader": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f1/e2e-author.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 2
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 1,
+    "SYNC": 0,
+    "total": 1
+  },
+  "decision_rows": 28,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 82,
+      "state": "MERGED",
+      "title": "Add the hidden end-to-end suite that judges the expense ledger CLI"
+    },
+    {
+      "number": 84,
+      "state": "MERGED",
+      "title": "Add a plain-text expense ledger CLI"
+    }
+  ],
+  "final_message": "Program `f1` is done. Both PRs merged through the gates. No required human action remains.\n\nDefaults taken: H1 approved, H2 skipped under `send`, and the default Node TAP command configured. Council used three available GPT models because the Claude defaults were unavailable.\n\nFinal base SHA: `e29e0fb3a9655ada23a06e3ed1e3c4137a914108`.\n\nObserved at that SHA:\n\n- Required CI passed.\n- All 24 acceptance lanes passed, run by a fresh `gpt-6-astra` verifier.\n- All 10 public tests passed.\n\nEvery requirement shipped in U1, [PR #84](https://github.com/oddballmeasure/cstack-testbed/pull/84).\n\n| Requirement | Passing lanes |\n| --- | --- |\n| R1 | E1.1, E1.2, E6.1, E6.2 |\n| R2 | E1.1, E1.3, E3.1, E3.2 |\n| R3 | E2.1, E2.2 |\n| R4 | E4.1, E4.2, E4.3, E9.1 |\n| R5 | E3.1, E3.2, E5.1, E5.2 |\n| R6 | E6.1, E6.2, E6.3 |\n| R7 | E1.1, E1.2, E4.1, E4.3, E7.1, E8.1, E8.2 |\n| R8 | E9.1, E9.2 |\n| R9 | E10.1 |\n| R10 | E11.1 |\n| R11 | E12.1, E12.2 |\n| R12 | All 24 lanes |\n\nThe [full report](/home/monty/cstack/tests/fixtures/results/f1-cli-ledger-2026-10-29T21-15-21-743Z/testbed/.cstack/runs/f1/report.md) links the final lane results and exact-head verdict supporting every row.\n\n| PR | State | Merge SHA |\n| --- | --- | --- |\n| [#82, acceptance suite](https://github.com/oddballmeasure/cstack-testbed/pull/82) | Merged | `41a57b3511ec` |\n| [#84, ledger CLI](https://github.com/oddballmeasure/cstack-testbed/pull/84) | Merged | `e29e0fb3a965` |\n\nCouncil scored the change **9/10 on all three models**. No confirmed blockers remained. [Proposed issue #85](https://github.com/oddballmeasure/cstack-testbed/issues/85) records an ambiguity about whitespace-only ledger lines.\n\nAutonomy was `send` from the run record and launch environment. Parallelism was 1. The run recorded 28 decisions, zero restarts, and zero usage-limit waits. Sequence Verifiable Units kept the suite merge before implementation; Prove It Works required final-SHA evidence.\n\nArtifacts remain in [the run store](/home/monty/cstack/tests/fixture",
+  "pass": true,
+  "billing_note": "Corrected after the run: run-fixture read only stdout of `codex login status`, which prints \"Logged in using ChatGPT\" on stderr, and so recorded codex-api-key. The worker launch check reads both streams and passed. Fixed in the same PR."
+}

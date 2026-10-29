@@ -43,3 +43,15 @@ So coordinators run with `danger-full-access` (`COORDINATOR_SANDBOX`), and every
 - The usage-limit classifier matches Codex's "You've hit your usage limit" wording. The first live hit should confirm it.
 - `review_via: claude`, which would send Codex verify and review to Claude, is not built yet. Under Codex, `models_codex.judge` and `review` default to a model other than `code`, which keeps the non-author rule.
 - doctor validates `harness`, `models_codex` and `codex_sandbox` once doctor is ported to Node.
+
+## Proof (phase C5)
+
+On 2026-10-29, f1 passed under Codex: `run-fixture.mjs f1 --harness codex` scored 24/24 on the held-out grader, with cstack's own suite at 24/24. It took 22 minutes against a 2-hour budget, billed the ChatGPT plan, asked no questions, and produced 2 merged PRs. The council scored the change 9/10 on three GPT models. The result is `tests/fixtures/f1-cli-ledger/results/2026-10-29-codex.json`.
+
+It took seven runs. Runs 1 to 6 each stopped earlier in the pipeline and were fixed one by one:
+1. the sandbox kept `.git` read-only (#25);
+2. a coordinator inside the sandbox could not start sessions (#26);
+3. a heredoc file write tripped the guard's text check (#27);
+4. the worktree's git dir stayed read-only (#28);
+5. a broad deny rule overrode a specific allow rule (#31);
+6. the host's gh 2.45 lacked `pr checks --json` (cstack#32; doctor now checks for it).
