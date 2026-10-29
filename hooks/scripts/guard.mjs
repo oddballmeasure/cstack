@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// cstack PreToolUse guard. One entry point, five rules:
+// cstack PreToolUse guard. One entry point, seven rules:
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
 //   no-sleep-loops    no sleep/poll loops in Bash; wait with Monitor + a watcher script
 //   no-admin-merge    no direct `gh pr merge` or merge API call; only the merge gate merges
 //   no-autonomy-raise no Bash command sets CSTACK_PROGRAM_AUTONOMY; only a human launch does
+//   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
+//   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
 // No config in the repo means no path rules (the Bash rules still apply).
 // This is defence in depth. Hidden suites also need filesystem isolation (ADR-001).
@@ -91,6 +93,14 @@ function checkBash(cmd) {
   // Only the human who launches a run may give it CSTACK_PROGRAM_AUTONOMY=send (ADR-006). Reading it is fine.
   if (/\bCSTACK_PROGRAM_AUTONOMY\s*=|\b(export|read|declare|typeset|local|set-environment)\b[^;&|\n]*\bCSTACK_PROGRAM_AUTONOMY\b/.test(flat)) {
     block("no-autonomy-raise", "a session may not set CSTACK_PROGRAM_AUTONOMY. Only the human who launches the run sets it.");
+  }
+  // A deploy is a hard stop (mode skill rule 7): the approved run is the human's own command, unless config deploy.auto.
+  if (/\bdeploy\.mjs\b[^;&|\n]*--approved\b/.test(flat)) {
+    block("no-deploy-approval", "only a person may approve a deploy. Give them the exact deploy.mjs --approved command to run in their terminal.");
+  }
+  // claude plugin eval publishes its HTML report to claude.ai by default (ADR-005). cstack repos are private.
+  if (/\bclaude\s+plugins?\s+eval\b/.test(flat) && !/--no-publish\b|--help\b/.test(flat)) {
+    block("no-eval-publish", "claude plugin eval must carry --no-publish. Add it and run again.");
   }
 }
 

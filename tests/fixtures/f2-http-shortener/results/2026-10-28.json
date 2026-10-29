@@ -1,0 +1,74 @@
+{
+  "fixture": "f2-http-shortener",
+  "date": "2026-10-28",
+  "started_at": "2026-10-28T13:32:39.796Z",
+  "wall_seconds": 7049,
+  "budget": {
+    "hours": 6,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "91834edde9e8b0b3f5fa94b9fe42355b5f561ad1",
+  "grader": {
+    "passed": 30,
+    "total": 30,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 44,
+    "total": 44,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f2/e2e-author.jsonl": 0,
+      "testbed/.cstack/runs/f2/workers/U1.jsonl": 0,
+      "testbed/.cstack/runs/f2/workers/U2.jsonl": 0,
+      "testbed/.cstack/runs/f2/workers/U3.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 4
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 1,
+    "SYNC": 0,
+    "total": 1
+  },
+  "decision_rows": 106,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 53,
+      "state": "MERGED",
+      "title": "Add the hidden end-to-end suite that judges the shortener"
+    },
+    {
+      "number": 57,
+      "state": "MERGED",
+      "title": "Run the shortener server with validated config, read routes and clean shutdown"
+    },
+    {
+      "number": 59,
+      "state": "MERGED",
+      "title": "Create short links with one curl call and delete mistaken ones"
+    },
+    {
+      "number": 61,
+      "state": "MERGED",
+      "title": "Stop a runaway script from flooding the store with links"
+    }
+  ],
+  "final_message": "You've hit your session limit · resets 7:10pm (Europe/Berlin)",
+  "pass": true
+}

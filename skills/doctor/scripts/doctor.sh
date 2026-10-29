@@ -71,7 +71,34 @@ schema_errors=$(jq -r '
      | need((.[$r] // "") | IN("opus","sonnet","haiku","fable","inherit"); "models.\($r) must be opus, sonnet, haiku, fable or inherit")),
   (.limits // {} | ["coder_attempts","verify_rounds","ci_repair_rounds","base_sync_rounds","review_rounds","test_timeout_seconds","ci_timeout_seconds"][] as $k
      | need((.[$k] | type) == "number" and .[$k] >= 1; "limits.\($k) must be a number >= 1")),
-  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits"]
+  need(.retry_after_hours == null or ((.retry_after_hours | type) == "number" and .retry_after_hours >= 24); "retry_after_hours must be null or a number >= 24"),
+  (if .scout == null then empty
+   elif (.scout | type) != "object" then "scout must be an object or null"
+   else .scout | (
+     def int(lo; hi): type == "number" and . == floor and . >= lo and . <= hi;
+     def rate: type == "number" and . >= 0 and . <= 1;
+     need(.autonomy == null or .autonomy == "propose" or .autonomy == "auto"; "scout.autonomy must be propose or auto"),
+     need(.categories == null or ((.categories | type) == "array" and (.categories | length) > 0 and all(.categories[]; IN("bug","regression","docs","enhancement","feature"))); "scout.categories must be a non-empty list of bug, regression, docs, enhancement, feature"),
+     need(.areas_per_pass == null or (.areas_per_pass | int(1; 6)); "scout.areas_per_pass must be an integer 1 to 6"),
+     need(.cooldown_days == null or ((.cooldown_days | type) == "number" and .cooldown_days >= 0); "scout.cooldown_days must be a number >= 0"),
+     need(.max_proposals_per_pass == null or (.max_proposals_per_pass | int(1; 10)); "scout.max_proposals_per_pass must be an integer 1 to 10"),
+     need(.max_files == null or (.max_files | int(1; 10)); "scout.max_files must be an integer 1 to 10"),
+     need(.repro == null or (.repro | type) == "boolean"; "scout.repro must be true or false"),
+     need(.auto_min_decided == null or (.auto_min_decided | int(1; 100000)); "scout.auto_min_decided must be an integer >= 1"),
+     need(.auto_min_approval == null or (.auto_min_approval | rate); "scout.auto_min_approval must be 0 to 1"),
+     need(.auto_min_done == null or (.auto_min_done | rate); "scout.auto_min_done must be 0 to 1"),
+     (keys - ["autonomy","categories","areas_per_pass","cooldown_days","max_proposals_per_pass","max_files","repro","auto_min_decided","auto_min_approval","auto_min_done"] | .[] | "unknown key scout.\(.)"))
+   end),
+  (if .deploy == null then empty
+   elif (.deploy | type) != "object" then "deploy must be an object or null"
+   else .deploy | (
+     need(.transport == "local" or .transport == "ssh"; "deploy.transport must be local or ssh"),
+     need(.transport != "local" or ((.local_directory | type) == "string" and (.local_directory | length) > 0); "deploy.local_directory is required for transport local"),
+     need(.local_directory == null or (.local_directory | type) == "string"; "deploy.local_directory must be a string"),
+     need(.auto == null or (.auto | type) == "boolean"; "deploy.auto must be true or false"),
+     (keys - ["transport","local_directory","auto"] | .[] | "unknown key deploy.\(.)"))
+   end),
+  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits","retry_after_hours","scout","deploy"]
      | .[] | "unknown key \(.)")
 ' "$cfg")
 if [ -n "$schema_errors" ]; then
