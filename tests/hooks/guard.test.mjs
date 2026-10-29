@@ -324,3 +324,9 @@ test("CSTACK_GUARD_HIDE hides paths outside the repo from Bash and file tools", 
   assert.equal(run(r, "Read", { file_path: `${h}suite` }, hide).code, 0, "a sibling with the same prefix");
   assert.equal(run(r, "Read", { file_path: path.join(h, "x") }).code, 0, "unset: nothing extra hidden");
 });
+
+test("a hidden glob written with backslashes still blocks a command naming it", () => {
+  const r = repo({ paths_hidden: ["tests\\acceptance/**"] });
+  assert.equal(run(r, "Bash", { command: "cat tests\\acceptance/x" }).code, 2);
+  assert.equal(run(r, "Bash", { command: "cat tests/acceptance/x" }).code, 2);
+});

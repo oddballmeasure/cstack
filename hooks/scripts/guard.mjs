@@ -109,7 +109,7 @@ function hiddenNeedles(globs) {
   return globs.map(globPrefix).filter((p) => p.length > 0);
 }
 // Whether text names a needle, also when it spells the path with Windows backslashes.
-const names = (text, needle) => fold(text.replaceAll("\\", "/")).includes(fold(needle));
+const names = (text, needle) => fold(text.replaceAll("\\", "/")).includes(fold(needle.replaceAll("\\", "/")));
 
 // Codex skips plugin hooks it has not trusted, without a warning (ADR-010). So in a cstack context the guard
 // leaves <tmpdir>/cstack-hook-seen/<session_id> for each Codex session (a payload with turn_id). doctor checks

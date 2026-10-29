@@ -33,7 +33,9 @@ for (const t of ["git", "jq", "node"]) {
   if (p) pass(`tool ${t}`, p);
   else fail(`tool ${t}`, "not on PATH");
 }
-const major = Number(process.versions.node.split(".")[0]);
+// The node on PATH runs the hooks (hooks.json), which may differ from the node running doctor.
+const pathNode = which("node") ? run("node", ["-p", "process.versions.node"]).stdout.trim() : "";
+const major = Number((pathNode || process.versions.node).split(".")[0]);
 if (major >= 22) pass("node version", `v${major}`);
 else fail("node version", `v${major} is below 22 (hooks need path.matchesGlob)`);
 if (!offline) {

@@ -175,3 +175,12 @@ test("under Codex, doctor fails until the guard has seen this session", () => {
   assert.match(after.out, /PASS hooks \(codex\)/);
   assert.doesNotMatch(doctor(root, ["--offline"], { CODEX_SESSION_ID: "" }).out, /hooks \(codex\)/);
 });
+
+test("node version is checked on the node in PATH, which runs the hooks", { skip: process.platform === "win32" && "the fake node is a shell script" }, () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-oldnode-"));
+  writeFileSync(path.join(dir, "node"), "#!/bin/sh\necho 18.20.0\n");
+  chmodSync(path.join(dir, "node"), 0o755);
+  const r = doctor(target(), ["--offline"], { PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL node version: v18 is below 22/);
+});
