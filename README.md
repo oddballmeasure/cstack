@@ -89,7 +89,7 @@ In the Codex desktop app, add the `oddballmeasure/cstack` marketplace and instal
 
 Then run `codex`, open `/hooks` and trust the cstack hooks. Do this again after every cstack update: Codex ties hook trust to a fingerprint of the whole plugin, so any change to the plugin revokes it. Codex skips untrusted plugin hooks without a warning, and cstack's guard is one of them. `$cstack:doctor` fails with `FAIL hooks (codex)` until you have done this. cstack never runs with `--dangerously-bypass-hook-trust`.
 
-Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
+Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. They run in Codex's `workspace-write` sandbox, with the repo's git dirs, the run store and `~/.local/state/cstack` writable. The coordinator runs outside the sandbox, because a sandboxed session cannot start other sessions. Units it runs in its own session are protected by the guard only (ADR-012). On Ubuntu 24.04 the sandbox needs `bubblewrap` installed. cstack also needs a current `gh`: doctor rejects one without `gh pr checks --json`. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
 
 ### Where it runs
 
@@ -98,7 +98,7 @@ Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Det
 | Claude Code | everything; detached work through systemd | everything; detached work through launchd | everything; detached work through Task Scheduler. The e2e author's own session needs `sh` (Git Bash), or it uses its in-session fallback |
 | Codex CLI and desktop app | everything; detached `codex exec` through systemd | everything; detached `codex exec` through launchd | as for Claude Code on Windows |
 
-On any other host, detached work falls back to a detached process, which does not survive a reboot. `node <plugin>/gates/supervise.mjs backend` prints the backend in use (ADR-011). Live-tested so far: Claude Code and Codex on Linux. macOS and Windows are covered by unit tests and CI on all three operating systems.
+On any other host, detached work falls back to a detached process, which does not survive a reboot. `node <plugin>/gates/supervise.mjs backend` prints the backend in use (ADR-011). Live-tested so far: Claude Code and the Codex CLI on Linux. The f1 fixture passed end to end under `codex exec` with the held-out grader at 24/24 (ADR-012). macOS and Windows are covered by unit tests and CI on all three operating systems. The Codex desktop app has not been tested yet.
 
 Any install scope works. cstack's hooks act only inside a cstack context: a repo whose root has `.cstack/config.json` (written by `/cstack:setup-cstack`), or a session that cstack itself launched. In every other project they exit at once and change nothing.
 
