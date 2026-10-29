@@ -21,7 +21,7 @@ Run these. Take numbers from their output, never from memory.
 - `<orch> frontier show`
 - `<orch> gate list`
 - `node <root>/gates/worker.mjs next --store <store>` (what launches next, what waits for a usage reset)
-- `systemctl --user is-active` for each in-flight unit's worker, if the store has `workers/`
+- `node <root>/gates/supervise.mjs status <unit name>` for each in-flight unit's worker, if the store has `workers/`
 - `<store>/post-merge.tsv`, the last row per PR, if it exists
 - issues labelled `<prefix>:needs-human` that the run touched: the unit issues and post-merge follow-ups
 

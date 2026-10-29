@@ -107,7 +107,10 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     // A session may not start another Claude Code session or change its own permissions.
     "Bash(claude *)", "Bash(systemctl --user enable *)", "Bash(loginctl *)",
   ];
-  if (role !== "coordinator") deny.push("Bash(systemd-run *)");
+  // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor (ADR-011).
+  if (role !== "coordinator") {
+    deny.push("Bash(systemd-run *)", ...["start", "stop", "daemon-run"].map((c) => `Bash(node ${plugin}/gates/supervise.mjs ${c} *)`));
+  }
 
   return {
     permissions: {

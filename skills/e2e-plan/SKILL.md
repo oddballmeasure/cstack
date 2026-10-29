@@ -112,7 +112,7 @@ Generate the author's permission settings first. The session runs with `--permis
 node <root>/gates/run-settings.mjs --permissions e2e-author --repo-dir <repo> --worktree <wt> --out <store>/e2e-author.settings.json
 ```
 
-Write `<store>/e2e-author.sh` with the Write tool, then `chmod +x` it:
+Write `<store>/e2e-author.sh` with the Write tool. The start command below runs it with `sh`:
 
 ```sh
 #!/bin/sh
@@ -129,16 +129,16 @@ Drop `--model <judge>` when `models.judge` is `inherit`. Fill `<dir of node>` fr
 
 Start it and wait on it with the `Monitor` tool. Never a sleep loop.
 
-- Start: `rm -f <store>/e2e-author.exit && systemd-run --user --collect --quiet --unit=cstack-e2e-<slug> <store>/e2e-author.sh`
+- Start: `rm -f <store>/e2e-author.exit && node <root>/gates/supervise.mjs start --name cstack-e2e-<slug> --cwd <wt> --log-dir <store> -- sh <store>/e2e-author.sh`. The host supervisor picks systemd, launchd, Task Scheduler or a detached process (ADR-011).
 - Monitor command, timeout `1800000`:
   ```sh
-  pid=$(systemctl --user show -p MainPID --value cstack-e2e-<slug>); [ "${pid:-0}" -gt 0 ] && tail --pid="$pid" -f /dev/null; cat <store>/e2e-author.exit 2>/dev/null || echo "author ended without an exit code"
+  node <root>/gates/supervise.mjs wait cstack-e2e-<slug> --timeout 1700 && { cat <store>/e2e-author.exit 2>/dev/null || echo "author ended without an exit code"; }
   ```
-  `MainPID` is `0` once the unit is gone, and `tail --pid=0` would wait forever, hence the test. Re-arm on expiry while `systemctl --user is-active cstack-e2e-<slug>` prints `active`. "Ended without an exit code" means the session was killed: treat it as a failure below.
+  `timeout: 1700s` means the author is still running: re-arm. "Ended without an exit code" means the session was killed: treat it as a failure below.
 
 When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must show `"apiKeySource":"none"`. Then check refusals: `jq -c 'select(.type=="result") | .permission_denials' <store>/e2e-author.jsonl`. A non-empty list means the author's allowlist refused a call it needed. Treat the run as a failure with kind `setup`, and report each refused call with the fix: a rule in config `permissions_allow`. The author's report is the `result` event's text: `jq -r 'select(.type=="result") | .result' <store>/e2e-author.jsonl`.
 
-**Fallback: an in-session subagent.** Use it only when the headless launch cannot run (no `systemd-run`, or no `claude` on `PATH`). Spawn the plugin's `cstack-e2e-author` agent with the `Agent` tool, `model` from `models.judge`, and the brief as the prompt. The brief tells it to prefix every Bash command with `CSTACK_ROLE=e2e-author`. That prefix reaches the commands it runs, but not the guard, which sees this session's environment. So the fallback works only when this whole session was started with `CSTACK_ROLE=e2e-author` and does no implementation work in the run. In any other session the guard blocks every write to the suite, which is correct. Then stop with failure `setup` and say why. Log which mode ran.
+**Fallback: an in-session subagent.** Use it only when the headless launch cannot run: no `claude` on `PATH`, or no `sh` (Windows without Git Bash). Spawn the plugin's `cstack-e2e-author` agent with the `Agent` tool, `model` from `models.judge`, and the brief as the prompt. The brief tells it to prefix every Bash command with `CSTACK_ROLE=e2e-author`. That prefix reaches the commands it runs, but not the guard, which sees this session's environment. So the fallback works only when this whole session was started with `CSTACK_ROLE=e2e-author` and does no implementation work in the run. In any other session the guard blocks every write to the suite, which is correct. Then stop with failure `setup` and say why. Log which mode ran.
 
 **After the author ends:**
 

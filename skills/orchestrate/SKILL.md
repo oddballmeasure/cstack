@@ -12,7 +12,7 @@ You own the program, never the code. You pick units, launch them, drain the queu
 
 Three rules carry the rest:
 
-- Completions are queue events, not interrupts. Truth is `units.tsv`, the inbox and `systemctl`, never a worker's chat.
+- Completions are queue events, not interrupts. Truth is `units.tsv`, the inbox and the supervisor's session state, never a worker's chat.
 - Every step is idempotent. A fresh session running this skill again on the same store does the right thing (`cstack:resume-run` relies on this).
 - **Never end your turn while a unit is in flight.** Wait with the `Monitor` tool on the watcher. If you end the turn early, nobody wakes you and the program stops.
 
@@ -86,7 +86,7 @@ Each pass runs Drain, Launch, Wait, in that order. A fresh session starts at Dra
 ### Drain
 
 1. `<orch> inbox drain`. Each line is `ts agent unit status report`. A worker's wrapper pushes one `worker` entry when its session ends for any reason, SIGKILL included. The unit itself pushes a `unit` entry at settle. Two entries for one unit are normal. Act on the unit's state, not on the count of entries.
-2. For each unit named in an entry, and for each unit in `in-progress` or `verifying`, read `<orch> unit get <unit>` and `systemctl --user is-active <unit name>`. Then:
+2. For each unit named in an entry, and for each unit in `in-progress` or `verifying`, read `<orch> unit get <unit>` and `node <root>/gates/supervise.mjs status <unit name>`. Then:
 
 | Unit state, worker | What it means | Do |
 |---|---|---|
@@ -127,7 +127,7 @@ For each `launch` line:
 <worker> launch --store <store> --unit <unit>
 ```
 
-It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and runs `systemd-run --user --unit=<unit name> ... claude -p --strict-mcp-config --plugin-dir <root> "/cstack:unit <issue> --run <slug> --unit <unit>"` with an explicit PATH and `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
+It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and starts the session through the host supervisor (`systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, else a detached process; ADR-011): `claude -p --strict-mcp-config --plugin-dir <root> "/cstack:unit <issue> --run <slug> --unit <unit>"` with an explicit PATH and `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
 
 ### Wait
 

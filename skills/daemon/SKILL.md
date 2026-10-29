@@ -55,14 +55,16 @@ Log one row per action with `<log> "daemon" "<action>" "<why>" "<evidence>" "<re
    <tick> prepare <N>
    node <root>/gates/worker.mjs launch --store <store N> --unit U1
    ```
-   `prepare` creates `issue-<N>` with unit `U1` ready, or resets a stopped one. `worker.mjs` marks it `in-progress` and starts `cstack-<repo name>-issue-<N>-U1` under `systemd-run --user`. The worker runs `/cstack:unit <N> --run issue-<N> --unit U1` and claims the issue itself.
+   `prepare` creates `issue-<N>` with unit `U1` ready, or resets a stopped one. `worker.mjs` marks it `in-progress` and starts `cstack-<repo name>-issue-<N>-U1` through the host supervisor (ADR-011). The worker runs `/cstack:unit <N> --run issue-<N> --unit U1` and claims the issue itself.
 8. **End the tick.** Reply with three lines: launched, settled or landed, and anything that needs a person. Then stop.
 
 ## Run it
 
 Interactive, for a trial: start Claude Code in the repo as `CSTACK_COORDINATOR=1 claude`, then type `/loop 10m /cstack:daemon`. Stop it by ending the session.
 
-Headless, as a service: copy [the systemd user unit](references/cstack-daemon@.service) to `~/.config/systemd/user/`, edit the plugin path, then:
+Headless, as a service on macOS or Windows: run `node <root>/gates/supervise.mjs daemon-file --repo-dir <repo>`. It writes a launchd agent (macOS) or a Task Scheduler command (Windows) under `<repo>/.cstack/daemon/` and prints the one install command for the human to run. The service runs `supervise.mjs daemon-run`, which writes the coordinator allowlist and then runs the same `claude -p "/loop 10m /cstack:daemon"` session as the systemd unit. A LaunchAgent runs only while the user is logged in. A Task Scheduler task needs the user logged in, unless they store a password for it themselves (ADR-011).
+
+Headless, as a service on Linux: copy [the systemd user unit](references/cstack-daemon@.service) to `~/.config/systemd/user/`, edit the plugin path, then:
 
 ```sh
 systemctl --user daemon-reload

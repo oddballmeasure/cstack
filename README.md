@@ -87,7 +87,7 @@ Any install scope works. cstack's hooks act only inside a cstack context: a repo
 
 - Claude Code, Node 22 or later, `git` and `jq`.
 - The GitHub CLI (`gh`), logged in with access to the repo. cstack works through issues, labels, pull requests and CI checks, so the target repo must be on GitHub.
-- For detached work: Linux with a systemd user session (`systemd-run --user`). That covers the e2e author's own session, programs of more than 5 units or with `parallel` above 1, the daemon, and runs that survive the terminal closing. Without it, `/cstack:unit`, the review skills, small programs (run in your session) and the e2e author (as an in-session subagent, with limits; see `skills/e2e-plan/SKILL.md`) still work.
+- For detached work, a host supervisor: a systemd user session on Linux, launchd on macOS or Task Scheduler on Windows. On any other host, cstack falls back to a detached process, which cannot survive a reboot (ADR-011). That covers the e2e author's own session, programs of more than 5 units or with `parallel` above 1, the daemon, and runs that survive the terminal closing. Without it, `/cstack:unit`, the review skills, small programs (run in your session) and the e2e author (as an in-session subagent, with limits; see `skills/e2e-plan/SKILL.md`) still work.
 
 ## Quickstart
 
@@ -298,7 +298,7 @@ cstack has no server and no telemetry. It sends nothing to its author. Everythin
 
 - **`git`**: branches, commits, worktrees, rebases, and pushes to your repo's `origin` (a force push only with `--force-with-lease`, on the run's own branches).
 - **`gh`**, with your own `gh` login, calling the GitHub API for the repo you point it at: read and create issues, labels, comments, pull requests and reviews; read check runs and CI logs; merge a PR (only through `gates/check-merge.mjs`, and only under `autonomy: send`).
-- **Headless Claude Code sessions**: `claude -p --permission-mode dontAsk --settings <role allowlist> --strict-mcp-config --plugin-dir <cstack>`, started with `systemd-run --user`. This happens only in these cases:
+- **Headless Claude Code sessions**: `claude -p --permission-mode dontAsk --settings <role allowlist> --strict-mcp-config --plugin-dir <cstack>`, started through the host supervisor (`systemd-run --user`, launchd, Task Scheduler or a detached process). This happens only in these cases:
   - `/cstack:program` (and `/cstack:full-send` on a guideline) launches the e2e author this way by default, because the guard can only grant its suite-writing role to a session started with it;
   - `/cstack:orchestrate` and `/cstack:resume-run` launch one worker per unit when a program has more than 5 units or `parallel` above 1;
   - `/cstack:daemon` launches one worker per `cstack:ready` issue, and the optional `skills/daemon/references/cstack-daemon@.service` unit runs the daemon itself this way, but only if you install it.
@@ -308,7 +308,7 @@ cstack has no server and no telemetry. It sends nothing to its author. Everythin
   | Role | Allowed (besides reading the repo, its worktrees, the plugin and `/tmp`) |
   |---|---|
   | worker | Edits in this repo's worktrees and run store. `git`, `gh`, `node`, `jq`, the configured `setup_command`/`test_command`/`e2e_command` (with `install`, `ci`, `run` and `test` for a JS package manager, plus `npx playwright`), the plugin's own scripts, `mkdir`/`cp`/`mv`/`touch`/`chmod +x`/`rm -f`, read-only `systemctl --user`/`journalctl --user`, and the Agent, Skill and Monitor tools. |
-  | coordinator | Everything a worker may do, plus starting the e2e author (`systemd-run --user ... --unit=cstack-e2e-*`) and stopping `cstack-*` units. |
+  | coordinator | Everything a worker may do, plus starting the e2e author (`systemd-run --user ... --unit=cstack-e2e-*` or `gates/supervise.mjs start`) and stopping `cstack-*` sessions. Other roles may not start or stop sessions. |
   | e2e-author | Edits only inside `paths_hidden` of its worktree and the run store. Otherwise as a worker. |
   | grader | For a separate headless verification session. Read-only: the gates, the configured commands, and `gh pr`/`issue`/`run` views. Writes only to the run store. cstack's own verifier is a subagent, so it inherits the allowlist of the session that spawns it. |
 
@@ -318,7 +318,7 @@ cstack has no server and no telemetry. It sends nothing to its author. Everythin
 - **`ssh`**: only `gates/deploy.mjs`, only when `.cstack/config.json` sets `deploy.transport` to `ssh`, and only after a person approves the deploy (unless the config sets `deploy.auto`). Deploys are off when `deploy` is absent. It runs your repo's committed `deploy.sh` and health command, either locally or on the host your `deploy.json` names.
 - **Your repo's own commands**: the `test_command`, `setup_command` and `e2e_command` from the config, and your `deploy.sh`. cstack runs them as written; what they reach is up to them.
 - **`claude plugin eval --no-publish`**: only `/cstack:eval-skill`, which you start yourself. The guard blocks any `claude plugin eval` without `--no-publish`, so eval reports are never uploaded.
-- **`systemctl --user` and `journalctl --user`**: to check and read the detached sessions above.
+- **`systemctl --user`, `launchctl` or `schtasks`** (through `gates/supervise.mjs`): to start, check and stop the detached sessions above. Each session is recorded in `~/.local/state/cstack/sessions/`.
 
 cstack's own scripts make no other network calls: no HTTP requests, no downloads, no package installs.
 

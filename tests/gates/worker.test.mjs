@@ -15,7 +15,7 @@ function program(cfg = {}) {
   orch("init");
   const states = path.join(r.base, "states.json");
   writeFileSync(states, "{}");
-  const env = { FAKE_SYSTEMCTL_STATES: states, FAKE_SYSTEMD_RUN_LOG: path.join(r.base, "systemd-run.log") };
+  const env = { FAKE_SYSTEMCTL_STATES: states, FAKE_SYSTEMD_RUN_LOG: path.join(r.base, "systemd-run.log"), CSTACK_SESSIONS_DIR: path.join(r.base, "sessions"), CSTACK_SUPERVISOR: "systemd" };
   const setStates = (o) => writeFileSync(states, JSON.stringify(o));
   const worker = (args, extra = {}) => gate("worker.mjs", [...args], { env: { ...env, ...extra } });
   const unit = (id) => orch("unit", "get", id).split("\t");
@@ -265,4 +265,36 @@ test("a program store relaunches its coordinator as /cstack:program --resume; ru
   p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
   p.orch("unit", "add", "U2", "--track", "core", "--state", "ready");
   assert.equal(p.worker(["next", "--store", p.store]).out, "launch U1\nlaunch U2\nslots 2/2\n");
+});
+
+test("launch under the other backends: the runner starts claude and runs exit when it ends", { skip: process.platform === "win32" && "fake claude is a shebang script" }, () => {
+  const p = program();
+  p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  // The session PATH is the worker's own; put the fakes first so the runner can never start a real claude.
+  const runner = { ...p.env, CSTACK_SUPERVISOR: "detached", FAKE_CLAUDE_LOG: path.join(p.base, "claude.log"), CSTACK_WORKER_PATH: `${FAKE_BIN}:${path.dirname(process.execPath)}:/usr/bin:/bin` };
+  const dry = p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], { ...runner, CSTACK_SUPERVISOR: "launchd" });
+  const spec = JSON.parse(dry.out);
+  assert.equal(spec.backend, "launchd");
+  assert.equal(spec.name, "cstack-r-prog-U1");
+  assert.deepEqual(spec.argv.slice(0, 2), ["claude", "-p"]);
+  assert.deepEqual(spec.unset, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CSTACK_COORDINATOR"]);
+  assert.equal(spec.env.CSTACK_UNIT, "U1");
+  assert.deepEqual(spec.onExit.slice(-5), ["exit", "--store", p.store, "--unit", "U1"]);
+  const coord = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", "--dry-run"], { ...runner, CSTACK_SUPERVISOR: "launchd" }).out);
+  assert.equal(coord.onExit, null, "the coordinator has no exit hook");
+  assert.equal(coord.env.CSTACK_COORDINATOR, "1");
+
+  const waited = p.worker(["launch", "--store", p.store, "--unit", "U1", "--wait"], runner);
+  assert.equal(waited.code, 0, waited.err);
+  assert.match(waited.out, /^finished cstack-r-prog-U1 via detached \(launch 1\)$/m);
+  assert.ok(existsSync(path.join(p.base, "claude.log")), "the runner ran claude");
+  assert.match(readFileSync(p.files("U1.exit.txt"), "utf8"), /^crash service success, exited 0, unit state in-progress/);
+  assert.deepEqual(inbox(p).map((e) => e.slice(1, 4)), [["worker", "U1", "crash"]]);
+
+  const failed = p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...runner, CSTACK_SUPERVISOR: "taskscheduler", FAKE_SCHTASKS_CODE: "1" });
+  assert.equal(failed.code, 2);
+  assert.match(failed.err, /taskscheduler launch failed \(1\)/);
+  const ok = p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...runner, CSTACK_SUPERVISOR: "taskscheduler" });
+  assert.match(ok.out, /^launched cstack-r-prog-U1 via taskscheduler \(launch 3\)$/m);
+  assert.ok(existsSync(p.files("U1.spec.json")));
 });

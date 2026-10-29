@@ -97,7 +97,7 @@ Every comment and PR body ends with the badge line from `templates/footer.md`. R
 
 ## Under orchestrate (Phase 5)
 
-`cstack:orchestrate` runs many units from one store. Level A runs `cstack:unit` in the coordinator session. Level B runs each unit as a detached worker, `gates/worker.mjs launch`, under `systemd-run --user` as `cstack-<repo name>-<slug>-<unit>`.
+`cstack:orchestrate` runs many units from one store. Level A runs `cstack:unit` in the coordinator session. Level B runs each unit as a detached worker, `gates/worker.mjs launch`, under the host supervisor (ADR-011) as `cstack-<repo name>-<slug>-<unit>`.
 
 | Thing | Contract |
 |---|---|
