@@ -14,8 +14,10 @@ jobs:
       - name: L0 lint
         run: node tests/lint/lint.mjs
       - name: Unit tests (hooks, lint, scripts)
+        timeout-minutes: 15
         run: npm test
       - name: Gate coverage (100% lines and branches)
+        timeout-minutes: 15
         run: npm run coverage:gates
       - name: Uncovered branches (only when the coverage bar failed)
         if: failure()
