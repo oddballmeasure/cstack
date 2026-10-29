@@ -17,3 +17,8 @@ jobs:
         run: npm test
       - name: Gate coverage (100% lines and branches)
         run: npm run coverage:gates
+      - name: Uncovered branches (only when the coverage bar failed)
+        if: failure()
+        run: |
+          node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=/tmp/gates.lcov $(node -e 'const s=require("./package.json").scripts["coverage:gates"]; console.log((s.match(/--test-coverage-include=\S+/g)||[]).join(" "))') 'tests/gates/*.test.mjs' > /dev/null 2>&1 || true
+          awk -F'[:,]' '/^SF:/{f=$2} /^BRDA:/{ if ($5=="0"||$5=="-") print f":"$2" block "$3" branch "$4 }' /tmp/gates.lcov | sort -u
