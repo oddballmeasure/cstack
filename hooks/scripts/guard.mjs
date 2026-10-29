@@ -13,8 +13,11 @@
 // launches set (CSTACK_ROLE, CSTACK_RUN, CSTACK_UNIT, CSTACK_COORDINATOR). Anywhere else the guard
 // exits 0 at once, so a user-scope install does not change Claude's behaviour in unrelated projects.
 // A marker without a config means Bash rules only (no path rules).
+// Codex sends the same payload. Its shell tool arrives as Bash, and its edits arrive as apply_patch with the
+// patch text in tool_input.command; the guard reads the file paths from the patch headers (ADR-010).
 // This is defence in depth. Hidden suites also need filesystem isolation (ADR-001).
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
@@ -38,6 +41,12 @@ function findRoot(start) {
 // Directories a Bash command points at with `cd <dir>` or `-C <dir>` (git -C, make -C).
 function bashDirs(cmd) {
   return [...cmd.matchAll(/(?:^|[\s;&|(])(?:cd|-C)\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)].map((m) => m[1].replace(/^["']|["']$/g, "").replace(/^~(?=\/|$)/, process.env.HOME || "~"));
+}
+
+// Files a Codex apply_patch touches: the Add, Update and Delete headers, and the Move to target of a rename.
+function patchPaths(patch) {
+  const text = Array.isArray(patch) ? patch.join("\n") : String(patch ?? "");
+  return [...text.matchAll(/^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+?)\s*$/gm)].map((m) => m[1]);
 }
 
 // The cstack repo this call works in: from the cwd first, then from the paths the call targets.
@@ -91,6 +100,18 @@ function hiddenNeedles(globs) {
   return globs.map(globPrefix).filter((p) => p.length > 0);
 }
 
+// Codex skips plugin hooks it has not trusted, without a warning (ADR-010). So in a cstack context the guard
+// leaves <tmpdir>/cstack-hook-seen/<session_id> for each Codex session (a payload with turn_id). doctor checks
+// it under Codex: no file for its own session means the guard is not running there.
+function markSeen(input) {
+  if (typeof input.turn_id !== "string" || !/^[\w-]+$/.test(String(input.session_id || ""))) return;
+  try {
+    const dir = path.join(tmpdir(), "cstack-hook-seen");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, input.session_id), "");
+  } catch {} // a marker that cannot be written makes doctor fail; it must never block the call
+}
+
 function block(rule, msg) {
   process.stderr.write(`cstack ${rule}: ${msg}\n`);
   process.exit(2);
@@ -137,10 +158,12 @@ function main() {
   const cwd = input.cwd || process.cwd();
 
   const bash = tool === "Bash" && typeof ti.command === "string";
-  const targets = bash ? bashDirs(ti.command) : [ti.file_path, ti.notebook_path, ti.path];
+  const patched = tool === "apply_patch" ? patchPaths(ti.command ?? ti.input) : null;
+  const targets = bash ? bashDirs(ti.command) : patched ?? [ti.file_path, ti.notebook_path, ti.path];
   const root = contextRoot(cwd, targets);
   const marked = MARKERS.some((k) => process.env[k]);
   if (!root && !marked) process.exit(0); // not a cstack context: change nothing
+  markSeen(input);
 
   if (bash) checkBash(ti.command);
 
@@ -161,6 +184,7 @@ function main() {
     NotebookEdit: [ti.notebook_path],
     Grep: [ti.path],
     Glob: [ti.path],
+    apply_patch: patched,
   }[tool];
 
   if (fields && !privileged) {
@@ -183,8 +207,9 @@ function main() {
     }
   }
 
-  if (["Edit", "MultiEdit", "Write", "NotebookEdit"].includes(tool)) {
-    const rel = relTo(root, cwd, ti.file_path || ti.notebook_path);
+  const writes = ["Edit", "MultiEdit", "Write", "NotebookEdit"].includes(tool) ? [ti.file_path || ti.notebook_path] : patched ?? [];
+  for (const w of writes) {
+    const rel = relTo(root, cwd, w);
     const g = rel !== null ? matches(rel, offLimits) : null;
     if (g) block("off-limits", `${rel} is off limits (${g}).`);
     if (rel !== null && privileged && process.env.CSTACK_ROLE === "e2e-author" && !matches(rel, hidden)) {
