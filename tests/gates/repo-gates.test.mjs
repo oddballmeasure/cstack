@@ -53,6 +53,18 @@ test("check-commit approves a clean, tested, trailered commit", () => {
   assert.match(again.out, /\(cached\)/);
 });
 
+test("a cached failing test result is re-run, never reused", () => {
+  const { wt } = isolated();
+  commit(wt, { "src/broken": "x\n", "src/f.js": "1\n" }, "F" + trailers("U1"));
+  const first = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--json"]);
+  assert.equal(first.code, 1);
+  // Same tree, cache on: the failure in the cache is ignored and the tests run again.
+  const again = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--json"]);
+  const tests = again.json.findings.find((f) => f.check === "tests");
+  assert.ok(tests, "still failing");
+  assert.doesNotMatch(tests.detail, /cached/);
+});
+
 test("check-commit rejects each failure mode", () => {
   const { wt } = isolated({ paths_off_limits: ["ops/**"] });
   assert.deepEqual(failChecks(gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--json"])), ["non-empty diff"]);

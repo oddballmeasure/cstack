@@ -1,5 +1,28 @@
 # cstack
 
+## Why I built cstack
+
+I wanted to hand an AI agent a well-researched idea and get back working, tested, merged code that I could actually trust, without having to sit there approving every step.
+
+My first attempt was **Cardinal**, my own autonomous harness. It was a Python service that worked GitHub issues end to end: it triaged each issue, planned it, implemented it, verified it, opened the PR, watched CI and merged. Its main lesson was that a coding agent's account of its own work is not evidence. Cardinal worked because deterministic code checked every claim the model made: the exact commit, the tests, which files changed, and CI. But it was a runtime I had to build, host and maintain.
+
+Then two plugins showed that the same discipline could live as plain instructions to the agent itself:
+
+- **pstack**, by Lauren Tan, teaches an agent how to think. It has principles, playbooks for design, investigation and review, multi-model adversarial review, a decision log you can audit, and an orchestration store for long programs.
+- **tstack**, by Theo Browne, teaches an agent how to ship. Its rule is that proof is evidence you observed yourself. It adds full-send and full-stop permission grants, a review loop with a second model, a PR watcher that never stops waiting while checks are pending, and takeover and modernize for inherited work.
+
+cstack combines the three. It takes pstack's way of thinking, tstack's way of shipping and Cardinal's methodology, and packages them as a Claude Code plugin made only of skills, subagents, hooks and small gate scripts.
+
+| From | What cstack kept |
+|---|---|
+| Cardinal | The issue lifecycle (intake, implement, verify, sync, PR, CI, merge, post-merge CI); gates that check every model claim; a hidden grader the implementer never sees; progress kept in git, not in memory; the scout |
+| pstack | The mode skill and its principles; `how`, `architect`, `arena`, `interrogate` and `blast-radius`; verification skills; the decision log; the orchestration store |
+| tstack | Proof before claims; `full-send` and `full-stop`; the review loop and council; the PR watcher; `takeover` and `modernize`; comment etiquette |
+
+The result is one command, `/cstack:program`, that turns a guideline into merged, verified code. [Sample prompt](#sample-prompt) shows what to give it.
+
+## What it is
+
 cstack is a Claude Code plugin that takes a written idea to merged, tested code on your default branch. It is made only of skills, subagents, hooks and small gate scripts. There is no server and no runtime to install.
 
 Give it a guideline (the problem, the goals, the behaviour you expect end to end) and run `/cstack:program`. It writes a spec, writes a hidden end-to-end test suite before any product code exists, plans the work as units, builds each unit in its own worktree, has a different model verify and review it, and merges each PR only when every gate passes. At the end, a fresh agent that wrote no code runs the whole hidden suite on the merged commit.
@@ -69,6 +92,170 @@ Any install scope works. cstack's hooks act only inside a cstack context: a repo
 The default autonomy is `send` (ADR-007): the merge gate merges each PR once CI, the verifier and the review loop pass. To merge everything yourself, set `"autonomy": "stop"` in `.cstack/config.json` or pass `--autonomy=stop`. Each PR then ends merge-ready, and you resume with `/cstack:program --resume <slug>`.
 
 One issue instead of an idea: `/cstack:unit <issue>`. Not sure which skill to use: `/cstack:cstack-help`.
+
+## Sample prompt
+
+This is a complete guideline for `/cstack:program`. Save it as `docs/idea.md` in an empty repo that has been set up with `/cstack:setup-cstack`. Then run `/cstack:program docs/idea.md`.
+
+To build your own app, keep the structure and replace the parts between `<objective>` and `<constraints>`. The section that matters most is `<e2e_requirements>`. cstack writes its hidden test suite from it before any product code exists, so each item needs an action someone can perform and an exact result someone can check, including the failure paths.
+
+<details>
+<summary>Show the sample prompt (Shelf, a reading-list web app)</summary>
+
+```xml
+<prompt>
+<role>
+You are running a cstack program. You plan, build, verify and ship one small application from this
+guideline, end to end, without a person in the loop except where the guardrails say to stop. You are
+evidence-driven: you trust what a gate, a test or a command output shows, not what an agent says.
+</role>
+
+<objective>
+Build Shelf, a small reading-list web app. A reader adds books they want to read, moves each one through
+"to read", "reading" and "done", rates finished books, and sees how many they read per month. One
+person on one machine uses it. The data must survive restarts.
+</objective>
+
+<context>
+- Repo: empty except for README.md and .cstack/config.json (from /cstack:setup-cstack).
+- Stack: Node 22 or later, with no runtime dependencies. node:http serves a JSON API and static files.
+  The UI is plain HTML, CSS and JavaScript with no build step.
+- Persistence: one JSON file, path from env SHELF_DATA (default ./data/shelf.json), with atomic writes.
+- Entry point: server.mjs. Port from env PORT (default 3000).
+- Tests: node:test for units. The end-to-end suite may use Playwright (devDependency @playwright/test,
+  Chromium only).
+</context>
+
+<users_and_goals>
+Users: one reader, on desktop or phone.
+Goals:
+- Add a book in under 10 seconds: title required, author optional.
+- See the list grouped by status, newest first in each group.
+- Move a book between statuses with a click, or from the keyboard.
+- Rate a book 1 to 5 stars once it is done.
+- See books finished per month for the last 12 months.
+Non-goals: accounts, sharing, sync between devices, book covers, external book APIs, imports.
+</users_and_goals>
+
+<requirements>
+R1. POST /api/books with {"title", "author"?} creates a book with status "to-read" and returns 201 and
+    the book (id, title, author, status, rating: null, created_at, finished_at: null).
+R2. A title is required and is trimmed. It must be 1 to 200 characters, and author is 0 to 120
+    characters. Anything else returns 400 with {"error": "<field>: <reason>"}.
+R3. GET /api/books returns every book, sorted by created_at, newest first.
+R4. PATCH /api/books/:id with {"status"} moves a book between "to-read", "reading" and "done". Moving
+    to "done" sets finished_at. Moving away from "done" clears finished_at and rating.
+R5. PATCH /api/books/:id with {"rating": 1..5} works only on a "done" book. Otherwise it returns 409
+    with {"error": "rating: book is not done"}.
+R6. DELETE /api/books/:id returns 204. An unknown id on any route returns 404 with
+    {"error": "not found"}.
+R7. GET /api/stats/monthly returns 12 entries [{"month": "YYYY-MM", "done": n}], oldest first, ending
+    with the current month.
+R8. Data persists across a server restart, and a crash during a write never leaves a corrupt file.
+R9. The UI at / shows three columns (To read, Reading, Done) and an add form. Every action is
+    reachable by keyboard: Tab to a card, then use the "Move" menu or press 1, 2 or 3.
+R10. GET /health returns 200 with {"ok": true}.
+</requirements>
+
+<e2e_requirements>
+E1. Adding "Dune" by "Frank Herbert" in the UI shows it at the top of "To read" within 1 second.
+    Covers R1, R9.
+E2. Submitting the add form with an empty or spaces-only title shows "Title is required" next to the
+    field, and no book is created. Covers R2.
+E3. POST /api/books with a 201-character title returns 400 with {"error": "title: 1-200 characters"}.
+    Covers R2.
+E4. Moving "Dune" to "Reading" and then to "Done" places it in the Done column, with a "Finished"
+    date of today. Covers R4, R9.
+E5. Rating a "to-read" book through the API returns 409 with {"error": "rating: book is not done"}.
+    Covers R5.
+E6. Setting 4 stars on a done book shows 4 filled stars after a page reload. Covers R5, R8.
+E7. After a server restart, all books, statuses and ratings are unchanged. Covers R8.
+E8. Pressing 2 on a focused card moves it to "Reading", with no mouse. Covers R9.
+E9. GET /api/stats/monthly returns 12 entries, and the last entry counts the books finished this month.
+    Covers R7.
+E10. DELETE on an unknown id returns 404 with {"error": "not found"}. Covers R6.
+E11. GET /health returns 200 with {"ok": true}. Covers R10.
+</e2e_requirements>
+
+<constraints>
+- No runtime npm dependencies. devDependencies are limited to @playwright/test.
+- Every API response is JSON with the right status code, and no stack traces ever reach the client.
+- Book titles are rendered as text, never as HTML (no XSS).
+- npm test runs the unit tests and passes on a clean clone.
+</constraints>
+
+<process>
+Follow cstack's program pipeline. Do not skip a gate.
+1. Preflight: doctor checks tools, config, labels and hooks.
+2. Frame: write the spec (R and E numbers as above, plus a measurable done predicate). Gate: check-spec.
+3. Understand: profile the repo.
+4. E2E first: a separate author writes the hidden suite. Every lane fails on the empty repo, and
+   planted breaks are caught. It merges as PR #0. Gate: check-e2e.
+5. Plan: split the work into units with dependencies, each mapped to requirements and lanes.
+   Gate: check-plan.
+6. Execute: each unit is built in its own worktree. A verifier on a different model judges it at the
+   exact commit, then the review loop runs, then the merge gate.
+7. Integrate: judge CI on every merge commit.
+8. Final proof: a fresh agent runs the whole hidden suite on the merged commit, and a council
+   reviews the full diff.
+9. Close: audit the decision log and write the report.
+</process>
+
+<guardrails>
+- Never read or edit the hidden e2e suite while implementing. Run it only through the gate.
+- Only the merge gate merges. Never merge past a red check, an open blocker or a stale verdict.
+- Fight scope: a review finding that is not about this change becomes a follow-up issue.
+- Stop and ask before anything irreversible: force-pushing a shared branch, deleting data, deploying.
+- Do not add features, dependencies or files outside this guideline.
+</guardrails>
+
+<output_format>
+End with one report:
+1. Summary: what shipped, the merged SHA, and the time taken.
+2. Requirements trace: each R, then its E lanes, then the PR, then where the evidence is.
+3. Hidden suite result at the merged SHA, lane by lane.
+4. Decisions taken without asking, and why.
+5. Follow-ups filed, with links.
+6. Known limits and risks.
+</output_format>
+
+<evaluation_criteria>
+The program succeeds when:
+- every E lane passes at the merged SHA, run by an agent that wrote none of the code;
+- CI is green on the merge commit;
+- every R maps to at least one merged PR and one passing lane;
+- no question needed a person, apart from the guardrails;
+- the code stays small enough for one person to maintain.
+</evaluation_criteria>
+
+<rules>
+- A claim without a command output, a test result or a gate verdict behind it is not a result.
+- Label every assumption as an assumption in the decision log.
+- Prefer the smallest change that passes the gate.
+- Write behaviour-level tests at the boundary (HTTP and UI), not tests of private helpers.
+</rules>
+
+<starter_prompt>
+In Claude Code, in the target repo:
+- /cstack:setup-cstack
+- Save this prompt as docs/idea.md.
+- /cstack:program docs/idea.md
+- To merge every PR yourself: /cstack:program docs/idea.md --autonomy=stop
+- To check progress at any time: /cstack:status
+</starter_prompt>
+
+<final_check>
+Before reporting done, check:
+- Does every E lane pass at the exact merged SHA, and not just on a branch?
+- Did any verdict come from the agent that wrote the code?
+- Is anything in the report a claim without evidence?
+- Did any PR grow beyond its unit?
+- What would make a reader distrust this result?
+</final_check>
+</prompt>
+```
+
+</details>
 
 ## Examples
 
