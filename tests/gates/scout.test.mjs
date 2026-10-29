@@ -301,6 +301,8 @@ test("record: only a person's decisions count; auto-filed issues count toward th
     issue(13, { category: "docs", labels: ["ready"] }),
     issue(14, { category: "docs", labels: ["done"], state: "CLOSED" }),
     issue(15, { category: "docs", state: "CLOSED", days: 70 }),
+    // A category whose only issue was auto-filed and landed: nothing was decided by a person.
+    issue(16, { category: "regression", mode: "auto", labels: ["done"], state: "CLOSED" }),
   ];
   const res = s.run(["record", "--repo-dir", s.root], { issues });
   assert.equal(res.code, 0, res.out);
@@ -309,6 +311,8 @@ test("record: only a person's decisions count; auto-filed issues count toward th
   assert.equal(bug.approval, 0.667);
   assert.equal(bug.done_rate, 0.667);
   assert.equal(bug.gate, "auto");
+  const reg = res.json.categories.regression;
+  assert.deepEqual([reg.decided, reg.approval, reg.done_rate], [0, 0, 1], "no decided proposals means approval 0, never a division by zero");
   assert.match(bug.why, /and a test that fails on the base branch/);
   assert.equal(res.json.categories.docs.gate, "auto");
   assert.doesNotMatch(res.json.categories.docs.why, /a test that fails/);
