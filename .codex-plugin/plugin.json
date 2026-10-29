@@ -1,0 +1,30 @@
+{
+  "name": "cstack",
+  "version": "0.1.0",
+  "description": "Agent-only coding harness: Cardinal's lifecycle, pstack's playbooks, tstack's proof and PR discipline.",
+  "author": { "name": "oddballmeasure", "url": "https://github.com/oddballmeasure" },
+  "homepage": "https://github.com/oddballmeasure/cstack",
+  "repository": "https://github.com/oddballmeasure/cstack",
+  "license": "MIT",
+  "keywords": ["agents", "workflow", "code-review", "testing", "github", "pull-requests", "orchestration"],
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "interface": {
+    "displayName": "cstack",
+    "shortDescription": "Guideline to merged, verified code",
+    "longDescription": "Plan, build, verify and ship code through GitHub issues and pull requests. A hidden end-to-end suite is written first, every unit is judged by a different model at the exact commit, and only the merge gate merges.",
+    "developerName": "oddballmeasure",
+    "category": "Coding",
+    "capabilities": ["Interactive", "Read", "Write"],
+    "websiteURL": "https://github.com/oddballmeasure/cstack",
+    "privacyPolicyURL": "https://github.com/oddballmeasure/cstack/blob/main/PRIVACY.md",
+    "defaultPrompt": [
+      "Set up this repo for cstack",
+      "Run a cstack program from docs/idea.md",
+      "Work issue 12 as one cstack unit"
+    ],
+    "brandColor": "#B3261E",
+    "logo": "./.claude-plugin/icon.png",
+    "composerIcon": "./.claude-plugin/icon.png"
+  }
+}

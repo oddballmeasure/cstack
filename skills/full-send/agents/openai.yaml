@@ -1,0 +1,6 @@
+interface:
+  display_name: "Full send"
+  short_description: "Run a unit or program to a merged result"
+  default_prompt: "Use $cstack:full-send on issue <number>."
+policy:
+  allow_implicit_invocation: false

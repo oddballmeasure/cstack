@@ -72,6 +72,15 @@ claude plugin install cstack@cstack
 
 Or in one command (Claude Code 2.1.292 or later): `claude plugin install cstack --marketplace oddballmeasure/cstack`.
 
+**Codex (preview).** cstack also installs in the Codex CLI:
+
+```
+codex plugin marketplace add oddballmeasure/cstack
+codex plugin add cstack@cstack
+```
+
+Call skills as `$cstack:<name>`, for example `$cstack:doctor`. Codex skips plugin hooks until you trust them once in `/hooks`, and cstack's guard is one of those hooks. Codex support is still being built, so for now use it only for the in-session skills (ADR-010).
+
 Any install scope works. cstack's hooks act only inside a cstack context: a repo whose root has `.cstack/config.json` (written by `/cstack:setup-cstack`), or a session that cstack itself launched. In every other project they exit at once and change nothing.
 
 ## Requirements

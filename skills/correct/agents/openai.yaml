@@ -1,0 +1,6 @@
+interface:
+  display_name: "Correct"
+  short_description: "Make repeated agent mistakes impossible"
+  default_prompt: "Use $cstack:correct to find the mistakes agents keep repeating in this repo."
+policy:
+  allow_implicit_invocation: false

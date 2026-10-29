@@ -1,0 +1,6 @@
+interface:
+  display_name: "Daemon"
+  short_description: "One polling tick of the cstack daemon"
+  default_prompt: "Use $cstack:daemon to run one daemon tick for this repo."
+policy:
+  allow_implicit_invocation: false
