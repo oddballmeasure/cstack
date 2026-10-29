@@ -345,6 +345,8 @@ test("codex harness: launch checks the ChatGPT login, runs codex exec, and exit 
   assert.ok(full.includes("danger-full-access") && !full.includes("-m") && !full.includes("sandbox_workspace_write.network_access=true"));
   const envBox = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], { ...codex, CSTACK_CODEX_SANDBOX: "read-only" }).out);
   assert.ok(envBox.includes("read-only"), "CSTACK_CODEX_SANDBOX wins over config");
+  const coord = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", "--dry-run"], { ...codex, CSTACK_CODEX_SANDBOX: "read-only" }).out);
+  assert.ok(coord.includes("danger-full-access") && !coord.includes("read-only"), "a coordinator starts sessions, so it runs outside the sandbox");
 
   p.orch("unit", "set", "U1", "--state", "in-progress");
   const limit = [

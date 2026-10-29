@@ -26,6 +26,15 @@ Every role now also denies `codex *`, beside `claude *`, so a session cannot sta
 
 Repo-level execpolicy rules were rejected. Codex does load `<repo>/.codex/rules/*.rules` in `codex exec`, and a `forbidden` rule blocked `git push --force` even under `danger-full-access` (measured). But those rules would also bind the user's own Codex sessions in that repo. The guard rule applies only to sessions cstack launched.
 
+## Sandboxes and coordinators
+
+Measured in the f1 runs on 2026-10-29 with Codex 0.165:
+- `workspace-write` keeps `.git` read-only. cstack sessions get `<repo>/.git`, `~/.local/state/cstack` and the temp dir as writable roots, with the network on (`codexSandboxArgs`).
+- A session started from inside the sandbox inherits it. Inside the sandbox, `systemctl --user` and `systemd-run --user` fail with "Failed to connect to bus", so the supervisor falls back to a detached child, and that child's `codex exec` cannot write `~/.codex`.
+- Making `~/.codex` writable was rejected, because a session could then rewrite its own hook trust.
+
+So coordinators run with `danger-full-access` (`COORDINATOR_SANDBOX`), and everything they start through the supervisor gets the configured sandbox. Units that a small program runs inside the coordinator's own session are therefore not sandboxed. The guard and the deny rules still apply to them.
+
 ## Consequences
 
 - A Codex worker can run any command that is not denied, so its permissions are weaker than Claude Code's allowlist. The guard still blocks hidden-suite access, config writes, direct merges, autonomy raises and deploy approvals.

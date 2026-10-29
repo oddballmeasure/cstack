@@ -35,7 +35,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { RUNNER, pickBackend, startRunner, writeEntry } from "./lib/supervisor.mjs";
-import { BILLING_VARS, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
+import { BILLING_VARS, COORDINATOR_SANDBOX, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
 import { deniedCalls, permissionSettings } from "./lib/permissions.mjs";
@@ -111,7 +111,7 @@ function launch(store, unit, args) {
   writeFileSync(workerFile(store, id, "jsonl"), "");
   writeFileSync(workerFile(store, id, "stderr.log"), "");
   const session = harness === "codex"
-    ? codexArgv({ prompt, cwd: repoRoot, model: codexModel(config, "code"), sandbox: process.env.CSTACK_CODEX_SANDBOX || config.codex_sandbox || "workspace-write" })
+    ? codexArgv({ prompt, cwd: repoRoot, model: codexModel(config, "code"), sandbox: coordinator ? COORDINATOR_SANDBOX : process.env.CSTACK_CODEX_SANDBOX || config.codex_sandbox || "workspace-write" })
     : [
     "claude",
     "-p",

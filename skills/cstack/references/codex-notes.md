@@ -40,7 +40,8 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 - Detached Level B workers and coordinators run `codex exec` when the harness is Codex: `CSTACK_HARNESS`, then config `harness`, then the harness you run in (ADR-012). `gates/worker.mjs launch` checks `codex login status` first and refuses an API-key login. Codex loads the installed plugin, not a `--plugin-dir`, so `codex plugin add cstack@cstack` must point at the same cstack version.
 - Codex has no per-session allowlist. In a session cstack launched, the guard applies the role's Bash deny rules from `gates/lib/permissions.mjs` (`role-deny`): no `sudo`, `ssh`, `curl`, force pushes, `gh pr merge`, other `claude` or `codex` sessions, and so on. Everything else is allowed, which is a weaker guarantee than Claude Code's `dontAsk` allowlist.
 - `codex exec` waits for stdin while stdin is open. Always run it with stdin closed (`</dev/null`).
-- On Ubuntu 24.04 the Codex sandbox fails (`bwrap: loopback: Failed RTM_NEWADDR`) unless AppArmor allows user namespaces, and fixing that needs root. Until it is fixed, Codex runs there only with `-s danger-full-access`. Then the guard and the sparse worktree are the only protections. Tell the user.
+- On Ubuntu 24.04 the Codex sandbox fails (`bwrap: loopback: Failed RTM_NEWADDR`) until `bubblewrap` is installed and AppArmor's `bwrap-userns-restrict` profile is loaded.
+- A sandboxed session cannot start a session outside its sandbox: the systemd user bus is out of reach, and a nested `codex` cannot write `~/.codex`. So coordinators (`worker.mjs launch --coordinator`, the daemon, program runs) run with `danger-full-access` and start the e2e author and workers through the supervisor, each in the configured sandbox. Units a coordinator runs in its own session are not sandboxed; the guard protects them. Never start the e2e author or a worker from a sandboxed session.
 
 ## Paths
 

@@ -24,7 +24,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { UNATTENDED } from "../scenarios/lib.mjs";
-import { codexSandboxArgs } from "../../gates/lib/harness.mjs";
+import { COORDINATOR_SANDBOX, codexSandboxArgs } from "../../gates/lib/harness.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
@@ -53,7 +53,8 @@ origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
   --harness   claude (default) or codex. Codex runs the coordinator as codex exec with CSTACK_HARNESS=codex,
               using the installed Codex plugin, which must be this checkout with its hooks trusted in /hooks.
               Every grader/ in the checkout and in the install is hidden from the run by the guard.
-              CSTACK_CODEX_SANDBOX picks the sandbox (default workspace-write). Codex must be logged in with
+              CSTACK_CODEX_SANDBOX picks the sandbox of the sessions the coordinator starts (default
+              workspace-write); the coordinator itself runs with danger-full-access. Codex must be logged in with
               ChatGPT (ADR-010, ADR-012).
   --help      print this text
 
@@ -264,7 +265,8 @@ function launch() {
   const hide = q(graders.join(path.delimiter));
   if (harness === "codex") {
     const sandbox = process.env.CSTACK_CODEX_SANDBOX || "workspace-write";
-    const box = codexSandboxArgs(sandbox, clone).map((x) => q(x)).join(" ");
+    // The coordinator starts the e2e author and workers, so it runs outside the sandbox (ADR-012); they get `sandbox`.
+    const box = codexSandboxArgs(COORDINATOR_SANDBOX, clone).map((x) => q(x)).join(" ");
     writeFileSync(
       script,
       `#!/bin/sh
