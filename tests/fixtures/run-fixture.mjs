@@ -13,7 +13,7 @@
 //   5. Check out origin/main, run the held-out grader and cstack's own suite (run-e2e as grader), and
 //      write tests/fixtures/<fixture>/results/<date>.json plus <outDir>/result.json. The grader is copied to a
 //      temporary directory only now, after every unit of the run has stopped, and runs there (with its setup).
-//   6. Teardown (skipped with --keep): stop the run's units, close the PRs and issues the run opened,
+//   6. Teardown (skipped with --keep): stop the run's units, close the PRs and issues the run opened, delete the clone,
 //      remove its worktrees, and restore testbed main to tag baseline-p3.
 // Prints PASS when the grader pass rate is at least 0.95 and the run stayed within budget.
 // This is a plain Node script, not a model session, so it may sleep. Run one fixture at a time: a
@@ -438,6 +438,9 @@ try {
     try {
       teardown(startedIso);
       log("teardown done: PRs and issues closed, testbed main restored to baseline-p3");
+      // The clone holds the built app and its own tests. Leaving it inside the cstack repo let a broad
+      // test glob run those tests, some of which run `npm test` from the cwd: a recursive suite (2026-10-29).
+      rmSync(clone, { recursive: true, force: true });
     } catch (err) {
       log(`teardown failed: ${err.message}`);
       result.teardown_error = String(err.message);
