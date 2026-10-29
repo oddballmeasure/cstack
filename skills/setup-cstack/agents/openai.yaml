@@ -1,0 +1,6 @@
+interface:
+  display_name: "Set up cstack"
+  short_description: "Configure this repo for cstack"
+  default_prompt: "Use $cstack:setup-cstack to set up this repo."
+policy:
+  allow_implicit_invocation: false

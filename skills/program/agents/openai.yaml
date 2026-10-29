@@ -1,0 +1,6 @@
+interface:
+  display_name: "Program"
+  short_description: "Guideline prompt to a verified merged SHA"
+  default_prompt: "Use $cstack:program with docs/idea.md."
+policy:
+  allow_implicit_invocation: false

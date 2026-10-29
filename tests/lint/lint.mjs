@@ -74,13 +74,19 @@ for (const name of skillNames) {
     continue;
   }
   for (const sub of readdirSync(path.join(skillsDir, name))) {
-    if (statSync(path.join(skillsDir, name, sub)).isDirectory() && !["references", "scripts", "templates"].includes(sub)) {
-      report(path.join(skillsDir, name, sub), "skills are flat: only references/, scripts/ and templates/ may sit beside SKILL.md");
+    if (statSync(path.join(skillsDir, name, sub)).isDirectory() && !["references", "scripts", "templates", "agents"].includes(sub)) {
+      report(path.join(skillsDir, name, sub), "skills are flat: only references/, scripts/, templates/ and agents/ may sit beside SKILL.md");
     }
   }
   const parsed = frontmatter(file, readFileSync(file, "utf8"));
   if (!parsed) continue;
   const { fm } = parsed;
+  // Codex ignores disable-model-invocation; agents/openai.yaml carries the same rule for it.
+  const yaml = path.join(skillsDir, name, "agents", "openai.yaml");
+  const userOnly = fm["disable-model-invocation"] === "true";
+  const implicitOff = existsSync(yaml) && /^\s*allow_implicit_invocation:\s*false\s*$/m.test(readFileSync(yaml, "utf8"));
+  if (userOnly && !implicitOff) report(file, "user-only skill needs agents/openai.yaml with policy.allow_implicit_invocation: false (Codex)");
+  if (!userOnly && implicitOff) report(yaml, "allow_implicit_invocation: false but SKILL.md lacks disable-model-invocation: true");
   if (fm.name !== name) report(file, `frontmatter name '${fm.name}' does not match directory '${name}'`);
   if (!fm.description) report(file, "description is empty");
   else if (fm.description.length > 1024) report(file, `description is ${fm.description.length} chars (max 1024)`);
@@ -120,13 +126,28 @@ for (const file of mdFiles) {
   });
 }
 
-// Plugin manifests
-for (const rel of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json"]) {
+// Plugin manifests: Claude Code reads .claude-plugin/, Codex reads .codex-plugin/ first.
+const manifests = {};
+for (const rel of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json"]) {
   const file = path.join(ROOT, rel);
   try {
-    JSON.parse(readFileSync(file, "utf8"));
+    manifests[rel] = JSON.parse(readFileSync(file, "utf8"));
   } catch (err) {
     report(file, `does not parse: ${err.message}`);
+  }
+}
+const claudeManifest = manifests[".claude-plugin/plugin.json"];
+const codexManifest = manifests[".codex-plugin/plugin.json"];
+if (claudeManifest && codexManifest) {
+  const codexFile = path.join(ROOT, ".codex-plugin/plugin.json");
+  for (const k of ["name", "version", "description", "license"]) {
+    if (codexManifest[k] !== claudeManifest[k]) report(codexFile, `${k} '${codexManifest[k]}' differs from .claude-plugin/plugin.json '${claudeManifest[k]}'`);
+  }
+  if (codexManifest.skills !== "./skills/") report(codexFile, "skills must be ./skills/");
+  if (codexManifest.hooks !== "./hooks/hooks.json") report(codexFile, "hooks must be ./hooks/hooks.json");
+  for (const k of ["logo", "composerIcon"]) {
+    const p = codexManifest.interface?.[k];
+    if (p && !existsSync(path.join(ROOT, p))) report(codexFile, `interface.${k} file missing: ${p}`);
   }
 }
 

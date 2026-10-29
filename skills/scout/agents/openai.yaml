@@ -1,0 +1,6 @@
+interface:
+  display_name: "Scout"
+  short_description: "Propose small, verifiable work as issues"
+  default_prompt: "Use $cstack:scout to propose work for this repo."
+policy:
+  allow_implicit_invocation: false

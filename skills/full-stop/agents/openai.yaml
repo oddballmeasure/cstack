@@ -1,0 +1,6 @@
+interface:
+  display_name: "Full stop"
+  short_description: "Run a unit or program without merging"
+  default_prompt: "Use $cstack:full-stop on issue <number>."
+policy:
+  allow_implicit_invocation: false

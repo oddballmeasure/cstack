@@ -1,0 +1,6 @@
+interface:
+  display_name: "Eval skill"
+  short_description: "Measure whether a skill change helps"
+  default_prompt: "Use $cstack:eval-skill to measure this skill change."
+policy:
+  allow_implicit_invocation: false

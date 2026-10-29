@@ -8,11 +8,15 @@ import { fileURLToPath } from "node:url";
 
 const LINT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "lint.mjs");
 
+const MANIFEST = { name: "p", version: "1.0.0", description: "d", license: "MIT" };
+
 function fixture(skills) {
   const root = mkdtempSync(path.join(tmpdir(), "cstack-lint-"));
   mkdirSync(path.join(root, ".claude-plugin"));
-  writeFileSync(path.join(root, ".claude-plugin/plugin.json"), "{}");
+  mkdirSync(path.join(root, ".codex-plugin"));
+  writeFileSync(path.join(root, ".claude-plugin/plugin.json"), JSON.stringify(MANIFEST));
   writeFileSync(path.join(root, ".claude-plugin/marketplace.json"), "{}");
+  writeFileSync(path.join(root, ".codex-plugin/plugin.json"), JSON.stringify({ ...MANIFEST, skills: "./skills/", hooks: "./hooks/hooks.json" }));
   for (const [name, text] of Object.entries(skills)) {
     mkdirSync(path.join(root, "skills", name), { recursive: true });
     writeFileSync(path.join(root, "skills", name, "SKILL.md"), text);
@@ -44,4 +48,35 @@ test("each rule fails on a violation", () => {
     assert.equal(r.status, 1, `expected failure for ${re}`);
     assert.match(r.stdout, re);
   }
+});
+
+const userOnly = (name) => `---\nname: ${name}\ndescription: Use when testing.\ndisable-model-invocation: true\n---\n\nBody.\n`;
+const implicitOff = "policy:\n  allow_implicit_invocation: false\n";
+
+test("user-only skills and Codex openai.yaml must agree", () => {
+  const good = fixture({ a: userOnly("a") });
+  mkdirSync(path.join(good, "skills/a/agents"));
+  writeFileSync(path.join(good, "skills/a/agents/openai.yaml"), implicitOff);
+  assert.equal(lint(good).status, 0, lint(good).stdout);
+
+  const missing = lint(fixture({ a: userOnly("a") }));
+  assert.equal(missing.status, 1);
+  assert.match(missing.stdout, /needs agents\/openai.yaml/);
+
+  const stray = fixture({ a: ok("a") });
+  mkdirSync(path.join(stray, "skills/a/agents"));
+  writeFileSync(path.join(stray, "skills/a/agents/openai.yaml"), implicitOff);
+  assert.match(lint(stray).stdout, /lacks disable-model-invocation/);
+});
+
+test("the Codex manifest must match the Claude manifest", () => {
+  const root = fixture({ a: ok("a") });
+  writeFileSync(path.join(root, ".codex-plugin/plugin.json"), JSON.stringify({ ...MANIFEST, version: "9.9.9", skills: "skills", hooks: "h.json", interface: { logo: "./nope.png" } }));
+  const r = lint(root);
+  assert.equal(r.status, 1);
+  for (const re of [/version '9.9.9' differs/, /skills must be/, /hooks must be/, /interface.logo file missing/]) assert.match(r.stdout, re);
+
+  const broken = fixture({ a: ok("a") });
+  writeFileSync(path.join(broken, ".codex-plugin/plugin.json"), "{");
+  assert.match(lint(broken).stdout, /\.codex-plugin\/plugin.json: does not parse/);
 });
