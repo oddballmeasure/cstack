@@ -298,3 +298,73 @@ test("launch under the other backends: the runner starts claude and runs exit wh
   assert.match(ok.out, /^launched cstack-r-prog-U1 via taskscheduler \(launch 3\)$/m);
   assert.ok(existsSync(p.files("U1.spec.json")));
 });
+
+test("codex harness: launch checks the ChatGPT login, runs codex exec, and exit reads Codex events", () => {
+  const p = program();
+  p.orch("unit", "add", "U1", "--track", "core", "--state", "ready", "--issue", "7");
+  const codex = { ...p.env, CSTACK_HARNESS: "codex" };
+  const dry = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], codex).out);
+  const envAt = dry.indexOf("/usr/bin/env");
+  assert.deepEqual(dry.slice(envAt + 1, envAt + 7), ["-u", "OPENAI_API_KEY", "-u", "CODEX_API_KEY", "-u", "CSTACK_COORDINATOR"]);
+  assert.deepEqual(dry.slice(envAt + 7, envAt + 10), ["codex", "exec", "--json"]);
+  assert.ok(dry.includes("--setenv=CSTACK_HARNESS=codex"));
+  assert.ok(!dry.some((x) => x.startsWith("--setenv=CSTACK_GUARD_HIDE")));
+  const hidden = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], { ...codex, CSTACK_GUARD_HIDE: "/opt/g" }).out);
+  assert.ok(hidden.includes("--setenv=CSTACK_GUARD_HIDE=/opt/g"), "the hidden paths reach the worker");
+  assert.deepEqual(dry.slice(-3), ["-m", "gpt-6.1-sol", "$cstack:unit 7 --run prog --unit U1"]);
+  assert.ok(dry.includes("sandbox_workspace_write.network_access=true"));
+
+  const apiKey = p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...codex, FAKE_CODEX_LOGIN: "Logged in using an API key - sk-***" });
+  assert.equal(apiKey.code, 2);
+  assert.match(apiKey.err, /codex is not logged in with ChatGPT/);
+  const out = p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...codex, FAKE_CODEX_LOGIN: "Not logged in", FAKE_CODEX_LOGIN_CODE: "1" });
+  assert.match(out.err, /codex login status failed: Not logged in/);
+  assert.equal(p.unit("U1")[2], "ready", "a refused launch changes nothing");
+  assert.match(p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...codex, FAKE_CODEX_LOGIN: "", FAKE_CODEX_LOGIN_CODE: "3" }).err, /codex login status failed: exit 3/);
+
+  // A real launch through the runner, with the fakes first on the session PATH.
+  const events = path.join(p.base, "events.jsonl");
+  writeFileSync(events, JSON.stringify({ type: "thread.started" }) + "\n" + JSON.stringify({ type: "turn.completed", usage: {} }) + "\n");
+  const ran = p.worker(["launch", "--store", p.store, "--unit", "U1", "--wait"], {
+    ...codex, CSTACK_SUPERVISOR: "detached", FAKE_CODEX_EVENTS: events, FAKE_CODEX_LOG: path.join(p.base, "codex.log"),
+    CSTACK_WORKER_PATH: `${FAKE_BIN}:${path.dirname(process.execPath)}:/usr/bin:/bin`,
+  });
+  assert.equal(ran.code, 0, ran.err);
+  assert.match(readFileSync(p.files("U1.jsonl"), "utf8"), /turn\.completed/);
+  assert.match(readFileSync(p.files("U1.exit.txt"), "utf8"), /^crash service success/);
+  assert.deepEqual(readFileSync(path.join(p.base, "codex.log"), "utf8").trim().split("\n").map((l) => JSON.parse(l)[0]), ["login", "exec"]);
+  inbox(p);
+  p.orch("unit", "set", "U1", "--state", "ready");
+
+  const mine = program({ codex_sandbox: "danger-full-access", models_codex: { code: "inherit" } });
+  mine.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  const full = JSON.parse(mine.worker(["launch", "--store", mine.store, "--unit", "U1", "--dry-run"], codex).out);
+  assert.ok(full.includes("danger-full-access") && !full.includes("-m") && !full.includes("sandbox_workspace_write.network_access=true"));
+
+  p.orch("unit", "set", "U1", "--state", "in-progress");
+  const limit = [
+    { type: "thread.started" },
+    { type: "item.completed", item: { type: "agent_message", text: "working" } },
+    { type: "error", message: "You've hit your usage limit. Try again at 3:00 PM." },
+    { type: "turn.failed", error: { message: "usage_limit_reached" } },
+  ];
+  seedExit(p, "U1", { jsonl: limit.map((e) => JSON.stringify(e)).join("\n") + "\n" });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U1"]).out, /U1\tusage_limit\tresets_at=/);
+  p.orch("unit", "set", "U1", "--state", "in-progress");
+  seedExit(p, "U1", { jsonl: [{ type: "turn.failed" }, { type: "item.completed", item: { type: "error" } }].map((e) => JSON.stringify(e)).join("\n") + "\n" });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U1"]).out, /U1\tcrash/);
+});
+
+test("harness lib: pick, models, prompts and Codex text", async () => {
+  const h = await import("../../gates/lib/harness.mjs");
+  assert.equal(h.pickHarness({}, {}), "claude");
+  assert.equal(h.pickHarness({}, { CODEX_THREAD_ID: "t" }), "codex");
+  assert.equal(h.pickHarness({ harness: "codex" }, {}), "codex");
+  assert.equal(h.pickHarness({ harness: "codex" }, { CSTACK_HARNESS: "claude" }), "claude");
+  assert.throws(() => h.pickHarness({ harness: "gemini" }, {}), /unknown harness 'gemini'/);
+  assert.equal(h.codexModel({}, "judge"), "gpt-6-astra");
+  assert.equal(h.codexModel({ models_codex: { judge: "gpt-6.1-sol" } }, "judge"), "gpt-6.1-sol");
+  assert.equal(h.skillPrompt("claude", "/cstack:unit 3"), "/cstack:unit 3");
+  assert.equal(h.skillPrompt("codex", "/cstack:unit 3"), "$cstack:unit 3");
+  assert.equal(h.codexText([{ type: "error" }, null, { type: "item.completed", item: { type: "agent_message" } }]), "");
+});

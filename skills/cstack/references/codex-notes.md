@@ -27,7 +27,7 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 ## Subagents
 
 - Plugin agents in `agents/*.md` are not loaded by Codex. The role file is the brief, as the map above says.
-- `model`: Codex takes Codex model names (`gpt-6.1-sol`, `gpt-6-astra`, `gpt-6-luna`; see `codex debug models`). Until the config has per-harness models, a Claude model name from `models` does not apply in Codex: omit `model` for `code`, and use a model other than your own for `judge` and `review`, so the verdict still comes from a different model. Say which model judged in the verdict.
+- `model`: Codex takes Codex model names (see `codex debug models`). Where a skill says `models.<role>`, read `models_codex.<role>` instead. Its defaults are `gpt-6.1-sol` for `code`, `gpt-6-astra` for `judge` and `review`, and `gpt-6-luna` for `gather` (`gates/lib/harness.mjs`). So a verdict still comes from a model other than the one that wrote the code. `inherit` means omit `model`. Say which model judged in the verdict.
 - Hooks fire inside children too, and the payload carries `agent_id` (ADR-010).
 
 ## Hooks and trust
@@ -37,7 +37,8 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 
 ## Headless and detached work
 
-- Detached Level B workers run `claude -p` today. Under Codex, run units in the session (`--parallel=1`, programs of up to 5 units) until the Codex backend for workers lands.
+- Detached Level B workers and coordinators run `codex exec` when the harness is Codex: `CSTACK_HARNESS`, then config `harness`, then the harness you run in (ADR-012). `gates/worker.mjs launch` checks `codex login status` first and refuses an API-key login. Codex loads the installed plugin, not a `--plugin-dir`, so `codex plugin add cstack@cstack` must point at the same cstack version.
+- Codex has no per-session allowlist. In a session cstack launched, the guard applies the role's Bash deny rules from `gates/lib/permissions.mjs` (`role-deny`): no `sudo`, `ssh`, `curl`, force pushes, `gh pr merge`, other `claude` or `codex` sessions, and so on. Everything else is allowed, which is a weaker guarantee than Claude Code's `dontAsk` allowlist.
 - `codex exec` waits for stdin while stdin is open. Always run it with stdin closed (`</dev/null`).
 - On Ubuntu 24.04 the Codex sandbox fails (`bwrap: loopback: Failed RTM_NEWADDR`) unless AppArmor allows user namespaces, and fixing that needs root. Until it is fixed, Codex runs there only with `-s danger-full-access`. Then the guard and the sparse worktree are the only protections. Tell the user.
 

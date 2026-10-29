@@ -50,10 +50,11 @@ function main(specFile) {
   const err = spec.stderr ? openSync(spec.stderr, "a") : "ignore";
   const cmd = resolveCommand(spec.argv, env);
   const child = spawn(cmd.file, cmd.args, { cwd: spec.cwd, env, stdio: ["ignore", out, err], windowsHide: true, windowsVerbatimArguments: cmd.verbatim });
+  // Forward signals before the registry entry announces this pid, so a stop never finds the runner unprepared.
+  for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => child.kill(sig));
   const entry = { ...(readEntry(spec.name) || {}), name: spec.name, backend: spec.backend, pid: process.pid, child: child.pid ?? null, started: new Date().toISOString(), spec: path.resolve(specFile) };
   delete entry.exited;
   writeEntry(spec.name, entry);
-  for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => child.kill(sig));
   let done = false;
   const finish = (code, signal) => {
     // A command that fails to start can emit both error and exit; record and run onExit once.

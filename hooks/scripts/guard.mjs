@@ -7,6 +7,8 @@
 //   no-autonomy-raise no Bash command sets CSTACK_PROGRAM_AUTONOMY; only a human launch does
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
+//   role-deny         in a Codex session cstack launched, the role's Bash deny rules from gates/lib/permissions.mjs,
+//                     because Codex has no per-session allowlist (ADR-012)
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
 // Every rule applies only in a cstack context: the session's cwd, or a path the tool call targets, is
 // inside a repo whose root has .cstack/config.json, or the session carries a marker that cstack's own
@@ -17,8 +19,12 @@
 // patch text in tool_input.command; the guard reads the file paths from the patch headers (ADR-010).
 // This is defence in depth. Hidden suites also need filesystem isolation (ADR-001).
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { permissionSettings } from "../../gates/lib/permissions.mjs";
+
+const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 
 const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
 // The config decides autonomy and hidden paths, so no session may rewrite it through a file tool.
@@ -146,6 +152,52 @@ function checkBash(cmd) {
   }
 }
 
+// The cstack role of this session, from the markers gates/worker.mjs and the e2e launch set.
+function sessionRole() {
+  if (process.env.CSTACK_ROLE) return process.env.CSTACK_ROLE;
+  if (process.env.CSTACK_COORDINATOR === "1") return "coordinator";
+  return process.env.CSTACK_UNIT ? "worker" : null;
+}
+
+// A Claude Code Bash rule as a regex over one simple command: a trailing " *" also matches the bare command.
+function ruleRegex(rule) {
+  const esc = (t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+  if (rule.endsWith(" *")) return new RegExp(`^${rule.slice(0, -2).split("*").map(esc).join(".*")}(?:\\s[\\s\\S]*)?$`);
+  return new RegExp(`^${rule.split("*").map(esc).join(".*")}$`);
+}
+
+// Codex sessions run without Claude Code's per-session allowlist, so apply the role's Bash deny list here.
+function checkRoleDeny(cmd, role, root, cwd, cfg) {
+  let rules;
+  try {
+    rules = permissionSettings(role, { pluginRoot: PLUGIN_ROOT, repoRoot: root || cwd, home: homedir(), config: cfg || {}, worktree: cwd }).permissions.deny;
+  } catch {
+    return; // an unknown role has no deny list
+  }
+  const patterns = rules.filter((r) => r.startsWith("Bash(")).map((r) => [r, ruleRegex(r.slice(5, -1))]);
+  for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
+    const simple = part.trim().replace(/^(?:\w+=\S*\s+)+/, "");
+    const hit = patterns.find(([, re]) => re.test(simple));
+    if (hit) block("role-deny", `\`${simple}\` is denied to the ${role} role (${hit[0]}).`);
+  }
+}
+
+// CSTACK_GUARD_HIDE lists absolute paths outside the repo that a launched run must not touch, for example the
+// cstack checkout that holds a fixture's held-out grader (tests/fixtures/run-fixture.mjs). Codex reads through
+// Bash, and Claude Code's Read allowlist does not apply to it, so the guard checks commands and file targets.
+function checkHide(tool, ti, patched, cwd) {
+  const hide = (process.env.CSTACK_GUARD_HIDE || "").split(path.delimiter).filter(Boolean).map((p) => path.resolve(p));
+  if (!hide.length) return;
+  const targets = tool === "Bash" ? [] : (patched ?? [ti.file_path, ti.notebook_path, ti.path]).filter((t) => typeof t === "string");
+  for (const h of hide) {
+    if (tool === "Bash" && typeof ti.command === "string" && ti.command.includes(h)) block("hidden-paths", `command names a path hidden from this run (${h}).`);
+    for (const t of targets) {
+      const abs = path.resolve(cwd, t);
+      if (abs === h || abs.startsWith(h + path.sep)) block("hidden-paths", `${abs} is hidden from this run.`);
+    }
+  }
+}
+
 function main() {
   let input;
   try {
@@ -166,8 +218,11 @@ function main() {
   markSeen(input);
 
   if (bash) checkBash(ti.command);
+  checkHide(tool, ti, patched, cwd);
 
   const cfg = loadConfig(root);
+  const role = sessionRole();
+  if (bash && role && typeof input.turn_id === "string" && !cfg?._error) checkRoleDeny(ti.command, role, root, cwd, cfg);
   if (!cfg) process.exit(0);
   if (cfg._error) block("config", `.cstack/config.json does not parse: ${cfg._error}`);
 
