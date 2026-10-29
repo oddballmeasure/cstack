@@ -232,15 +232,18 @@ function launch() {
   const guideline = path.join(mkdtempSync(path.join(tmpdir(), `cstack-${fixture}-`)), "guideline.md");
   copyFileSync(path.join(FIXTURE_DIR, "guideline.md"), guideline);
   copyFileSync(guideline, path.join(outDir, "guideline.md"));
-  // The plugin is copied without tests/ (which holds every fixture's held-out grader), evals/, spike/ and .git,
+  // The plugin is copied without tests/ (which holds every fixture's held-out grader), evals/ and .git,
   // so nothing the run can read through --plugin-dir leads to the grader. The guard only protects the target repo.
   const plugin = mkdtempSync(path.join(tmpdir(), "cstack-plugin-"));
-  sh("rsync", ["-a", "--exclude", "/tests", "--exclude", "/evals", "--exclude", "/spike", "--exclude", "/.git", "--exclude", "NOTES.md", `${CSTACK}/`, `${plugin}/`]);
+  sh("rsync", ["-a", "--exclude", "/tests", "--exclude", "/evals", "--exclude", "/.git", "--exclude", "NOTES.md", `${CSTACK}/`, `${plugin}/`]);
   if (existsSync(path.join(plugin, "tests"))) throw new Error("plugin copy still contains tests/");
   writeFileSync(path.join(outDir, "plugin-dir.txt"), plugin + "\n");
   const prompt = `/cstack:program ${guideline} --autonomy=send --slug ${slug}\n\n${UNATTENDED}`;
   writeFileSync(path.join(outDir, "prompt.txt"), prompt);
   const q = JSON.stringify;
+  // The coordinator runs under its role's allowlist with dontAsk, never a permission bypass (ADR-009).
+  const settings = path.join(outDir, "coordinator.settings.json");
+  sh(process.execPath, [path.join(plugin, "gates/run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", clone, "--plugin-dir", plugin, "--out", settings]);
   const PATH = [path.dirname(process.execPath), `${process.env.HOME}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
   const script = path.join(outDir, "session.sh");
   writeFileSync(
@@ -248,7 +251,7 @@ function launch() {
     `#!/bin/sh
 cd ${q(clone)}
 exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
-  claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${q(plugin)} --dangerously-skip-permissions \\
+  claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${q(plugin)} --permission-mode dontAsk --settings ${q(settings)} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
     { mode: 0o755 },

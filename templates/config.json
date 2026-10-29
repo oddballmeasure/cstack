@@ -15,6 +15,7 @@
   "paths_hidden": [
     "tests/acceptance/**"
   ],
+  "permissions_allow": [],
   "label_prefix": "cstack",
   "autonomy": "send",
   "parallel": 1,

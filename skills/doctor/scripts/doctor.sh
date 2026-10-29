@@ -63,6 +63,7 @@ schema_errors=$(jq -r '
   need((.required_checks | type) == "array"; "required_checks must be an array"),
   need((.paths_off_limits | type) == "array"; "paths_off_limits must be an array"),
   need((.paths_hidden | type) == "array"; "paths_hidden must be an array"),
+  need(.permissions_allow == null or ((.permissions_allow | type) == "array" and all(.permissions_allow[]; type == "string" and test("^[A-Za-z]+(\\(.+\\))?$"))); "permissions_allow must be an array of permission rules such as Bash(make check)"),
   need((.label_prefix | type) == "string" and (.label_prefix | test("^[a-z][a-z0-9-]*$")); "label_prefix must be lowercase letters, digits or dashes"),
   need(.autonomy == "stop" or .autonomy == "send"; "autonomy must be stop or send"),
   need((.parallel | type) == "number" and .parallel >= 1 and .parallel <= 8; "parallel must be 1 to 8"),
@@ -98,7 +99,7 @@ schema_errors=$(jq -r '
      need(.auto == null or (.auto | type) == "boolean"; "deploy.auto must be true or false"),
      (keys - ["transport","local_directory","auto"] | .[] | "unknown key deploy.\(.)"))
    end),
-  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits","retry_after_hours","scout","deploy"]
+  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","permissions_allow","label_prefix","autonomy","parallel","models","limits","retry_after_hours","scout","deploy"]
      | .[] | "unknown key \(.)")
 ' "$cfg")
 if [ -n "$schema_errors" ]; then

@@ -106,6 +106,12 @@ Write the brief to `<store>/brief-e2e.md` with the Write tool. Use the headings 
 
 **Default: a headless session.** The guard hook reads `CSTACK_ROLE` from the environment of the session that runs the hook, and every hook inherits the session's environment. A prefix on one Bash command does not change it. So only a session started with `CSTACK_ROLE=e2e-author` can write the suite. Launch the author as its own `claude -p` session under systemd (ADR-001), with the worktree as its working directory.
 
+Generate the author's permission settings first. The session runs with `--permission-mode dontAsk`: it may write only inside `paths_hidden` of `<wt>` and the run store, and every call outside its allowlist is refused without a prompt (ADR-009):
+
+```sh
+node <root>/gates/run-settings.mjs --permissions e2e-author --repo-dir <repo> --worktree <wt> --out <store>/e2e-author.settings.json
+```
+
 Write `<store>/e2e-author.sh` with the Write tool, then `chmod +x` it:
 
 ```sh
@@ -113,7 +119,7 @@ Write `<store>/e2e-author.sh` with the Write tool, then `chmod +x` it:
 cd <wt>
 env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_ROLE=e2e-author PATH=<dir of node>:<home>/.local/bin:/usr/local/bin:/usr/bin:/bin \
   claude -p --agent <author> --model <judge> \
-  --strict-mcp-config --plugin-dir <root> --dangerously-skip-permissions \
+  --strict-mcp-config --plugin-dir <root> --permission-mode dontAsk --settings <store>/e2e-author.settings.json \
   --output-format stream-json --verbose \
   "$(cat <store>/brief-e2e.md)" > <store>/e2e-author.jsonl 2> <store>/e2e-author.stderr
 echo $? > <store>/e2e-author.exit
@@ -130,7 +136,7 @@ Start it and wait on it with the `Monitor` tool. Never a sleep loop.
   ```
   `MainPID` is `0` once the unit is gone, and `tail --pid=0` would wait forever, hence the test. Re-arm on expiry while `systemctl --user is-active cstack-e2e-<slug>` prints `active`. "Ended without an exit code" means the session was killed: treat it as a failure below.
 
-When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must show `"apiKeySource":"none"`. The author's report is the `result` event's text: `jq -r 'select(.type=="result") | .result' <store>/e2e-author.jsonl`.
+When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must show `"apiKeySource":"none"`. Then check refusals: `jq -c 'select(.type=="result") | .permission_denials' <store>/e2e-author.jsonl`. A non-empty list means the author's allowlist refused a call it needed. Treat the run as a failure with kind `setup`, and report each refused call with the fix: a rule in config `permissions_allow`. The author's report is the `result` event's text: `jq -r 'select(.type=="result") | .result' <store>/e2e-author.jsonl`.
 
 **Fallback: an in-session subagent.** Use it only when the headless launch cannot run (no `systemd-run`, or no `claude` on `PATH`). Spawn the plugin's `cstack-e2e-author` agent with the `Agent` tool, `model` from `models.judge`, and the brief as the prompt. The brief tells it to prefix every Bash command with `CSTACK_ROLE=e2e-author`. That prefix reaches the commands it runs, but not the guard, which sees this session's environment. So the fallback works only when this whole session was started with `CSTACK_ROLE=e2e-author` and does no implementation work in the run. In any other session the guard blocks every write to the suite, which is correct. Then stop with failure `setup` and say why. Log which mode ran.
 

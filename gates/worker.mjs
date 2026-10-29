@@ -12,7 +12,10 @@
 //   setup        the session billed through an API key
 //   <state>      the unit reached merged, done, error, needs-human or pr-open
 //   usage_limit  the subscription window ran out; the unit goes back to ready with workers/<unit>.not-before
+//   denied       the session was refused tool calls and stopped short; workers/<unit>.denied.txt lists them
 //   crash        anything else
+// Sessions never skip permissions (ADR-009): each runs with --permission-mode dontAsk and the role's
+// generated settings, workers/<id>.settings.json (role worker, or coordinator with --coordinator).
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
 // pending-work Stop hook applies to it. It has no exit hook and no unit row. When <store>/run.json has
@@ -23,11 +26,13 @@
 // cannot raise a run's autonomy (ADR-006). `next` takes parallel from <store>/run.json, else config.
 // Exit 0 on success, 2 on usage or environment errors.
 import { appendFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
+import { deniedCalls, permissionSettings } from "./lib/permissions.mjs";
 import {
   IN_FLIGHT_STATES,
   TERMINAL_STATES,
@@ -85,6 +90,9 @@ function launch(store, unit, args) {
     ? ["--setenv=CSTACK_COORDINATOR=1"]
     : [`--setenv=CSTACK_UNIT=${unit}`, `--property=ExecStopPost=${[process.execPath, SELF, "exit", "--store", store, "--unit", unit].map(quote).join(" ")}`];
   mkdirSync(path.dirname(workerFile(store, id, "jsonl")), { recursive: true });
+  const settingsFile = workerFile(store, id, "settings.json");
+  const settings = permissionSettings(coordinator ? "coordinator" : "worker", { pluginRoot: pluginDir, repoRoot, home: os.homedir(), config });
+  writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
   writeFileSync(workerFile(store, id, "jsonl"), "");
   writeFileSync(workerFile(store, id, "stderr.log"), "");
   const argv = [
@@ -117,7 +125,10 @@ function launch(store, unit, args) {
     "--strict-mcp-config",
     "--plugin-dir",
     pluginDir,
-    "--dangerously-skip-permissions",
+    "--permission-mode",
+    "dontAsk",
+    "--settings",
+    settingsFile,
     prompt,
   ];
   if (args["dry-run"]) {
@@ -153,6 +164,8 @@ function exit(store, unit) {
   const init = evs.find((e) => e?.type === "system" && e.subtype === "init");
   const result = evs.findLast((e) => e?.type === "result");
   const text = `${readText(workerFile(store, unit, "stderr.log"))}\n${result?.result ?? ""}`;
+  const denied = deniedCalls(evs);
+  const deniedFile = workerFile(store, unit, "denied.txt");
   let status;
   let detail;
   if (init?.apiKeySource && init.apiKeySource !== "none") {
@@ -168,12 +181,19 @@ function exit(store, unit) {
     withStore(store, (s) => s.units.set({ id: unit, state: "ready" }));
     status = "usage_limit";
     detail = `resets_at=${until}`;
+  } else if (denied.length) {
+    status = "denied";
+    detail = `${denied.length} tool call(s) refused by the role's allowlist, first: ${denied[0]}; see ${deniedFile}`;
   } else {
     status = "crash";
     const e = process.env;
     detail = `service ${e.SERVICE_RESULT || "unknown"}, ${e.EXIT_CODE || "unknown"} ${e.EXIT_STATUS || "?"}, unit state ${row.state}`;
   }
   mkdirSync(path.join(store, "workers"), { recursive: true });
+  if (denied.length) {
+    writeFileSync(deniedFile, `${denied.join("\n")}\n`);
+    if (status !== "denied") detail += `; ${denied.length} tool call(s) refused, see ${deniedFile}`;
+  }
   const exitFile = workerFile(store, unit, "exit.txt");
   writeFileSync(exitFile, `${status} ${detail}\n`);
   const report = path.join(store, `report-${unit}.md`);

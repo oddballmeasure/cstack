@@ -45,12 +45,18 @@ test("launch --dry-run builds the systemd-run command with PATH, prompt and exit
   assert.ok(argv.includes("--setenv=PATH=/fake/bin:/usr/bin"));
   assert.ok(argv.includes(`--working-directory=${p.root}`));
   assert.ok(argv.includes("--strict-mcp-config"));
+  assert.ok(!argv.some((a) => /dangerously|bypass/i.test(a)), "no permission bypass");
+  assert.deepEqual(argv.slice(argv.indexOf("--permission-mode"), argv.indexOf("--permission-mode") + 4), ["--permission-mode", "dontAsk", "--settings", p.files("U1.settings.json")]);
+  const settings = JSON.parse(readFileSync(p.files("U1.settings.json"), "utf8")).permissions;
+  assert.equal(settings.defaultMode, "dontAsk");
+  assert.ok(settings.deny.includes("Bash(systemd-run *)"), "the worker role");
   assert.deepEqual(argv.slice(argv.indexOf("/usr/bin/env"), argv.indexOf("/usr/bin/env") + 7), ["/usr/bin/env", "-u", "ANTHROPIC_API_KEY", "-u", "ANTHROPIC_AUTH_TOKEN", "-u", "CSTACK_COORDINATOR"]);
   assert.equal(argv.at(-1), "/cstack:unit 7 --run prog --unit U1");
   assert.match(argv.find((a) => a.startsWith("--property=ExecStopPost=")), /worker\.mjs" "exit" "--store" ".*prog" "--unit" "U1"$/);
   assert.equal(p.unit("U1")[2], "ready", "a dry run changes nothing");
   assert.equal(existsSync(p.files("U1.launches")), false);
   const two = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U2", "--dry-run", "--plugin-dir", "/opt/cstack"], { CSTACK_WORKER_PATH: "" }).out);
+  assert.ok(JSON.parse(readFileSync(p.files("U2.settings.json"), "utf8")).permissions.allow.includes("Read(//opt/cstack/**)"), "settings follow --plugin-dir");
   assert.equal(two.at(-1), "/cstack:unit --run prog --unit U2");
   assert.ok(two.includes("/opt/cstack"));
   assert.ok(two.some((a) => a.startsWith("--setenv=PATH=") && a.includes("/.local/bin:/usr/local/bin:/usr/bin:/bin")));
@@ -131,6 +137,25 @@ test("exit classifies billing, settled units, usage limits and crashes, and push
   assert.match(readFileSync(p.files("U6.exit.txt"), "utf8"), /^crash /);
 });
 
+test("exit reports refused tool calls: denied when the unit stopped short, a note when it settled", () => {
+  const p = program();
+  for (const id of ["U1", "U2"]) p.orch("unit", "add", id, "--track", "core", "--state", "in-progress");
+  const denials = [
+    { tool_name: "Bash", tool_input: { command: "curl -s https://example.com" } },
+    { tool_name: "Edit", tool_input: { file_path: "/etc/hosts" } },
+  ];
+  seedExit(p, "U1", { jsonl: JSON.stringify({ type: "result", result: "stopped", permission_denials: denials }) + "\n" });
+  const u1 = p.worker(["exit", "--store", p.store, "--unit", "U1"]);
+  assert.match(u1.out, /U1\tdenied\t2 tool call\(s\) refused by the role's allowlist, first: Bash: curl -s https:\/\/example\.com; see .*U1\.denied\.txt/);
+  assert.equal(readFileSync(p.files("U1.denied.txt"), "utf8"), "Bash: curl -s https://example.com\nEdit: /etc/hosts\n");
+  assert.equal(p.unit("U1")[2], "in-progress", "the coordinator settles it; the wrapper only reports");
+
+  p.orch("unit", "set", "U2", "--state", "merged");
+  seedExit(p, "U2", { jsonl: JSON.stringify({ type: "result", result: "done", permission_denials: denials.slice(0, 1) }) + "\n" });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tmerged\tunit merged; 1 tool call\(s\) refused, see .*U2\.denied\.txt/);
+  assert.deepEqual(inbox(p).map((e) => e[3]), ["denied", "merged"]);
+});
+
 test("next fills free slots in id order, defers usage-limited units, and frees merge-ready slots", () => {
   const p = program({ parallel: 2 });
   p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
@@ -208,6 +233,7 @@ test("launch --coordinator starts the run's coordinator with CSTACK_COORDINATOR=
   const p = program();
   assert.match(p.worker(["next", "--store", p.store, "--coordinator"]).err, /--coordinator goes with launch only/);
   const dry = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", "--dry-run"]).out);
+  assert.ok(JSON.parse(readFileSync(p.files("coordinator.settings.json"), "utf8")).permissions.allow.includes("Bash(systemctl --user stop cstack-*)"), "the coordinator role");
   assert.ok(dry.includes("--unit=cstack-r-prog-coordinator"));
   assert.ok(dry.includes("--setenv=CSTACK_COORDINATOR=1"));
   assert.ok(!dry.includes("CSTACK_COORDINATOR"), "the coordinator keeps its marker");

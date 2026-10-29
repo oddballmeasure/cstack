@@ -45,6 +45,7 @@ Log one row per action with `<log> "daemon" "<action>" "<why>" "<evidence>" "<re
    - `usage_limit`: nothing. The worker put the unit back to `ready` with a reset time, and `select` defers it.
    - `merged`, `done`, `error`, `needs-human`, `pr-open`: the unit settled its issue. Log it.
    - `crash`: step 5 settles it.
+   - `denied`: the worker's allowlist refused calls it needed (`workers/U1.denied.txt`). Never relaunch it. Settle the issue as failed with kind `setup` through `cstack:settle`, and report each refused call first. A person adds the missing rule to config `permissions_allow`.
 5. **Land and settle.**
    - For each `judge` store, run `node <root>/gates/post-merge.mjs --store <store N> --json` once, without `--wait`. It judges the merge commit's checks, re-runs a red one once, and files at most one follow-up issue. Log each `filed` follow-up.
    - For each `orphan` store, run `cstack:resume-run issue-<N>`. The store has a launches file, so resume-run relaunches the worker once and settles a second death as `crash`. It never runs the unit in this session.
@@ -69,7 +70,7 @@ systemctl --user enable --now "cstack-daemon@$(systemd-escape --path /path/to/re
 loginctl enable-linger "$USER"
 ```
 
-The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `CSTACK_COORDINATOR=1`, an explicit `PATH`, and `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_PROGRAM_AUTONOMY` unset, so the daemon and its workers bill the subscription and the run's autonomy comes from config. Read its log with `journalctl --user -u 'cstack-daemon@*'`.
+The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `--permission-mode dontAsk` and the coordinator allowlist that `ExecStartPre` writes to `.cstack/permissions/coordinator.json` (ADR-009; no permission bypass), `CSTACK_COORDINATOR=1`, an explicit `PATH`, and `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_PROGRAM_AUTONOMY` unset, so the daemon and its workers bill the subscription and the run's autonomy comes from config. Read its log with `journalctl --user -u 'cstack-daemon@*'`.
 
 Not live-tested yet: whether a headless `claude -p` session stays alive under `/loop` between firings. If it exits after the first tick, the unit's `Restart=always` with `RestartSec=600` still gives about a 10-minute cadence, one tick per start, with doctor once per start.
 
