@@ -45,6 +45,11 @@ export function codexSandboxArgs(sandbox, repo) {
   return ["-s", sandbox, "-c", "sandbox_workspace_write.network_access=true", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify(roots)}`];
 }
 
+// A sandboxed Codex session cannot start a session outside its sandbox: the systemd user bus is out of reach,
+// and a nested codex cannot write ~/.codex (measured, ADR-012). Coordinators start the e2e author and workers,
+// so they run with danger-full-access; every session they start gets the configured sandbox through systemd.
+export const COORDINATOR_SANDBOX = "danger-full-access";
+
 // The Codex session command. Config codex_sandbox (or CSTACK_CODEX_SANDBOX) picks the sandbox. stdin must be
 // closed by the caller.
 export function codexArgv({ prompt, cwd, model = null, sandbox = "workspace-write" }) {
