@@ -1,0 +1,72 @@
+{
+  "fixture": "f1-cli-ledger",
+  "harness": "claude",
+  "date": "2026-10-29",
+  "started_at": "2026-10-29T22:06:32.370Z",
+  "wall_seconds": 4207,
+  "budget": {
+    "hours": 2,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "9c0e6797a9ae74a80e3a466ce3bdebf6fbae425c",
+  "grader": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 41,
+    "total": 41,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f1/e2e-author.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 4
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 1,
+    "SYNC": 0,
+    "total": 1
+  },
+  "decision_rows": 45,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 87,
+      "state": "MERGED",
+      "title": "Add the hidden end-to-end suite that judges the expense ledger CLI"
+    },
+    {
+      "number": 91,
+      "state": "MERGED",
+      "title": "Record an expense with one command and list it from a plain-text ledger"
+    },
+    {
+      "number": 92,
+      "state": "MERGED",
+      "title": "See a month's spending as a filtered list and exact per-category totals"
+    },
+    {
+      "number": 93,
+      "state": "MERGED",
+      "title": "Load a bank CSV export in one step, with no partial imports"
+    }
+  ],
+  "final_message": "# Run f1: the ledger CLI is built and merged, and all 41 hidden e2e lanes pass\n\nThe `ledger` CLI is merged on `main` at `9c0e679`. You can add expenses, list them with month and category filters, get per-category monthly totals, and import a bank CSV with no partial imports. All 41 hidden e2e lanes pass at that commit, and CI is green on it. I ran the e2e suite there myself. Nothing is blocked. The items below are calls I made without you that you can overturn.\n\n## Waiting on you\n1. **Spec defaults (H1 approval).** No one was there to ask, so I approved the spec myself. I added five e2e flows (E13–E17) to cover requirements the guideline's twelve left out. I also decided that an unknown option or an option with no value on `list` or `report` exits 2. My recommendation is to keep both.\n2. **`add` and `import` on a corrupt ledger exit 1.** The implementer reversed my plan's default here, which was to append anyway. No requirement or lane covers this case. Refusing keeps the printed id correct and leaves the file unchanged, so I recommend keeping it.\n3. **Config change in PR #87.** It set `e2e_command` in `.cstack/config.json`. It is one line and easy to revert. Nobody else reviewed it, because no reviewer is allowed to read the hidden suite. I recommend keeping it.\n4. **Follow-ups filed as `cstack:proposed`:**\n   - #94: `list --category --month` takes `--month` as the category. It prints `no entries` instead of a usage error.\n   - #95: a tab in a description writes a line that every later command then rejects as malformed.\n   - #96: import rejects bank CSVs that start with a byte-order mark. The spec says the header must match exactly, so changing this needs your decision.\n   - #97: small cleanups.\n\n   I recommend #94 and #95 next.\n5. **Scratch directory.** `/tmp/cstack-mutation/f1/` is still there. It holds a copy of the hidden suite, and both delete attempts were refused. I recommend deleting it.\n\n## PRs\nAll merged through the merge gate under `send`, and CI passed ",
+  "pass": true
+}

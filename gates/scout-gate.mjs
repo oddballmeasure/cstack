@@ -27,7 +27,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileS
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
-import { gh } from "./lib/checks.mjs";
+import { openForge } from "./lib/forge.mjs";
 import { isTest } from "./lib/repo.mjs";
 import {
   VERDICTS,
@@ -58,8 +58,7 @@ function readJson(file) {
 }
 
 function scoutIssues(ctx) {
-  const out = gh(["issue", "list", "--repo", ctx.repo, "--state", "all", "--search", "Cstack-Scout in:body", "--json", "number,title,state,labels,body,createdAt", "--limit", "1000"], ctx.root);
-  return JSON.parse(out);
+  return ctx.forge.issues({ state: "all", search: "Cstack-Scout", want: ["number", "title", "state", "labels", "body", "createdAt"], limit: 1000 });
 }
 
 function record(gate, ctx) {
@@ -153,7 +152,7 @@ function duplicateOf(ctx, issues, key, title) {
       return `already filed as #${issue.number} (${result ?? "undecided"})`;
     }
   }
-  const open = JSON.parse(gh(["issue", "list", "--repo", ctx.repo, "--state", "open", "--json", "number,title", "--limit", "1000"], ctx.root));
+  const open = ctx.forge.issues({ state: "open", want: ["number", "title"], limit: 1000 });
   const like = open.find((i) => similar(i.title, title));
   return like ? `duplicates open issue #${like.number}: ${like.title}` : null;
 }
@@ -212,9 +211,9 @@ function file(gate, ctx, bundleFile, dryRun) {
   mkdirSync(ctx.store, { recursive: true });
   writeFileSync(bodyFile, `${body}\n`);
   ledger(ctx, { ...base, action: "filing", reason: label });
-  const created = run("gh", ["issue", "create", "--repo", ctx.repo, "--title", proposal.title, "--body-file", bodyFile, "--label", label], { cwd: ctx.root });
-  if (created.code !== 0) return stop("file-error", `gh issue create failed: ${created.stderr.trim()}`);
-  const issue = Number(created.stdout.trim().split("/").pop());
+  const created = ctx.forge.createIssue({ title: proposal.title, bodyFile, label });
+  if (!created.ok) return stop("file-error", `${ctx.forge.kind} issue create failed: ${created.error}`);
+  const issue = created.id;
   ledger(ctx, { ...base, action: "filed", issue, reason: label });
   rmSync(path.join(ctx.store, "held", `${key}.json`), { force: true });
   gate.pass("filed", `#${issue} ${label}`);
@@ -231,7 +230,7 @@ await main(async (argv) => {
   if (command === "file" && !/^[\w.-]+$/.test(args.pass ?? "")) throw new UsageError("file needs --pass <id> (letters, digits, dot, dash, underscore)");
   const store = args.store && path.resolve(args.store);
   const { root, config } = loadConfig(args["repo-dir"] || store || process.cwd());
-  const ctx = { root, config, store, pass: args.pass, repo: config.repo, prefix: config.label_prefix, settings: scoutSettings(config) };
+  const ctx = { root, config, store, pass: args.pass, repo: config.repo, forge: openForge(config, { cwd: root }), prefix: config.label_prefix, settings: scoutSettings(config) };
   const gate = new Gate(`scout-gate ${command}`, { json: args.json });
   if (command === "record") return record(gate, ctx);
   if (command === "choose") return choose(gate, ctx, path.resolve(target));
