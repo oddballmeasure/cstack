@@ -45,7 +45,23 @@ Every failure ends in a named kind (`tests_failed`, `verification`, `ci_failed`,
 ## Two levels of delegation
 
 - **In session.** For small programs, the coordinator runs units itself and uses subagents for implementing, verifying and reviewing. Subagents can nest three levels deep.
-- **Detached workers.** For larger programs, each unit runs as its own headless `claude -p` session under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process (ADR-011). It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call ends the unit as `denied` (ADR-009). A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
+- **Detached workers.** For larger programs, each unit runs as its own headless session (`claude -p`, or `codex exec` under Codex) under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process (ADR-011). It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call ends the unit as `denied` (ADR-009). A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
+
+## Two harnesses
+
+cstack is one plugin for Claude Code and Codex. Skills are written in Claude Code terms. Under Codex, the mode skill sends the agent to `skills/cstack/references/codex-notes.md`, which maps each tool to its Codex action. For example, `Agent` becomes `spawn_agent`, and a `Monitor` wait becomes a foreground watcher with `--timeout`.
+
+The two harnesses differ in a few places:
+
+| | Claude Code | Codex |
+|---|---|---|
+| Hooks | the same `hooks.json` | the same `hooks.json`, run once the user trusts them in `/hooks` |
+| Edits | `Edit` and `Write` | `apply_patch`; the guard reads the paths in the patch |
+| Headless | `claude -p` | `codex exec`, ChatGPT login only |
+| Permissions | a per-role allowlist in `dontAsk` mode | the role's deny rules, applied by the guard |
+| Models | config `models` | config `models_codex` |
+
+ADR-010 has the measurements, and ADR-012 covers the headless backend.
 
 ## Autonomy
 
