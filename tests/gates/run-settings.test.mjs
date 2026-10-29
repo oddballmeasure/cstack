@@ -67,3 +67,26 @@ test("text output names the source and any refused override; usage errors exit 2
   assert.equal(gate("run-settings.mjs", []).code, 2);
   assert.equal(gate("run-settings.mjs", ["--store", s.store, "extra"]).code, 2);
 });
+
+test("--codex-sandbox prints the e2e author's sandbox flags for its worktree", async () => {
+  const { git } = await import("./helpers.mjs");
+  const r = makeRepo({ codex_sandbox: "read-only" });
+  const wt = path.join(r.base, "wt");
+  git(r.root, "worktree", "add", "-q", wt, "-b", "e2e-probe");
+  const store = path.join(r.root, ".cstack/runs/prog");
+  const flags = (mode, env = {}, extra = []) => gate("run-settings.mjs", ["--codex-sandbox", mode, "--repo-dir", r.root, "--worktree", wt, ...extra], { env });
+  assert.equal(flags("auto").out.trim(), "'-s' 'read-only'", "config codex_sandbox");
+  const ww = flags("auto", { CSTACK_CODEX_SANDBOX: "workspace-write" }, ["--store", store]).out.trim();
+  const roots = JSON.parse(ww.match(/writable_roots=(\[.*\])'$/)[1]);
+  assert.deepEqual(roots.slice(0, 2), [path.join(r.root, ".git"), path.join(r.root, ".git", "worktrees", "wt")], "the common git dir and the worktree's own");
+  assert.equal(roots.at(-1), store);
+  assert.equal(flags("danger-full-access").out.trim(), "'-s' 'danger-full-access'");
+  const d = makeRepo();
+  const dwt = path.join(d.base, "wt");
+  git(d.root, "worktree", "add", "-q", dwt, "-b", "e2e-probe");
+  assert.match(gate("run-settings.mjs", ["--codex-sandbox", "auto", "--worktree", dwt], { env: { CSTACK_CODEX_SANDBOX: "" } }).out, /^'-s' 'workspace-write'/, "the default, with the config read from the worktree");
+  assert.equal(gate("run-settings.mjs", ["--codex-sandbox", "auto", "--repo-dir", r.root]).code, 2, "needs --worktree");
+  const plain = await import("../../gates/lib/harness.mjs");
+  const outside = plain.codexSandboxArgs("workspace-write", r.base);
+  assert.equal(JSON.parse(outside.at(-1).split("=")[1])[0], path.join(r.base, ".git"), "no git repo: <dir>/.git");
+});

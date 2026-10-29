@@ -33,15 +33,19 @@ export const BILLING_VARS = { claude: ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKE
 
 export const skillPrompt = (harness, prompt) => (harness === "codex" ? prompt.replace(/^\/cstack:/, "$cstack:") : prompt);
 
-// Sandbox flags for a Codex session in repo. workspace-write keeps .git read-only and allows writes only under
-// the working root, but cstack sessions commit, make worktrees under ~/.local/state/cstack and use the temp dir,
-// so those become writable roots, and network stays on for git and gh (measured, ADR-012). The state dir must
-// exist before the sandbox can bind it.
-export function codexSandboxArgs(sandbox, repo) {
+// Sandbox flags for a Codex session working in dir. workspace-write keeps .git read-only and allows writes only
+// under the working root, but cstack sessions commit, make worktrees under ~/.local/state/cstack and use the temp
+// dir, so those become writable roots, with any extra ones (the e2e author's run store), and network stays on for
+// git and gh (measured, ADR-012). The git root is the common git dir, so a worktree's session can commit too.
+// The state dir must exist before the sandbox can bind it.
+export function codexSandboxArgs(sandbox, dir, extra = []) {
   if (sandbox !== "workspace-write") return ["-s", sandbox];
   const state = path.join(os.homedir(), ".local", "state", "cstack");
   mkdirSync(state, { recursive: true });
-  const roots = [path.join(repo, ".git"), state, os.tmpdir()];
+  // A worktree's own git dir (.git/worktrees/<name>) stays read-only unless it is named too (measured).
+  const git = run("git", ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir", "--absolute-git-dir"]);
+  const gitDirs = git.code === 0 ? [...new Set(git.stdout.trim().split("\n"))] : [path.join(dir, ".git")];
+  const roots = [...gitDirs, state, os.tmpdir(), ...extra.map((p) => path.resolve(p))];
   return ["-s", sandbox, "-c", "sandbox_workspace_write.network_access=true", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify(roots)}`];
 }
 
