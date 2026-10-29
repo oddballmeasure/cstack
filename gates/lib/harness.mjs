@@ -44,7 +44,7 @@ export function codexSandboxArgs(sandbox, dir, extra = []) {
   mkdirSync(state, { recursive: true });
   // A worktree's own git dir (.git/worktrees/<name>) stays read-only unless it is named too (measured).
   const git = run("git", ["-C", dir, "rev-parse", "--path-format=absolute", "--git-common-dir", "--absolute-git-dir"]);
-  const gitDirs = git.code === 0 ? [...new Set(git.stdout.trim().split("\n"))] : [path.join(dir, ".git")];
+  const gitDirs = git.code === 0 ? [...new Set(git.stdout.trim().split("\n").map((p) => path.resolve(p)))] : [path.join(dir, ".git")];
   const roots = [...gitDirs, state, os.tmpdir(), ...extra.map((p) => path.resolve(p))];
   return ["-s", sandbox, "-c", "sandbox_workspace_write.network_access=true", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify(roots)}`];
 }

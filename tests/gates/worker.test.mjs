@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { makeRepo, gate, path, FAKE_BIN } from "./helpers.mjs";
 import { parseReset, notBefore, workerName, workerState, launchCount, readText } from "../../gates/lib/workers.mjs";
 
@@ -314,7 +314,7 @@ test("codex harness: launch checks the ChatGPT login, runs codex exec, and exit 
   assert.deepEqual(dry.slice(-3), ["-m", "gpt-6.1-sol", "$cstack:unit 7 --run prog --unit U1"]);
   assert.ok(dry.includes("sandbox_workspace_write.network_access=true"));
   const roots = JSON.parse(dry.find((x) => x.startsWith("sandbox_workspace_write.writable_roots=")).split("=")[1]);
-  assert.deepEqual(roots.slice(0, 1), [path.join(p.root, ".git")], "the sandbox lets the session commit");
+  assert.deepEqual(roots.slice(0, 1), [path.join(realpathSync.native(p.root), ".git")], "the sandbox lets the session commit");
   assert.ok(roots.some((r) => r.endsWith(path.join(".local", "state", "cstack"))));
 
   const apiKey = p.worker(["launch", "--store", p.store, "--unit", "U1"], { ...codex, FAKE_CODEX_LOGIN: "Logged in using an API key - sk-***" });

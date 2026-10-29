@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { makeRepo, gate, path } from "./helpers.mjs";
 
 function run(cfg = {}, runJson) {
@@ -78,7 +78,8 @@ test("--codex-sandbox prints the e2e author's sandbox flags for its worktree", a
   assert.equal(flags("auto").out.trim(), "'-s' 'read-only'", "config codex_sandbox");
   const ww = flags("auto", { CSTACK_CODEX_SANDBOX: "workspace-write" }, ["--store", store]).out.trim();
   const roots = JSON.parse(ww.match(/writable_roots=(\[.*\])'$/)[1]);
-  assert.deepEqual(roots.slice(0, 2), [path.join(r.root, ".git"), path.join(r.root, ".git", "worktrees", "wt")], "the common git dir and the worktree's own");
+  const real = (p) => realpathSync.native(p);
+  assert.deepEqual(roots.slice(0, 2), [path.join(real(r.root), ".git"), path.join(real(r.root), ".git", "worktrees", "wt")], "the common git dir and the worktree's own");
   assert.equal(roots.at(-1), store);
   assert.equal(flags("danger-full-access").out.trim(), "'-s' 'danger-full-access'");
   const d = makeRepo();
