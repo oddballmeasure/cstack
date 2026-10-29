@@ -1,3 +1,7 @@
+<p align="center">
+  <img src=".claude-plugin/icon.png" alt="cstack logo" width="200">
+</p>
+
 # cstack
 
 ## Why I built cstack
