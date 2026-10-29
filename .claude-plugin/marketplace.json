@@ -1,8 +1,10 @@
 {
   "name": "cstack",
-  "description": "cstack plugin marketplace",
   "owner": {
     "name": "oddballmeasure"
+  },
+  "metadata": {
+    "description": "cstack plugin marketplace"
   },
   "plugins": [
     {

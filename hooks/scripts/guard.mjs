@@ -8,7 +8,11 @@
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
-// No config in the repo means no path rules (the Bash rules still apply).
+// Every rule applies only in a cstack context: the session's cwd, or a path the tool call targets, is
+// inside a repo whose root has .cstack/config.json, or the session carries a marker that cstack's own
+// launches set (CSTACK_ROLE, CSTACK_RUN, CSTACK_UNIT, CSTACK_COORDINATOR). Anywhere else the guard
+// exits 0 at once, so a user-scope install does not change Claude's behaviour in unrelated projects.
+// A marker without a config means Bash rules only (no path rules).
 // This is defence in depth. Hidden suites also need filesystem isolation (ADR-001).
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -18,6 +22,8 @@ const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
 // setup-cstack writes it with Bash (jq), which a human reviews before committing.
 const ALWAYS_OFF = [".cstack/config.json"];
 const PRIVILEGED_ROLES = new Set(["e2e-author", "grader"]);
+// Set by gates/worker.mjs (workers and coordinators), the daemon unit, run-e2e.mjs and the e2e author launch.
+const MARKERS = ["CSTACK_ROLE", "CSTACK_RUN", "CSTACK_UNIT", "CSTACK_COORDINATOR"];
 
 function findRoot(start) {
   let dir = path.resolve(start);
@@ -27,6 +33,21 @@ function findRoot(start) {
     if (parent === dir) return null;
     dir = parent;
   }
+}
+
+// Directories a Bash command points at with `cd <dir>` or `-C <dir>` (git -C, make -C).
+function bashDirs(cmd) {
+  return [...cmd.matchAll(/(?:^|[\s;&|(])(?:cd|-C)\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)].map((m) => m[1].replace(/^["']|["']$/g, "").replace(/^~(?=\/|$)/, process.env.HOME || "~"));
+}
+
+// The cstack repo this call works in: from the cwd first, then from the paths the call targets.
+function contextRoot(cwd, targets) {
+  for (const t of [cwd, ...targets]) {
+    if (typeof t !== "string" || !t) continue;
+    const root = findRoot(path.resolve(cwd, t));
+    if (root) return root;
+  }
+  return null;
 }
 
 function loadConfig(root) {
@@ -115,9 +136,14 @@ function main() {
   const ti = input.tool_input || {};
   const cwd = input.cwd || process.cwd();
 
-  if (tool === "Bash" && typeof ti.command === "string") checkBash(ti.command);
+  const bash = tool === "Bash" && typeof ti.command === "string";
+  const targets = bash ? bashDirs(ti.command) : [ti.file_path, ti.notebook_path, ti.path];
+  const root = contextRoot(cwd, targets);
+  const marked = MARKERS.some((k) => process.env[k]);
+  if (!root && !marked) process.exit(0); // not a cstack context: change nothing
 
-  const root = findRoot(cwd);
+  if (bash) checkBash(ti.command);
+
   const cfg = loadConfig(root);
   if (!cfg) process.exit(0);
   if (cfg._error) block("config", `.cstack/config.json does not parse: ${cfg._error}`);

@@ -32,7 +32,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 ## Get set up
 
-1. Install at local scope inside the repo cstack should work on. User scope would apply cstack's guard to every session on the machine. The commands are in `README.md`.
+1. Install the plugin at any scope. Its guard hook acts only in repos with `.cstack/config.json` and in sessions cstack launches itself. The commands are in `README.md`.
 2. Run `/cstack:setup-cstack`. It writes `.cstack/config.json` (base branch, test command, hidden paths, required checks, model roles, autonomy), creates the labels, ignores the run store, and ends with `cstack:doctor`.
 3. When something looks wrong, run `cstack:doctor`. It is read-only.
 

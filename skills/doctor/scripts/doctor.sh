@@ -130,7 +130,8 @@ else fail "run store" ".cstack/runs is not writable"; fi
 # Hooks: the guard blocks a known-bad call
 guard="$plugin_root/hooks/scripts/guard.mjs"
 if [ -f "$guard" ]; then
-  if printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 1"},"cwd":"/"}' | node "$guard" >/dev/null 2>&1; then
+  # The guard acts only in a cstack context; the CSTACK_RUN marker gives the probe one from any cwd.
+  if printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 1"},"cwd":"/"}' | CSTACK_RUN=doctor-self-test node "$guard" >/dev/null 2>&1; then
     fail "hooks" "guard did not block a direct merge"
   else
     pass "hooks" "guard self-test blocks a direct merge"

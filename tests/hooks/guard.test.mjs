@@ -19,7 +19,7 @@ function repo(config = { paths_hidden: ["tests/acceptance/**"], paths_off_limits
 function run(root, tool_name, tool_input, env = {}, cwd = root) {
   const r = spawnSync("node", [GUARD], {
     input: JSON.stringify({ tool_name, tool_input, cwd }),
-    env: { ...process.env, CSTACK_ROLE: "", ...env },
+    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env },
     encoding: "utf8",
   });
   return { code: r.status, err: r.stderr };
@@ -148,10 +148,46 @@ test("no-eval-publish blocks claude plugin eval without --no-publish", () => {
   assert.equal(run(r, "Bash", { command: "claude plugin eval --help" }).code, 0, "help runs nothing");
 });
 
-test("Bash rules apply even without a config; path rules do not", () => {
-  const r = repo(null);
+test("outside a cstack context every rule is off", () => {
+  const r = repo(null); // .cstack/ exists but has no config.json: not a cstack repo
+  for (const cmd of [
+    "gh pr merge 1 --squash",
+    "gh api -X PUT repos/o/r/pulls/3/merge",
+    "while true; do sleep 30; done",
+    "sleep 60",
+    "export CSTACK_PROGRAM_AUTONOMY=send",
+    "node gates/deploy.mjs abc --approved",
+    "claude plugin eval .",
+  ]) {
+    assert.equal(run(r, "Bash", { command: cmd }).code, 0, cmd);
+  }
   assert.equal(run(r, "Read", { file_path: "tests/acceptance/x" }).code, 0);
-  assert.equal(run(r, "Bash", { command: "gh pr merge 1" }).code, 2);
+  assert.equal(run(r, "Write", { file_path: ".git/config" }).code, 0);
+});
+
+test("a cstack env marker turns the Bash rules on without a config; path rules stay off", () => {
+  const r = repo(null);
+  for (const marker of ["CSTACK_ROLE", "CSTACK_RUN", "CSTACK_UNIT", "CSTACK_COORDINATOR"]) {
+    const out = run(r, "Bash", { command: "gh pr merge 1" }, { [marker]: "1" });
+    assert.equal(out.code, 2, marker);
+    assert.match(out.err, /no-admin-merge/);
+  }
+  assert.equal(run(r, "Read", { file_path: "tests/acceptance/x" }, { CSTACK_RUN: "prog" }).code, 0);
+});
+
+test("a call from outside that targets a cstack repo is in context", () => {
+  const r = repo();
+  const elsewhere = repo(null);
+  assert.equal(run(r, "Write", { file_path: path.join(r, ".cstack/config.json") }, {}, elsewhere).code, 2);
+  assert.equal(run(r, "Read", { file_path: path.join(r, "tests/acceptance/e1.test.js") }, {}, elsewhere).code, 2);
+  assert.equal(run(r, "Grep", { pattern: "x", path: path.join(r, "src") }, {}, elsewhere).code, 0);
+  for (const cmd of [`cd ${r} && gh pr merge 1`, `git -C "${r}" status; gh pr merge 1`, `(cd '${r}/src' && gh pr merge 1)`]) {
+    const out = run(r, "Bash", { command: cmd }, {}, elsewhere);
+    assert.equal(out.code, 2, cmd);
+    assert.match(out.err, /no-admin-merge/);
+  }
+  assert.equal(run(r, "Bash", { command: "cd /tmp && gh pr merge 1" }, {}, elsewhere).code, 0);
+  assert.equal(run(r, "Bash", { command: "cd ~ && ls" }, {}, elsewhere).code, 0);
 });
 
 test("a config that does not parse blocks with a clear message", () => {

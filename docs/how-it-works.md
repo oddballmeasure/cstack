@@ -9,7 +9,7 @@ cstack is four kinds of parts. **Skills** hold the procedure and the judgement. 
 | Skills | `skills/<name>/SKILL.md` | A procedure an agent follows, with the exact commands and limits. User skills start a run; chained skills are called by other skills. | `program`, `unit`, `verify-head` |
 | Subagents | `agents/*.md` | Fresh-context workers with a narrow role and tool set. They return results; the coordinator reviews them. | `cstack-worker` implements; `cstack-verifier` judges; `cstack-reviewer` reviews; `cstack-e2e-author` writes the hidden suite |
 | Gates | `gates/*.mjs` | Dependency-free Node scripts. They print `PASS`/`FAIL` lines (or JSON) and exit 0, 1 or 2. An agent reads the findings; it never re-judges the verdict. | `check-commit`, `check-verdict`, `check-merge`, `run-e2e` |
-| Hooks | `hooks/` | Claude Code hooks that run on every tool call, in every session and subagent. | `guard.mjs` blocks hidden-suite reads, config edits, direct merges and sleep loops; `pending-work.mjs` stops a coordinator ending its turn with work in flight |
+| Hooks | `hooks/` | Claude Code hooks that run on every tool call in every session and subagent, and act only in a cstack context (a repo with `.cstack/config.json`, or a session cstack launched). | `guard.mjs` blocks hidden-suite reads, config edits, direct merges and sleep loops; `pending-work.mjs` stops a coordinator ending its turn with work in flight |
 
 ## A program, start to finish
 
