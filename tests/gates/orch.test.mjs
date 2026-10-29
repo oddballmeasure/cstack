@@ -59,7 +59,7 @@ function cliAsync(args, env = {}) {
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
 }
-const deadPid = () => spawnSync("true").pid;
+const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid;
 const lockPath = (dir) => path.join(dir, ".orch.lock");
 
 // ---- fake gh + git stack for frontier ----
@@ -101,7 +101,7 @@ function withGh(dir, rules, fn) {
   const scenario = path.join(dir, `gh-${Math.random().toString(36).slice(2)}.json`);
   writeFileSync(scenario, JSON.stringify({ rules }));
   const saved = { PATH: process.env.PATH, FAKE_GH_SCENARIO: process.env.FAKE_GH_SCENARIO };
-  process.env.PATH = `${FAKE_BIN}:${saved.PATH}`;
+  process.env.PATH = `${FAKE_BIN}${path.delimiter}${saved.PATH}`;
   process.env.FAKE_GH_SCENARIO = scenario;
   try {
     return fn({ PATH: process.env.PATH, FAKE_GH_SCENARIO: scenario });
@@ -318,7 +318,7 @@ describe("store", () => {
     assert.ok(!holderIsDead("999999999x") && !holderIsDead("0") && !holderIsDead(String(process.pid)));
   });
 
-  test("surfaces filesystem errors while taking the lock", () => {
+  test("surfaces filesystem errors while taking the lock", { skip: process.platform === "win32" && "chmod cannot make a directory read-only on Windows" }, () => {
     const { dir, store } = fresh();
     store.close();
     chmodSync(dir, 0o555);

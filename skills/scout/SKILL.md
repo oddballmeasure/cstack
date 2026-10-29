@@ -24,7 +24,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 | `<wt>` | `~/.local/state/cstack/worktrees/<owner>-<name>/cstack-scout-<pass>`, absolute. |
 | `<check>` | `node <root>/gates/scout-check.mjs` |
 | `<gate>` | `node <root>/gates/scout-gate.mjs` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <pass dir>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <pass dir>/decisions.tsv` |
 
 Settings come from config `scout` (defaults in `templates/config.json`): `autonomy` (`propose` or `auto`), `categories`, `areas_per_pass`, `cooldown_days`, `max_proposals_per_pass`, `max_files`, `repro`, and the `auto_min_*` bars.
 
@@ -41,7 +41,7 @@ Every brief names `<wt>` (or the repro worktree) as the only place to read, list
 
 ## Procedure
 
-1. **Preflight.** Run `<root>/skills/doctor/scripts/doctor.sh <repo>`. On a FAIL, stop. Then `git -C <repo> fetch -q origin`.
+1. **Preflight.** Run `node <root>/skills/doctor/scripts/doctor.mjs <repo>`. On a FAIL, stop. Then `git -C <repo> fetch -q origin`.
 2. **Outcomes.** Run `<gate> record --repo-dir <repo> --json`. It reads every issue the scout filed in the last 60 days and gives each category's track record and gate. For each issue in `rejected`, read its last comment (`gh issue view <n> --repo <repo slug> --json comments --jq '.comments[-1].body'`). Write `<pass dir>/rejections.json` as `[{"number", "title", "reason"}]`. Write `<pass dir>/issues.json` from `gh issue list --repo <repo slug> --state all --limit 300 --json number,title,state`.
 3. **Isolate.** `node <root>/gates/isolate.mjs <repo> cstack/scout-<pass> <wt> --base origin/<base_branch>`. Every agent reads only `<wt>`, where the hidden suite is not on disk.
 4. **Held proposals first.** For each `<store>/held/*.json`, run step 9 on it. They count toward this pass's cap.

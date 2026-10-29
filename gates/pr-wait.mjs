@@ -48,13 +48,12 @@
 // watcher for the same PR exit at once. A state file lets a restarted watcher report what arrived
 // while no watcher ran. The first run for a PR records what already exists and reports only what
 // comes after. State older than 6 hours is discarded.
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, statSync, linkSync, unlinkSync, writeSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { parseArgs, loadConfig } from "./lib/common.mjs";
+import { parseArgs, loadConfig, run } from "./lib/common.mjs";
 import { registerWatcher } from "./lib/workers.mjs";
 
 // Review bots. A gating bot must review the head before `ready`. An advisory bot is reported only.
@@ -131,9 +130,9 @@ let backoffMs = 2000;
 async function gh(args, allow = [0]) {
   let delay = backoffMs;
   for (let attempt = 1; ; attempt++) {
-    const r = spawnSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
-    const code = r.error ? 127 : r.status ?? 1;
-    const stderr = r.error ? String(r.error.message) : r.stderr || "";
+    const r = run("gh", args);
+    const { code } = r;
+    const stderr = r.stderr || "";
     const transient = code !== 0 && TRANSIENT.test(stderr);
     if (!transient && allow.includes(code)) return { code, stdout: r.stdout || "", stderr };
     const lines = stderr.trim().split("\n").filter(Boolean);

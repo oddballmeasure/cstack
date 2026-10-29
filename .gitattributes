@@ -1,0 +1,3 @@
+# LF everywhere, so the tests and the lint read the same bytes on Windows. Batch files need CRLF.
+* text=auto eol=lf
+*.cmd text eol=crlf

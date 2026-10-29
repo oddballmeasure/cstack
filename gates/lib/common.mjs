@@ -4,13 +4,55 @@
 //   last line: "gate <name>: approved" or "gate <name>: rejected (<n> findings)"
 //   --json prints {gate, approved, findings:[{check, detail}], passes:[...]} instead
 // Exit codes: 0 approved, 1 rejected, 2 usage or environment error.
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, statSync, accessSync, constants } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 export class UsageError extends Error {}
 
+// The PATH value of an env. Windows env keys are case-insensitive, and a child gets the first key in sort
+// order, so `{ ...process.env, PATH }` overrides `Path`.
+export function envPath(env = process.env) {
+  const key = Object.keys(env).filter((k) => k.toUpperCase() === "PATH").sort()[0];
+  return key ? env[key] : "";
+}
+
+// The file a bare command name runs, as `command -v` finds it, or null. On Windows a name without an
+// extension tries each PATHEXT extension, and a file needs no execute bit.
+export function which(cmd, env = process.env, platform = process.platform) {
+  const win = platform === "win32";
+  const exts = win ? (env.PATHEXT || ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean) : [];
+  const names = win && !exts.some((e) => cmd.toUpperCase().endsWith(e.toUpperCase())) ? exts.map((e) => cmd + e) : [cmd];
+  for (const dir of envPath(env).split(win ? ";" : ":")) {
+    if (!dir) continue;
+    for (const name of names) {
+      const file = path.join(dir, name);
+      try {
+        if (!statSync(file).isFile()) continue;
+        if (!win) accessSync(file, constants.X_OK);
+        return file;
+      } catch {}
+    }
+  }
+  return null;
+}
+
+// A cmd.exe command line that runs a .cmd or .bat file with these arguments, each passed through as one
+// literal argument. A batch file re-parses its arguments (`%*`), so metacharacters are escaped twice.
+const CMD_META = /([()\][%!^"`<>&|;, *?])/g;
+export function cmdLine(file, args) {
+  const quote = (a) => `"${String(a).replace(/(\\*)"/g, '$1$1\\"').replace(/(\\*)$/, "$1$1")}"`.replace(CMD_META, "^$1").replace(CMD_META, "^$1");
+  return [file.replace(CMD_META, "^$1"), ...args.map(quote)].join(" ");
+}
+
 export function run(cmd, args = [], opts = {}) {
+  // Windows spawns only .exe and .com files directly. A .cmd or .bat (npm, a test fake) goes through cmd.exe.
+  /* node:coverage disable */
+  const batch = process.platform === "win32" && !/[\\/]/.test(cmd) ? which(cmd, opts.env) : null;
+  if (batch && /\.(cmd|bat)$/i.test(batch)) {
+    return run(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", `"${cmdLine(batch, args)}"`], { ...opts, windowsVerbatimArguments: true });
+  }
+  /* node:coverage enable */
   const r = spawnSync(cmd, args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, ...opts });
   const timedOut = r.error?.code === "ETIMEDOUT";
   // A command that could not start (not found, not executable) reports 127, as a shell would.

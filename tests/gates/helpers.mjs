@@ -9,6 +9,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "../..");
 export const GATES = path.join(ROOT, "gates");
 export const FAKE_BIN = path.join(ROOT, "tests/fixtures/bin");
+// Git for Windows checks text out with CRLF (core.autocrlf), which the fixture scripts cannot read. Pin LF.
+Object.assign(process.env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.autocrlf", GIT_CONFIG_VALUE_0: "false" });
 const TEMPLATE = JSON.parse(readFileSync(path.join(ROOT, "templates/config.json"), "utf8"));
 
 export function sh(cwd, cmd, args) {
@@ -25,6 +27,7 @@ export function write(root, rel, text, mode) {
   if (mode) chmodSync(p, mode);
 }
 
+// The commands run through sh, which Windows (Git for Windows) has too, but not shebang files.
 // test.sh passes unless src/broken exists. e2e.sh prints TAP from tests/acceptance/lanes.txt
 // lines "E1.1 pass" or "E1.2 fail <message>"; a lane passes if src/<lane id> exists.
 export function makeRepo(cfg = {}) {
@@ -34,7 +37,7 @@ export function makeRepo(cfg = {}) {
   sh(base, "git", ["init", "-q", "--bare", "-b", "main", origin]);
   sh(base, "git", ["clone", "-q", origin, root]);
   git(root, "checkout", "-q", "-b", "main");
-  const config = { ...TEMPLATE, autonomy: "stop", repo: "o/r", test_command: ["./scripts/test.sh"], e2e_command: ["./scripts/e2e.sh"], ...cfg };
+  const config = { ...TEMPLATE, autonomy: "stop", repo: "o/r", test_command: ["sh", "./scripts/test.sh"], e2e_command: ["sh", "./scripts/e2e.sh"], ...cfg };
   write(root, ".cstack/config.json", JSON.stringify(config, null, 2));
   write(root, "scripts/test.sh", "#!/bin/sh\n[ -e src/broken ] && { echo 'unit test failed: broken'; exit 1; }\necho 'ok 1 - unit'\n", 0o755);
   write(
@@ -75,7 +78,7 @@ export function gate(name, args, { env = {}, cwd = ROOT } = {}) {
   const r = spawnSync(process.execPath, [path.join(GATES, name), ...args], {
     cwd,
     encoding: "utf8",
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, CSTACK_ROLE: "", CSTACK_PROGRAM_AUTONOMY: "", ...env },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, CSTACK_ROLE: "", CSTACK_PROGRAM_AUTONOMY: "", ...env },
   });
   let json = null;
   try {

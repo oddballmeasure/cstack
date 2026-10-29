@@ -8,7 +8,7 @@ The plan named `.cstack/config.toml`. cstack uses **`.cstack/config.json`** inst
 
 Why: hooks and gate scripts must parse the config with no dependencies. `jq` and Node read JSON natively. TOML needs a parser library in Node and has no reliable POSIX shell reader. Cardinal's TOML stayed readable because Python ships `tomllib`. cstack has no Python runtime.
 
-The schema is `templates/config.json`. `doctor.sh` is the schema check. Unknown keys fail, as in Cardinal.
+The schema is `templates/config.json`. `doctor.mjs` is the schema check. Unknown keys fail, as in Cardinal.
 
 ## Guard
 

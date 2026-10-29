@@ -33,7 +33,7 @@ test("worker usage errors exit 2", () => {
   assert.match(p.worker(["launch", "--store", p.store, "--unit", "U9"]).err, /unit U9 not found/);
 });
 
-test("launch --dry-run builds the systemd-run command with PATH, prompt and exit hook", () => {
+test("launch --dry-run builds the systemd-run command with PATH, prompt and exit hook", { skip: process.platform === "win32" && "its settings come from permissions.mjs, which builds rules from POSIX paths" }, () => {
   const p = program();
   p.orch("unit", "add", "U1", "--track", "core", "--issue", "7", "--state", "ready");
   p.orch("unit", "add", "U2", "--track", "core", "--state", "ready");
@@ -194,7 +194,7 @@ test("workers lib: names, liveness, reset times, holds", () => {
   const saved = process.env.PATH;
   const states = path.join(makeRepo().base, "s.json");
   writeFileSync(states, JSON.stringify({ a: "active", b: "" }));
-  process.env.PATH = `${FAKE_BIN}:${saved}`;
+  process.env.PATH = `${FAKE_BIN}${path.delimiter}${saved}`;
   process.env.FAKE_SYSTEMCTL_STATES = states;
   try {
     assert.deepEqual(workerState("a"), { state: "active", alive: true });
@@ -267,11 +267,11 @@ test("a program store relaunches its coordinator as /cstack:program --resume; ru
   assert.equal(p.worker(["next", "--store", p.store]).out, "launch U1\nlaunch U2\nslots 2/2\n");
 });
 
-test("launch under the other backends: the runner starts claude and runs exit when it ends", { skip: process.platform === "win32" && "fake claude is a shebang script" }, () => {
+test("launch under the other backends: the runner starts claude and runs exit when it ends", () => {
   const p = program();
   p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
   // The session PATH is the worker's own; put the fakes first so the runner can never start a real claude.
-  const runner = { ...p.env, CSTACK_SUPERVISOR: "detached", FAKE_CLAUDE_LOG: path.join(p.base, "claude.log"), CSTACK_WORKER_PATH: `${FAKE_BIN}:${path.dirname(process.execPath)}:/usr/bin:/bin` };
+  const runner = { ...p.env, CSTACK_SUPERVISOR: "detached", FAKE_CLAUDE_LOG: path.join(p.base, "claude.log"), CSTACK_WORKER_PATH: [FAKE_BIN, path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter) };
   const dry = p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], { ...runner, CSTACK_SUPERVISOR: "launchd" });
   const spec = JSON.parse(dry.out);
   assert.equal(spec.backend, "launchd");
@@ -330,7 +330,7 @@ test("codex harness: launch checks the ChatGPT login, runs codex exec, and exit 
   writeFileSync(events, JSON.stringify({ type: "thread.started" }) + "\n" + JSON.stringify({ type: "turn.completed", usage: {} }) + "\n");
   const ran = p.worker(["launch", "--store", p.store, "--unit", "U1", "--wait"], {
     ...codex, CSTACK_SUPERVISOR: "detached", FAKE_CODEX_EVENTS: events, FAKE_CODEX_LOG: path.join(p.base, "codex.log"),
-    CSTACK_WORKER_PATH: `${FAKE_BIN}:${path.dirname(process.execPath)}:/usr/bin:/bin`,
+    CSTACK_WORKER_PATH: [FAKE_BIN, path.dirname(process.execPath), "/usr/bin", "/bin"].join(path.delimiter),
   });
   assert.equal(ran.code, 0, ran.err);
   assert.match(readFileSync(p.files("U1.jsonl"), "utf8"), /turn\.completed/);

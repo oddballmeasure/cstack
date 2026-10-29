@@ -6,9 +6,12 @@ import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { FAKE_BIN, GATES, gate, makeRepo } from "./helpers.mjs";
 
 const RUNNER = path.join(GATES, "runner.mjs");
+// A pid that exists but belongs to another user: init on POSIX, the System process on Windows.
+const OTHER_PID = process.platform === "win32" ? 4 : 1;
 const posix = { skip: process.platform === "win32" && "uses sh and POSIX signals" };
 
 // A fresh registry and log files per test; the supervisor module reads its env on every call.
@@ -35,7 +38,7 @@ function sandbox() {
 
 // Runs a snippet against the supervisor module in a child, so its env and PATH apply.
 function lib(s, code, extra = {}) {
-  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `import * as sup from ${JSON.stringify(path.join(GATES, "lib/supervisor.mjs"))};\n${code}`], {
+  const r = spawnSync(process.execPath, ["--input-type=module", "-e", `import * as sup from ${JSON.stringify(pathToFileURL(path.join(GATES, "lib/supervisor.mjs")).href)};\n${code}`], {
     encoding: "utf8",
     env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, CSTACK_SUPERVISOR: "", ...s.env, ...extra },
   });
@@ -77,7 +80,7 @@ test("sessionState reads the registry, and falls back to systemctl", () => {
   assert.deepEqual(JSON.parse(state("sd")), { state: "inactive", alive: false });
   assert.deepEqual(JSON.parse(state("none")), { state: "inactive", alive: false }, "no entry: systemctl says");
   assert.deepEqual(JSON.parse(lib(s, `console.log(JSON.stringify(sup.sessionState("x")))`, { PATH: "/nonexistent" })), { state: "unknown", alive: false });
-  assert.equal(lib(s, `console.log(sup.pidAlive(0), sup.pidAlive(1.5), sup.pidAlive(1))`), "false false true");
+  assert.equal(lib(s, `console.log(sup.pidAlive(0), sup.pidAlive(1.5), sup.pidAlive(${OTHER_PID}))`), "false false true");
   assert.equal(lib(s, `console.log(sup.readEntry("missing"), sup.sessionsDir() === process.env.CSTACK_SESSIONS_DIR)`), "null true");
   assert.match(lib(s, `console.log(sup.sessionsDir())`, { CSTACK_SESSIONS_DIR: "" }), /\.local[\\/]state[\\/]cstack[\\/]sessions$/);
 });
@@ -132,7 +135,7 @@ test("resolveCommand finds Windows .cmd shims and quotes for cmd.exe", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cstack-win-"));
   writeFileSync(path.join(dir, "claude.cmd"), "");
   writeFileSync(path.join(dir, "tool.exe"), "");
-  const code = `import { resolveCommand, exitVars } from ${JSON.stringify(RUNNER)};
+  const code = `import { resolveCommand, exitVars } from ${JSON.stringify(pathToFileURL(RUNNER).href)};
 const env = { PATH: ${JSON.stringify(dir)}, PATHEXT: ".EXE;.CMD" };
 console.log(JSON.stringify([
   resolveCommand(["claude", "-p", "say \\"hi\\" 100%"], env, "win32"),
@@ -251,7 +254,8 @@ test("supervise usage errors and backend", () => {
   assert.equal(s.sup(["backend"], { CSTACK_SUPERVISOR: "launchd" }).out.trim(), "launchd");
   const r = makeRepo({ host: { supervisor: "detached" } });
   assert.equal(s.sup(["backend", "--repo-dir", r.root]).out.trim(), "detached");
-  assert.equal(s.sup(["backend", "--repo-dir", path.join(s.dir, "no-repo")]).out.trim(), "systemd", "no config: auto");
+  const auto = { darwin: "launchd", win32: "taskscheduler" }[process.platform] ?? "systemd";
+  assert.equal(s.sup(["backend", "--repo-dir", path.join(s.dir, "no-repo")]).out.trim(), auto, "no config: auto");
 });
 
 test("daemon-file per backend, and daemon-run writes the allowlist then runs claude", () => {

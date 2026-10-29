@@ -37,7 +37,7 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 
 | # | Stage | Owner skill | Gate | Pass → | Fail → |
 |---|---|---|---|---|---|
-| 0 | Preflight | `cstack:doctor` | `doctor.sh` | 1 | stop, failure `setup` |
+| 0 | Preflight | `cstack:doctor` | `doctor.mjs` | 1 | stop, failure `setup` |
 | 1 | Claim | `cstack:settle` | `gates/settle.mjs --state in-progress` | 2 | stop, failure `github` |
 | 2 | Isolate | `cstack:unit` | `isolate.mjs` | 3 | failure `git` |
 | 3 | Profile | `cstack:profile-repo` | profile covers all tracked files | 4 | stop, failure `setup` |

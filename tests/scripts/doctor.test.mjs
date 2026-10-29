@@ -7,12 +7,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DOCTOR = path.resolve(HERE, "../../skills/doctor/scripts/doctor.sh");
+const DOCTOR = path.resolve(HERE, "../../skills/doctor/scripts/doctor.mjs");
 const FAKE_BIN = path.resolve(HERE, "../fixtures/bin");
 const TEMPLATE = JSON.parse(readFileSync(path.resolve(HERE, "../../templates/config.json"), "utf8"));
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"].map((l) => `cstack:${l}`).join("\n");
-
-chmodSync(path.join(FAKE_BIN, "gh"), 0o755);
 
 function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", writeConfig = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "cstack-doctor-"));
@@ -30,9 +28,9 @@ function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", wri
 }
 
 function doctor(root, args = [], env = {}) {
-  const r = spawnSync("sh", [DOCTOR, ...args, root], {
+  const r = spawnSync(process.execPath, [DOCTOR, ...args, root], {
     encoding: "utf8",
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
   });
   return { code: r.status, out: r.stdout + r.stderr };
 }
@@ -109,6 +107,28 @@ test("optional retry_after_hours, scout and deploy are checked when present", ()
   assert.match(doctor(target({ deploy: { transport: "ftp" } })).out, /deploy.transport must be local or ssh/);
 });
 
+test("optional harness, models_codex, codex_sandbox and host are checked when present", () => {
+  const ok = doctor(target({ harness: "codex", models_codex: { code: "gpt-5.5", judge: "inherit" }, codex_sandbox: "workspace-write", host: { supervisor: "taskscheduler" } }));
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(doctor(target({ harness: null, models_codex: null, codex_sandbox: null, host: {} })).code, 0);
+  const bad = doctor(target({ harness: "gpt", models_codex: { code: "", review: 5, extra: "x" }, codex_sandbox: "yolo", host: { supervisor: "cron", user: "me" } }));
+  assert.equal(bad.code, 1);
+  for (const msg of [
+    "harness must be auto, claude or codex",
+    "models_codex.code must be a non-empty string",
+    "models_codex.review must be a non-empty string",
+    "unknown key models_codex.extra",
+    "codex_sandbox must be read-only, workspace-write or danger-full-access",
+    "host.supervisor must be auto, systemd, launchd, taskscheduler or detached",
+    "unknown key host.user",
+  ]) {
+    assert.ok(bad.out.includes(`FAIL config schema: ${msg}`), msg);
+  }
+  const shapes = doctor(target({ models_codex: "gpt", host: "detached" }));
+  assert.match(shapes.out, /models_codex must be an object or null/);
+  assert.match(shapes.out, /host must be an object or null/);
+});
+
 test("placeholder repo name fails", () => {
   const r = doctor(target({ repo: "owner/name" }));
   assert.match(r.out, /FAIL config schema: repo must be owner\/name/);
@@ -154,4 +174,13 @@ test("under Codex, doctor fails until the guard has seen this session", () => {
   assert.equal(after.code, 0, after.out);
   assert.match(after.out, /PASS hooks \(codex\)/);
   assert.doesNotMatch(doctor(root, ["--offline"], { CODEX_SESSION_ID: "" }).out, /hooks \(codex\)/);
+});
+
+test("node version is checked on the node in PATH, which runs the hooks", { skip: process.platform === "win32" && "the fake node is a shell script" }, () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-oldnode-"));
+  writeFileSync(path.join(dir, "node"), "#!/bin/sh\necho 18.20.0\n");
+  chmodSync(path.join(dir, "node"), 0o755);
+  const r = doctor(target(), ["--offline"], { PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL node version: v18 is below 22/);
 });

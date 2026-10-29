@@ -21,7 +21,7 @@ function program() {
 // Runs the watcher in the background. `lines` fills as it prints; `waitFor(re)` resolves on a matching line.
 function watch(p, args) {
   const child = spawn(process.execPath, [path.join(GATES, "inbox-wait.mjs"), ...args], {
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, FAKE_SYSTEMCTL_STATES: p.states },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_SYSTEMCTL_STATES: p.states },
   });
   const lines = [];
   let err = "";
@@ -110,7 +110,7 @@ test("inbox-wait with --until waits for the deadline instead of exiting idle", a
   assert.deepEqual(res.lines, [`deadline: ${deadline}`]);
 });
 
-test("inbox-wait exits cleanly on SIGTERM and drops its mark", async () => {
+test("inbox-wait exits cleanly on SIGTERM and drops its mark", { skip: process.platform === "win32" && "Windows has no SIGTERM handler: kill ends the process at once" }, async () => {
   const p = program();
   p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
   p.orch("unit", "set", "U1", "--state", "in-progress");

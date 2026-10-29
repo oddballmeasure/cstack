@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const script = JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).scripts["coverage:gates"];
-const includes = [...script.matchAll(/--test-coverage-include='([^']+)'/g)].map((m) => `--test-coverage-include=${m[1]}`);
+const includes = [...script.matchAll(/--test-coverage-include="([^"]+)"/g)].map((m) => `--test-coverage-include=${m[1]}`);
 const out = path.join(tmpdir(), `cstack-uncovered-${process.pid}.lcov`);
 spawnSync(process.execPath, ["--test", "--experimental-test-coverage", "--test-reporter=lcov", `--test-reporter-destination=${out}`, ...includes, "tests/gates/*.test.mjs"], { cwd: ROOT, stdio: "ignore" });
 

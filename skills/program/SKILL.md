@@ -27,7 +27,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<store>` | `<repo>/.cstack/runs/<slug>`, absolute. |
 | `<orch>` | `node <root>/gates/orch.mjs --store <store>` |
 | `<settings>` | `node <root>/gates/run-settings.mjs --store <store>` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<base>` | Config `base_branch`. |
 | `<repo slug>` | Config `repo` (`owner/name`). |
 

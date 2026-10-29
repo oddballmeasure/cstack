@@ -20,7 +20,7 @@ Shell variables do not persist between Bash calls. Resolve each name once and wr
 | `<repo>` | The target repo root: `git rev-parse --show-toplevel`. |
 | `<slug>` | The `--run` slug from the caller. Without one, derive it from the guideline title: lowercase, every run of non-alphanumerics to `-`, at most 40 characters. |
 | `<store>` | `<repo>/.cstack/runs/<slug>/`, absolute. Create it with `mkdir -p`. |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 
 ## Procedure
 
