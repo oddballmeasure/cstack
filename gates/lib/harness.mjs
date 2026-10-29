@@ -6,6 +6,9 @@
 //   - no per-session allowlist: the guard applies the role's deny rules to cstack-launched Codex sessions;
 //   - billing is checked before launch with `codex login status`, which must say ChatGPT;
 //   - prompts call skills as $cstack:<name>, not /cstack:<name>.
+import { mkdirSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { run, UsageError } from "./common.mjs";
 
 export const HARNESSES = ["claude", "codex"];
@@ -30,15 +33,22 @@ export const BILLING_VARS = { claude: ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKE
 
 export const skillPrompt = (harness, prompt) => (harness === "codex" ? prompt.replace(/^\/cstack:/, "$cstack:") : prompt);
 
-// The Codex session command. Network stays on in workspace-write so git and gh work; config codex_sandbox
-// picks the sandbox (danger-full-access where bwrap cannot start, ADR-010). stdin must be closed by the caller.
+// Sandbox flags for a Codex session in repo. workspace-write keeps .git read-only and allows writes only under
+// the working root, but cstack sessions commit, make worktrees under ~/.local/state/cstack and use the temp dir,
+// so those become writable roots, and network stays on for git and gh (measured, ADR-012). The state dir must
+// exist before the sandbox can bind it.
+export function codexSandboxArgs(sandbox, repo) {
+  if (sandbox !== "workspace-write") return ["-s", sandbox];
+  const state = path.join(os.homedir(), ".local", "state", "cstack");
+  mkdirSync(state, { recursive: true });
+  const roots = [path.join(repo, ".git"), state, os.tmpdir()];
+  return ["-s", sandbox, "-c", "sandbox_workspace_write.network_access=true", "-c", `sandbox_workspace_write.writable_roots=${JSON.stringify(roots)}`];
+}
+
+// The Codex session command. Config codex_sandbox (or CSTACK_CODEX_SANDBOX) picks the sandbox. stdin must be
+// closed by the caller.
 export function codexArgv({ prompt, cwd, model = null, sandbox = "workspace-write" }) {
-  return [
-    "codex", "exec", "--json", "-C", cwd, "-s", sandbox,
-    ...(sandbox === "workspace-write" ? ["-c", "sandbox_workspace_write.network_access=true"] : []),
-    ...(model ? ["-m", model] : []),
-    skillPrompt("codex", prompt),
-  ];
+  return ["codex", "exec", "--json", "-C", cwd, ...codexSandboxArgs(sandbox, cwd), ...(model ? ["-m", model] : []), skillPrompt("codex", prompt)];
 }
 
 // Codex has no apiKeySource event, so check the login before launch: an API-key login would bill per token.
