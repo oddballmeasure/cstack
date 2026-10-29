@@ -49,10 +49,11 @@ origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
   <fixture>   a directory under tests/fixtures/ with a fixture.json, or its short prefix
               (${FIXTURES.map((f) => `${f.split("-")[0]} = ${f}`).join(", ") || "none found"})
   --keep      skip teardown: leave testbed main, the run's PRs, issues and worktrees as the run made them
-  --harness   claude (default) or codex. Codex runs the coordinator as codex exec, installs the plugin copy
-              (without tests/) as the cstack marketplace for the run, and restores this checkout's install
-              afterwards. CSTACK_CODEX_SANDBOX sets config codex_sandbox (default workspace-write). Codex must
-              be logged in with ChatGPT, and cstack's hooks must be trusted once in /hooks (ADR-010, ADR-012).
+  --harness   claude (default) or codex. Codex runs the coordinator as codex exec with CSTACK_HARNESS=codex,
+              using the installed Codex plugin, which must be this checkout with its hooks trusted in /hooks.
+              Every grader/ in the checkout and in the install is hidden from the run by the guard.
+              CSTACK_CODEX_SANDBOX picks the sandbox (default workspace-write). Codex must be logged in with
+              ChatGPT (ADR-010, ADR-012).
   --help      print this text
 
 The run takes hours. Start it detached and follow the journal:
@@ -168,7 +169,6 @@ function scaffold() {
       test_command: ["npm", "test"],
       e2e_command: null,
       required_checks: ["ci"],
-      ...(harness === "codex" ? { harness: "codex", codex_sandbox: process.env.CSTACK_CODEX_SANDBOX || "workspace-write" } : {}),
       paths_hidden: ["tests/acceptance/**"],
       autonomy: "stop",
       parallel: 1,
@@ -258,17 +258,17 @@ function launch() {
   const PATH = [path.dirname(process.execPath), `${process.env.HOME}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
   const script = path.join(outDir, "session.sh");
   // Every fixture's held-out grader, hidden by the guard from the run and every session it launches.
-  const hide = q(FIXTURES.map((f) => path.join(HERE, f, "grader")).join(path.delimiter));
+  const installed = harness === "codex" ? codexPluginRoot() : null;
+  const graders = FIXTURES.flatMap((f) => [path.join(HERE, f, "grader"), ...(installed ? [path.join(installed, "tests", "fixtures", f, "grader")] : [])]);
+  const hide = q(graders.join(path.delimiter));
   if (harness === "codex") {
-    // Codex runs the installed plugin, not a --plugin-dir: install the copy without tests/ for this run.
-    codexInstall(plugin);
     const sandbox = process.env.CSTACK_CODEX_SANDBOX || "workspace-write";
     const net = sandbox === "workspace-write" ? " -c sandbox_workspace_write.network_access=true" : "";
     writeFileSync(
       script,
       `#!/bin/sh
 cd ${q(clone)}
-exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   codex exec --json -C ${q(clone)} -s ${sandbox}${net} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" < /dev/null > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
@@ -292,11 +292,17 @@ exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} 
   sh("systemd-run", ["--user", "--collect", "--quiet", `--unit=${coordinator}`, `--property=RuntimeMaxSec=${maxSec}`, script]);
 }
 
-function codexInstall(dir) {
-  sh("codex", ["plugin", "remove", "cstack@cstack"], { allowFail: true });
-  sh("codex", ["plugin", "marketplace", "remove", "cstack"], { allowFail: true });
-  sh("codex", ["plugin", "marketplace", "add", dir]);
-  sh("codex", ["plugin", "add", "cstack@cstack"]);
+// Codex runs the installed plugin and trusts its hooks per plugin fingerprint, so the run uses the install as it
+// is: it must be this checkout (codex plugin marketplace add <this checkout>; codex plugin add cstack@cstack).
+function codexPluginRoot() {
+  const cache = path.join(process.env.HOME, ".codex", "plugins", "cache", "cstack", "cstack");
+  const version = existsSync(cache) ? readdirSync(cache).sort().at(-1) : null;
+  const root = version && path.join(cache, version);
+  const same = (rel) => root && existsSync(path.join(root, rel)) && readFileSync(path.join(root, rel), "utf8") === readFileSync(path.join(CSTACK, rel), "utf8");
+  if (!["gates/worker.mjs", "hooks/scripts/guard.mjs", "skills/program/SKILL.md"].every(same)) {
+    throw new Error(`the Codex install of cstack (${root ?? "none"}) is not this checkout; reinstall it from ${CSTACK} and trust its hooks in /hooks`);
+  }
+  return root;
 }
 
 async function wait(started, stopping) {
@@ -493,13 +499,6 @@ try {
       result.teardown_error = String(err.message);
     }
   } else log("--keep: testbed main, PRs and issues left as the run made them");
-  if (harness === "codex") {
-    try {
-      codexInstall(CSTACK);
-    } catch (err) {
-      log(`restoring the Codex install failed: ${err.message}`);
-    }
-  }
 }
 
 const resultsDir = path.join(FIXTURE_DIR, "results");

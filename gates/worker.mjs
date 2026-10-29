@@ -111,7 +111,7 @@ function launch(store, unit, args) {
   writeFileSync(workerFile(store, id, "jsonl"), "");
   writeFileSync(workerFile(store, id, "stderr.log"), "");
   const session = harness === "codex"
-    ? codexArgv({ prompt, cwd: repoRoot, model: codexModel(config, "code"), sandbox: config.codex_sandbox || "workspace-write" })
+    ? codexArgv({ prompt, cwd: repoRoot, model: codexModel(config, "code"), sandbox: process.env.CSTACK_CODEX_SANDBOX || config.codex_sandbox || "workspace-write" })
     : [
     "claude",
     "-p",
