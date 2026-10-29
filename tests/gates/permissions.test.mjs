@@ -40,6 +40,7 @@ test("worker edits only the repo's worktrees and the run store, and runs the con
     assert.ok(p.allow.includes(rule), rule);
   }
   assert.ok(p.deny.includes("Bash(systemd-run *)"), "a worker launches no detached session");
+  for (const c of ["start", "stop", "daemon-run"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/supervise.mjs ${c} *)`), c);
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader node *)"), "verifiers run the suite as the grader");
   assert.ok(!p.allow.some((r) => r.startsWith("Bash(systemctl --user stop")));
 });
@@ -49,6 +50,7 @@ test("coordinator adds the e2e author launch and stopping cstack units, and may 
   assert.ok(p.allow.includes("Bash(systemd-run --user --collect --quiet --unit=cstack-e2e-*)"));
   assert.ok(p.allow.includes("Bash(systemctl --user stop cstack-*)"));
   assert.ok(!p.deny.includes("Bash(systemd-run *)"));
+  assert.ok(!p.deny.some((r) => r.includes("supervise.mjs")), "the coordinator starts and stops sessions");
   for (const rule of perms("worker").allow) assert.ok(p.allow.includes(rule), `coordinator keeps ${rule}`);
 });
 

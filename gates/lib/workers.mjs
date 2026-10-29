@@ -1,17 +1,17 @@
-// Level B unit workers: systemd unit names, liveness, and the per-unit files under <store>/workers/.
+// Level B unit workers: session names, liveness, and the per-unit files under <store>/workers/.
 //   workers/<unit>.jsonl        the headless session's stream-json output
 //   workers/<unit>.stderr.log   its stderr
-//   workers/<unit>.launches     one line per launch: <iso ts> <systemd unit>
+//   workers/<unit>.launches     one line per launch: <iso ts> <session name>
+//   workers/<unit>.spec.json    the runner spec, for every supervisor backend but systemd (gates/runner.mjs)
 //   workers/<unit>.exit.txt     the last exit: <status> <detail>
 //   workers/<unit>.not-before   ISO time before which the unit must not be relaunched (usage limit)
 //   watchers/<pid>              one file per live watcher (inbox-wait, pr-wait, post-merge --wait): <kind> <iso ts>
 import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
-import { run } from "./common.mjs";
+import { sessionState } from "./supervisor.mjs";
 
 export const TERMINAL_STATES = ["merged", "done", "error", "needs-human"];
 export const IN_FLIGHT_STATES = ["in-progress", "verifying", "pr-open"];
-const ALIVE = new Set(["active", "activating", "reloading", "deactivating"]);
 
 const clean = (s) => String(s).replace(/[^A-Za-z0-9_.-]/g, "-");
 
@@ -21,12 +21,9 @@ export function workerName(repo, store, unit) {
   return `cstack-${clean(name)}-${clean(path.basename(path.resolve(store)))}-${clean(unit)}`;
 }
 
-// The unit's state as `systemctl --user is-active` prints it, and whether that counts as alive.
-export function workerState(name) {
-  const r = run("systemctl", ["--user", "is-active", name]);
-  const state = r.stdout.trim() || "unknown";
-  return { state, alive: ALIVE.has(state) };
-}
+// The session's state in systemd's words (active, failed, inactive, ...) and whether it counts as alive,
+// for whichever supervisor backend started it (gates/lib/supervisor.mjs).
+export const workerState = (name) => sessionState(name);
 
 export const workerFile = (store, unit, ext) => path.join(store, "workers", `${unit}.${ext}`);
 

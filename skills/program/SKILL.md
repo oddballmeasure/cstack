@@ -91,7 +91,7 @@ Each step names its owner skill, its gate, and where it goes on failure. Run eac
 ### 0. Preflight
 
 1. Run `cstack:doctor` on `<repo>`. Any FAIL is failure `setup`: report it and stop. Without `.cstack/config.json`, ask the human to run `/cstack:setup-cstack`, and stop.
-2. Check that no other coordinator owns the run: `systemctl --user is-active cstack-<repo name>-<slug>-coordinator`. If it prints `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, report the unit name and stop.
+2. Check that no other coordinator owns the run: `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it prints `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, report the unit name and stop.
 3. Create `<store>` with `mkdir -p`. Run `<orch> init`. Write `run.json` (see **The run record**).
 4. Run `<settings>`. Log its lines.
 5. If `--autonomy=send` was given and `<settings>` prints `autonomy stop`, the run cannot merge. Interactive: ask once with `AskUserQuestion`: "Continue under stop (default)" or "Stop now, so I can relaunch with `CSTACK_PROGRAM_AUTONOMY=send`". Headless: continue under stop. In both cases, log it and put it first in the final report.

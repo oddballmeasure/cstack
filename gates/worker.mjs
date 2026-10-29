@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // Based on Cardinal's daemon/workers.py (process per run, dependency waiting); same maintainer.
-// Level B unit workers: one detached headless `claude -p` session per unit, under `systemd-run --user`.
+// Level B unit workers: one detached headless `claude -p` session per unit, under the host supervisor
+// (gates/lib/supervisor.mjs): `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows,
+// or a detached process. Every backend but systemd runs gates/runner.mjs, which calls `exit` itself.
 // Usage:
 //   worker.mjs launch --store <dir> --unit <id> [--plugin-dir <root>] [--wait] [--dry-run]
 //   worker.mjs launch --store <dir> --coordinator [--resume] [--plugin-dir <root>] [--wait] [--dry-run]
-//   worker.mjs exit   --store <dir> --unit <id>        (systemd ExecStopPost; also safe by hand)
+//   worker.mjs exit   --store <dir> --unit <id>        (ExecStopPost or the runner's onExit; also safe by hand)
 //   worker.mjs next   --store <dir> [--json]           units to launch now, and units deferred by a usage limit
 // launch is idempotent: a live worker is left alone. It marks the unit in-progress, records the launch
 // in workers/<unit>.launches, and arranges for `exit` to run when the session ends for any reason,
@@ -29,7 +31,9 @@ import { appendFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from "no
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
+import { RUNNER, pickBackend, startRunner, writeEntry } from "./lib/supervisor.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
 import { deniedCalls, permissionSettings } from "./lib/permissions.mjs";
@@ -75,8 +79,13 @@ function launch(store, unit, args) {
   }
   const slug = path.basename(store);
   const pluginDir = path.resolve(args["plugin-dir"] || PLUGIN_ROOT);
-  const home = process.env.HOME;
-  const PATH = process.env.CSTACK_WORKER_PATH || [path.dirname(process.execPath), `${home}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+  const backend = pickBackend(config);
+  const home = os.homedir();
+  // Windows has no fixed system bin dirs, so a Windows worker keeps this process's PATH behind node's dir.
+  /* node:coverage disable */
+  const hostPath = process.platform === "win32" ? [process.env.PATH] : [`${home}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"];
+  /* node:coverage enable */
+  const PATH = process.env.CSTACK_WORKER_PATH || [path.dirname(process.execPath), ...hostPath].join(path.delimiter);
   // A store that cstack:program started resumes the whole program, not just its execute step.
   const program = readRun(store).run?.entry === "program";
   const prompt = coordinator
@@ -95,6 +104,30 @@ function launch(store, unit, args) {
   writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
   writeFileSync(workerFile(store, id, "jsonl"), "");
   writeFileSync(workerFile(store, id, "stderr.log"), "");
+  const claude = [
+    "claude",
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--verbose",
+    "--strict-mcp-config",
+    "--plugin-dir",
+    pluginDir,
+    "--permission-mode",
+    "dontAsk",
+    "--settings",
+    settingsFile,
+    prompt,
+  ];
+  const unset = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", ...(coordinator ? [] : ["CSTACK_COORDINATOR"])];
+  const sessionEnv = {
+    PATH,
+    HOME: home,
+    CSTACK_RUN: slug,
+    CSTACK_PROGRAM_AUTONOMY: process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : "",
+    ...(coordinator ? { CSTACK_COORDINATOR: "1" } : { CSTACK_UNIT: unit }),
+  };
+  if (backend !== "systemd") return launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, claude, unset, sessionEnv, args });
   const argv = [
     "--user",
     `--unit=${name}`,
@@ -117,34 +150,57 @@ function launch(store, unit, args) {
     "-u",
     "ANTHROPIC_AUTH_TOKEN",
     ...(coordinator ? [] : ["-u", "CSTACK_COORDINATOR"]),
-    "claude",
-    "-p",
-    "--output-format",
-    "stream-json",
-    "--verbose",
-    "--strict-mcp-config",
-    "--plugin-dir",
-    pluginDir,
-    "--permission-mode",
-    "dontAsk",
-    "--settings",
-    settingsFile,
-    prompt,
+    ...claude,
   ];
   if (args["dry-run"]) {
     process.stdout.write(`${JSON.stringify(["systemd-run", ...argv])}\n`);
     return 0;
   }
+  markLaunched(store, unit, id, name, coordinator, row);
+  const r = run("systemd-run", argv);
+  // With --wait, systemd-run exits with the session's own status, which `exit` has already classified.
+  if (r.code !== 0 && !args.wait) throw new UsageError(`systemd-run failed (${r.code}): ${r.stderr.trim()}`);
+  process.stdout.write(`${args.wait ? "finished" : "launched"} ${name} (launch ${launchCount(store, id)})\n`);
+  return 0;
+}
+
+function markLaunched(store, unit, id, name, coordinator, row) {
   mkdirSync(path.join(store, "workers"), { recursive: true });
   if (!coordinator) {
     rmSync(workerFile(store, unit, "not-before"), { force: true });
     if (["planned", "ready"].includes(row.state)) withStore(store, (s) => s.units.set({ id: unit, state: "in-progress" }));
   }
   appendFileSync(workerFile(store, id, "launches"), `${new Date().toISOString()}\t${name}\n`);
-  const r = run("systemd-run", argv);
-  // With --wait, systemd-run exits with the session's own status, which `exit` has already classified.
-  if (r.code !== 0 && !args.wait) throw new UsageError(`systemd-run failed (${r.code}): ${r.stderr.trim()}`);
-  process.stdout.write(`${args.wait ? "finished" : "launched"} ${name} (launch ${launchCount(store, id)})\n`);
+}
+
+// launchd, Task Scheduler or a detached process: the runner starts claude and runs `exit` when it ends.
+function launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, claude, unset, sessionEnv, args }) {
+  const specFile = workerFile(store, id, "spec.json");
+  const spec = {
+    name,
+    backend,
+    argv: claude,
+    cwd: repoRoot,
+    env: sessionEnv,
+    unset,
+    stdout: workerFile(store, id, "jsonl"),
+    stderr: workerFile(store, id, "stderr.log"),
+    onExit: coordinator ? null : [process.execPath, SELF, "exit", "--store", store, "--unit", unit],
+  };
+  if (args["dry-run"]) {
+    process.stdout.write(`${JSON.stringify({ backend, ...spec })}\n`);
+    return 0;
+  }
+  writeFileSync(specFile, `${JSON.stringify(spec, null, 2)}\n`);
+  markLaunched(store, unit, id, name, coordinator, row);
+  if (args.wait) {
+    writeEntry(name, { name, backend, requested: new Date().toISOString(), spec: specFile });
+    spawnSync(process.execPath, [RUNNER, specFile], { cwd: repoRoot, stdio: "ignore" });
+  } else {
+    const r = startRunner(backend, name, specFile, { cwd: repoRoot });
+    if (r.code !== 0) throw new UsageError(`${backend} launch failed (${r.code}): ${r.stderr.trim()}`);
+  }
+  process.stdout.write(`${args.wait ? "finished" : "launched"} ${name} via ${backend} (launch ${launchCount(store, id)})\n`);
   return 0;
 }
 

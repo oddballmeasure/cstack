@@ -38,7 +38,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 
 ## Headless workers
 
-- Run `claude -p` under `systemd-run --user`. The unit does not inherit the login `PATH`, so the script sets `PATH` (ADR-001).
+- Run `claude -p` through the host supervisor, `node <root>/gates/supervise.mjs` or `gates/worker.mjs` (ADR-011). Under systemd the unit does not inherit the login `PATH`, so the launcher sets `PATH` (ADR-001).
 - Unset `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` to run on the subscription. Check `apiKeySource: "none"` in the init event as the billing guard. `total_cost_usd` is an estimate only.
 - Launch with `--strict-mcp-config` and an explicit MCP config. Without it, workers inherit user-level MCP servers (ADR-001).
 - Load a local plugin with `--plugin-dir` for tests.

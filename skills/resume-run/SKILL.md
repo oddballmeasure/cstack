@@ -29,7 +29,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 
 ### 1. One coordinator at a time
 
-Read `systemctl --user is-active cstack-<repo name>-<slug>-coordinator`. If it is `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, another coordinator owns the run. Report its unit name and stop. Do not start a second one.
+Read `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it is `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, another coordinator owns the run. Report its unit name and stop. Do not start a second one.
 
 ### 2. Read the trail
 
@@ -56,7 +56,7 @@ For each U unit, in id order. Each step writes only when the store disagrees wit
 
 A unit is orphaned when its state is `in-progress` or `verifying` (or `pr-open` under autonomy `send`) and nothing runs it:
 
-- **Level B** (the unit has `<store>/workers/<unit>.launches`): `systemctl --user is-active <unit name>` is not `active` or `activating`. A live worker is never an orphan, however old its last row.
+- **Level B** (the unit has `<store>/workers/<unit>.launches`): `node <root>/gates/supervise.mjs status <unit name>` is not `active` or `activating`. A live worker is never an orphan, however old its last row.
 - **Level A** (no launches file): the unit ran inside a coordinator session, which has no systemd unit. It is orphaned when no row in `<store>/decisions.tsv` that names the unit, its issue or its branch is newer than 10 minutes.
 
 Log each orphan: `<log> "resume" "orphan <unit>" "<state>, worker <is-active output>, last row <ts>" "<exit line or none>" "found"`.
