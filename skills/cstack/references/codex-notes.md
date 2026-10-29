@@ -21,7 +21,7 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 | `Grep` | `rg` in the shell. |
 | `Glob` | `rg --files -g '<glob>'` in the shell. |
 | `Edit` | `apply_patch`. The guard reads the paths in the patch (ADR-010). |
-| `Write` | `apply_patch` with `*** Add File:`. |
+| `Write` | `apply_patch` with `*** Add File:`. Write every file this way, JSON and reports included, never with a shell heredoc, `node -`, `python -` or `> file`. The guard reads the full text of every shell command, so a script whose content merely mentions a hidden path is blocked, while `apply_patch` is checked by its file paths only. |
 | `Bash` | The shell tool. Hooks see it as `Bash`, so every guard rule for Bash applies (ADR-010). |
 
 ## Subagents

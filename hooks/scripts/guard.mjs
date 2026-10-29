@@ -263,7 +263,7 @@ function main() {
 
   if (tool === "Bash" && typeof ti.command === "string" && !privileged) {
     for (const n of hiddenNeedles(hidden)) {
-      if (names(ti.command, n)) block("hidden-paths", `command names a hidden path (${n}). Run the suite with run-e2e instead.`);
+      if (names(ti.command, n)) block("hidden-paths", `command names a hidden path (${n}). Run the suite with run-e2e instead. To write a file whose text mentions it, use the edit tool (Write or Edit; apply_patch in Codex), not a shell command.`);
     }
   }
 
