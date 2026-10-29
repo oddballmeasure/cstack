@@ -68,7 +68,7 @@ function main() {
   const watchers = path.join(found.store, "watchers");
   if (existsSync(watchers) && readdirSync(watchers).some(alive)) return 0;
   const codex = typeof input.turn_id === "string";
-  const watch = codex ? "run it in the foreground and act on the line it exits with" : "arm the Monitor tool on it and wait for its events";
+  const watch = codex ? "run it in the foreground with --once --timeout 1500, act on its lines, and run it again while it exits 3" : "arm the Monitor tool on it and wait for its events";
   const reason =
     `cstack pending-work: units in flight (${pending.join(", ")}) and no watcher is armed (inbox-wait, pr-wait --store, or post-merge --wait). Do not end the turn. ` +
     `Drain with \`node ${ROOT}/gates/orch.mjs --store ${found.store} inbox drain\`, then start ` +

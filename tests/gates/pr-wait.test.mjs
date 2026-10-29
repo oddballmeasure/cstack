@@ -487,6 +487,14 @@ describe("pr-wait", { concurrency: true }, () => {
     assert.match(r.stderr, /could not compare base commits/);
   });
 
+  test("--timeout exits 3 with a timeout line while checks stay pending", async () => {
+    const d = tmp();
+    const r = await watch(d, scenario({ graphql: [pr()], checks: [checks(check("build", "pending"))] }), ["7", "--repo", REPO, "--until", "green", "--timeout", "1"]);
+    assert.equal(r.code, 3, r.stdout + r.stderr);
+    assert.equal(r.lines.at(-1), "#7 timeout: 1s");
+    assert.ok(!existsSync(path.join(d, "state", "acme__widgets__7.lock")), "lock removed on exit");
+  });
+
   test("bad input exits 2", async () => {
     const d = tmp();
     const scen = scenario({ graphql: [pr()], view: [{ stderr: "GraphQL: Could not resolve to a PullRequest\n", code: 1 }] });
@@ -498,6 +506,7 @@ describe("pr-wait", { concurrency: true }, () => {
       [["7", "--repo", "nope"], /'nope' is not owner\/name/],
       [["7", "--until", "soon"], /--until must be/],
       [["7", "--interval", "x"], /--interval must be/],
+      [["7", "--timeout", "0"], /--timeout must be a positive number/],
       [["7", "--bogus"], /unknown option --bogus/],
       [["7", "--repo", REPO], /cannot read acme\/widgets#7/],
     ];

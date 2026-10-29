@@ -53,7 +53,7 @@ async function until(cond) {
 
 test("inbox-wait usage and store errors exit 2", async () => {
   const p = program();
-  for (const args of [[], ["--store", p.store, "extra"], ["--store", p.store, "--interval-ms", "0"], ["--store", p.store, "--until", "soon"]]) {
+  for (const args of [[], ["--store", p.store, "extra"], ["--store", p.store, "--interval-ms", "0"], ["--store", p.store, "--until", "soon"], ["--store", p.store, "--timeout", "0"], ["--store", p.store, "--timeout", "x"]]) {
     assert.equal((await watch(p, args).exited).code, 2, args.join(" "));
   }
   const missing = await watch(p, ["--store", path.join(p.root, ".cstack/runs/none")]).exited;
@@ -121,4 +121,19 @@ test("inbox-wait exits cleanly on SIGTERM and drops its mark", async () => {
   const res = await w.exited;
   assert.equal(res.code, 0);
   assert.deepEqual(marks(p), []);
+});
+
+test("inbox-wait --once exits after the first poll with an event; --timeout exits 3", async () => {
+  const p = program();
+  p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  p.orch("unit", "set", "U1", "--state", "in-progress");
+  p.setStates({ "cstack-r-prog-U1": "active" });
+  const quiet = await watch(p, ["--store", p.store, "--interval-ms", "30", "--once", "--timeout", "0.2"]).exited;
+  assert.equal(quiet.code, 3, quiet.err);
+  assert.deepEqual(quiet.lines, ["timeout: 0.2s"]);
+  assert.deepEqual(marks(p), [], "the mark is removed on a timeout");
+  p.orch("inbox", "push", "unit", "U1", "pr-open");
+  const once = await watch(p, ["--store", p.store, "--interval-ms", "30", "--once"]).exited;
+  assert.equal(once.code, 0);
+  assert.deepEqual(once.lines, ["inbox unit U1 pr-open", "event: 1 lines"]);
 });
