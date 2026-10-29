@@ -125,6 +125,8 @@ env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_ROLE=e2e-author PATH=<di
 echo $? > <store>/e2e-author.exit
 ```
 
+Under Codex (see the Codex notes), the script runs `codex exec --json -C <wt> -s <sandbox> -m <models_codex.judge>` in place of `claude -p ...`, with `env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_ROLE=e2e-author`, `</dev/null`, and the same output and exit files. Codex loads no `--agent`, so the brief starts with "First read `<root>/agents/cstack-e2e-author.md` and follow it as your role." With the `CSTACK_ROLE` marker, the guard limits its writes to `paths_hidden` and applies the role's deny rules. `<sandbox>` is config `codex_sandbox`, default `workspace-write`.
+
 Drop `--model <judge>` when `models.judge` is `inherit`. Fill `<dir of node>` from `dirname "$(command -v node)"` and `<home>` from `$HOME`: a systemd unit does not inherit the login `PATH`. The hard-coded `--plugin-dir` makes the author load this plugin's hooks and agent. `--strict-mcp-config` keeps user MCP servers out.
 
 Start it and wait on it with the `Monitor` tool. Never a sleep loop.

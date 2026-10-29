@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // L4 fixture runner: one whole /cstack:program run on the private testbed, graded by a held-out suite.
-// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep]   (--help prints the usage and the fixtures)
+// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex]   (--help prints the usage and the fixtures)
 //   <fixture> is a directory under tests/fixtures/ with a fixture.json (f2-http-shortener), or its short prefix (f2).
 // Each fixture's fixture.json names its slug, the entry point the grader tests, the grader command, and the empty
 // project that replaces testbed main (package.json, .gitignore, CI steps, cstack config overrides).
@@ -40,7 +40,7 @@ const FIXTURES = readdirSync(HERE, { withFileTypes: true })
   .map((d) => d.name)
   .sort();
 
-const USAGE = `usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep]
+const USAGE = `usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex]
        node tests/fixtures/run-fixture.mjs --help
 
 Runs one whole /cstack:program on ${REPO} for the fixture's guideline.md, then grades
@@ -49,6 +49,10 @@ origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
   <fixture>   a directory under tests/fixtures/ with a fixture.json, or its short prefix
               (${FIXTURES.map((f) => `${f.split("-")[0]} = ${f}`).join(", ") || "none found"})
   --keep      skip teardown: leave testbed main, the run's PRs, issues and worktrees as the run made them
+  --harness   claude (default) or codex. Codex runs the coordinator as codex exec, installs the plugin copy
+              (without tests/) as the cstack marketplace for the run, and restores this checkout's install
+              afterwards. CSTACK_CODEX_SANDBOX sets config codex_sandbox (default workspace-write). Codex must
+              be logged in with ChatGPT, and cstack's hooks must be trusted once in /hooks (ADR-010, ADR-012).
   --help      print this text
 
 The run takes hours. Start it detached and follow the journal:
@@ -76,7 +80,13 @@ if (argv.includes("--help") || argv.includes("-h")) {
   process.exit(0);
 }
 const keep = argv.includes("--keep");
-const wanted = argv.filter((a) => a !== "--keep");
+const hi = argv.indexOf("--harness");
+const harness = hi < 0 ? "claude" : argv[hi + 1];
+if (!["claude", "codex"].includes(harness)) {
+  console.error("--harness must be claude or codex");
+  process.exit(2);
+}
+const wanted = argv.filter((a, i) => a !== "--keep" && i !== hi && i !== hi + 1);
 const fixture = FIXTURES.find((f) => wanted.length === 1 && (f === wanted[0] || f.startsWith(`${wanted[0]}-`)));
 if (!fixture || wanted.some((a) => a.startsWith("-"))) {
   console.error(`usage: run-fixture.mjs <${FIXTURES.join("|")}> [--keep]   (--help for details)`);
@@ -158,6 +168,7 @@ function scaffold() {
       test_command: ["npm", "test"],
       e2e_command: null,
       required_checks: ["ci"],
+      ...(harness === "codex" ? { harness: "codex", codex_sandbox: process.env.CSTACK_CODEX_SANDBOX || "workspace-write" } : {}),
       paths_hidden: ["tests/acceptance/**"],
       autonomy: "stop",
       parallel: 1,
@@ -238,7 +249,7 @@ function launch() {
   sh("rsync", ["-a", "--exclude", "/tests", "--exclude", "/evals", "--exclude", "/.git", "--exclude", "NOTES.md", `${CSTACK}/`, `${plugin}/`]);
   if (existsSync(path.join(plugin, "tests"))) throw new Error("plugin copy still contains tests/");
   writeFileSync(path.join(outDir, "plugin-dir.txt"), plugin + "\n");
-  const prompt = `/cstack:program ${guideline} --autonomy=send --slug ${slug}\n\n${UNATTENDED}`;
+  const prompt = `${harness === "codex" ? "$" : "/"}cstack:program ${guideline} --autonomy=send --slug ${slug}\n\n${UNATTENDED}`;
   writeFileSync(path.join(outDir, "prompt.txt"), prompt);
   const q = JSON.stringify;
   // The coordinator runs under its role's allowlist with dontAsk, never a permission bypass (ADR-009).
@@ -246,11 +257,32 @@ function launch() {
   sh(process.execPath, [path.join(plugin, "gates/run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", clone, "--plugin-dir", plugin, "--out", settings]);
   const PATH = [path.dirname(process.execPath), `${process.env.HOME}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
   const script = path.join(outDir, "session.sh");
+  // Every fixture's held-out grader, hidden by the guard from the run and every session it launches.
+  const hide = q(FIXTURES.map((f) => path.join(HERE, f, "grader")).join(path.delimiter));
+  if (harness === "codex") {
+    // Codex runs the installed plugin, not a --plugin-dir: install the copy without tests/ for this run.
+    codexInstall(plugin);
+    const sandbox = process.env.CSTACK_CODEX_SANDBOX || "workspace-write";
+    const net = sandbox === "workspace-write" ? " -c sandbox_workspace_write.network_access=true" : "";
+    writeFileSync(
+      script,
+      `#!/bin/sh
+cd ${q(clone)}
+exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+  codex exec --json -C ${q(clone)} -s ${sandbox}${net} \\
+  "$(cat ${q(path.join(outDir, "prompt.txt"))})" < /dev/null > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
+`,
+      { mode: 0o755 },
+    );
+    const maxSec = Math.round(budget.hours * 3600) + 600;
+    sh("systemd-run", ["--user", "--collect", "--quiet", `--unit=${coordinator}`, `--property=RuntimeMaxSec=${maxSec}`, script]);
+    return;
+  }
   writeFileSync(
     script,
     `#!/bin/sh
 cd ${q(clone)}
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${q(plugin)} --permission-mode dontAsk --settings ${q(settings)} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
@@ -258,6 +290,13 @@ exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_COORDINATOR=1 CSTAC
   );
   const maxSec = Math.round(budget.hours * 3600) + 600;
   sh("systemd-run", ["--user", "--collect", "--quiet", `--unit=${coordinator}`, `--property=RuntimeMaxSec=${maxSec}`, script]);
+}
+
+function codexInstall(dir) {
+  sh("codex", ["plugin", "remove", "cstack@cstack"], { allowFail: true });
+  sh("codex", ["plugin", "marketplace", "remove", "cstack"], { allowFail: true });
+  sh("codex", ["plugin", "marketplace", "add", dir]);
+  sh("codex", ["plugin", "add", "cstack@cstack"]);
 }
 
 async function wait(started, stopping) {
@@ -396,7 +435,10 @@ try {
   log(`run ended after ${wallSeconds}s${overBudget ? " (over budget, stopped)" : ""}${interrupted ? ` (${interrupted})` : ""}`);
 
   const coord = events(path.join(outDir, "coordinator.jsonl"));
-  const init = coord.find((e) => e.type === "system" && e.subtype === "init") || {};
+  // Codex reports no billing source in its stream; its login must be ChatGPT (ADR-012).
+  const init = harness === "codex"
+    ? { apiKeySource: /ChatGPT/.test(sh("codex", ["login", "status"], { allowFail: true })) ? "none" : "codex-api-key" }
+    : coord.find((e) => e.type === "system" && e.subtype === "init") || {};
   git("fetch", "-q", "origin");
   git("checkout", "-q", "-f", "--detach", "origin/main");
   const mergedSha = git("rev-parse", "HEAD");
@@ -412,6 +454,7 @@ try {
   const billed = init.apiKeySource && init.apiKeySource !== "none";
   result = {
     fixture,
+    harness,
     date: startedIso.slice(0, 10),
     started_at: startedIso,
     wall_seconds: wallSeconds,
@@ -431,7 +474,7 @@ try {
     decision_rows: decisions,
     leftover_units: leftover.filter((u) => u !== coordinator),
     prs: createdSince("pr", startedIso).map((p) => ({ number: p.number, state: p.state, title: p.title })),
-    final_message: coord.findLast((e) => e.type === "result")?.result?.slice(0, 2000) ?? "",
+    final_message: (coord.findLast((e) => e.type === "result")?.result ?? coord.findLast((e) => e.item?.type === "agent_message")?.item.text ?? "").slice(0, 2000),
   };
   result.pass = !billed && grader.rate >= PASS_RATE && withinBudget;
 } catch (err) {
@@ -450,6 +493,13 @@ try {
       result.teardown_error = String(err.message);
     }
   } else log("--keep: testbed main, PRs and issues left as the run made them");
+  if (harness === "codex") {
+    try {
+      codexInstall(CSTACK);
+    } catch (err) {
+      log(`restoring the Codex install failed: ${err.message}`);
+    }
+  }
 }
 
 const resultsDir = path.join(FIXTURE_DIR, "results");

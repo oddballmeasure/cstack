@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Based on Cardinal's daemon/workers.py (process per run, dependency waiting); same maintainer.
-// Level B unit workers: one detached headless `claude -p` session per unit, under the host supervisor
+// Level B unit workers: one detached headless session per unit, `claude -p` or `codex exec` (gates/lib/harness.mjs),
+// under the host supervisor
 // (gates/lib/supervisor.mjs): `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows,
 // or a detached process. Every backend but systemd runs gates/runner.mjs, which calls `exit` itself.
 // Usage:
@@ -34,6 +35,7 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { RUNNER, pickBackend, startRunner, writeEntry } from "./lib/supervisor.mjs";
+import { BILLING_VARS, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
 import { deniedCalls, permissionSettings } from "./lib/permissions.mjs";
@@ -80,6 +82,10 @@ function launch(store, unit, args) {
   const slug = path.basename(store);
   const pluginDir = path.resolve(args["plugin-dir"] || PLUGIN_ROOT);
   const backend = pickBackend(config);
+  const harness = pickHarness(config);
+  // Codex reports no billing source in its stream, so its login is checked before anything is written.
+  const billing = harness === "codex" && !args["dry-run"] ? codexBillingProblem() : null;
+  if (billing) throw new UsageError(billing);
   const home = os.homedir();
   // Windows has no fixed system bin dirs, so a Windows worker keeps this process's PATH behind node's dir.
   /* node:coverage disable */
@@ -104,7 +110,9 @@ function launch(store, unit, args) {
   writeFileSync(settingsFile, `${JSON.stringify(settings, null, 2)}\n`);
   writeFileSync(workerFile(store, id, "jsonl"), "");
   writeFileSync(workerFile(store, id, "stderr.log"), "");
-  const claude = [
+  const session = harness === "codex"
+    ? codexArgv({ prompt, cwd: repoRoot, model: codexModel(config, "code"), sandbox: config.codex_sandbox || "workspace-write" })
+    : [
     "claude",
     "-p",
     "--output-format",
@@ -119,15 +127,16 @@ function launch(store, unit, args) {
     settingsFile,
     prompt,
   ];
-  const unset = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", ...(coordinator ? [] : ["CSTACK_COORDINATOR"])];
+  const unset = [...BILLING_VARS[harness], ...(coordinator ? [] : ["CSTACK_COORDINATOR"])];
   const sessionEnv = {
     PATH,
     HOME: home,
     CSTACK_RUN: slug,
     CSTACK_PROGRAM_AUTONOMY: process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : "",
+    CSTACK_HARNESS: harness,
     ...(coordinator ? { CSTACK_COORDINATOR: "1" } : { CSTACK_UNIT: unit }),
   };
-  if (backend !== "systemd") return launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, claude, unset, sessionEnv, args });
+  if (backend !== "systemd") return launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, session, unset, sessionEnv, args });
   const argv = [
     "--user",
     `--unit=${name}`,
@@ -139,18 +148,16 @@ function launch(store, unit, args) {
     `--setenv=HOME=${home}`,
     `--setenv=CSTACK_RUN=${slug}`,
     `--setenv=CSTACK_PROGRAM_AUTONOMY=${process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : ""}`,
+    `--setenv=CSTACK_HARNESS=${harness}`,
+    ...(process.env.CSTACK_GUARD_HIDE ? [`--setenv=CSTACK_GUARD_HIDE=${process.env.CSTACK_GUARD_HIDE}`] : []),
     // append, not truncate: systemd reopens these files for ExecStopPost, and truncate would wipe the
     // worker's own output before the exit hook can classify it. The files are emptied once, below.
     `--property=StandardOutput=append:${workerFile(store, id, "jsonl")}`,
     `--property=StandardError=append:${workerFile(store, id, "stderr.log")}`,
     ...role,
     "/usr/bin/env",
-    "-u",
-    "ANTHROPIC_API_KEY",
-    "-u",
-    "ANTHROPIC_AUTH_TOKEN",
-    ...(coordinator ? [] : ["-u", "CSTACK_COORDINATOR"]),
-    ...claude,
+    ...unset.flatMap((k) => ["-u", k]),
+    ...session,
   ];
   if (args["dry-run"]) {
     process.stdout.write(`${JSON.stringify(["systemd-run", ...argv])}\n`);
@@ -174,12 +181,12 @@ function markLaunched(store, unit, id, name, coordinator, row) {
 }
 
 // launchd, Task Scheduler or a detached process: the runner starts claude and runs `exit` when it ends.
-function launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, claude, unset, sessionEnv, args }) {
+function launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, session, unset, sessionEnv, args }) {
   const specFile = workerFile(store, id, "spec.json");
   const spec = {
     name,
     backend,
-    argv: claude,
+    argv: session,
     cwd: repoRoot,
     env: sessionEnv,
     unset,
@@ -219,7 +226,8 @@ function exit(store, unit) {
   const evs = events(workerFile(store, unit, "jsonl"));
   const init = evs.find((e) => e?.type === "system" && e.subtype === "init");
   const result = evs.findLast((e) => e?.type === "result");
-  const text = `${readText(workerFile(store, unit, "stderr.log"))}\n${result?.result ?? ""}`;
+  // Claude Code ends with a result event; Codex leaves error items, failed turns and agent messages (ADR-012).
+  const text = `${readText(workerFile(store, unit, "stderr.log"))}\n${result?.result ?? ""}\n${codexText(evs)}`;
   const denied = deniedCalls(evs);
   const deniedFile = workerFile(store, unit, "denied.txt");
   let status;

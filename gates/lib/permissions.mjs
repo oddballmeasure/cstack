@@ -104,8 +104,8 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     "Bash(gh ssh-key *)", "Bash(gh gpg-key *)", "Bash(gh release *)", "Bash(gh api -X DELETE *)", "Bash(gh api --method DELETE *)",
     "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git push --mirror *)", "Bash(git push --delete *)",
     "Bash(npm publish *)", "Bash(rm -rf /)", "Bash(rm -rf /*)", "Bash(rm -rf ~*)", "Bash(crontab *)",
-    // A session may not start another Claude Code session or change its own permissions.
-    "Bash(claude *)", "Bash(systemctl --user enable *)", "Bash(loginctl *)",
+    // A session may not start another Claude Code or Codex session, or change its own permissions.
+    "Bash(claude *)", "Bash(codex *)", "Bash(systemctl --user enable *)", "Bash(loginctl *)",
   ];
   // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor (ADR-011).
   if (role !== "coordinator") {
