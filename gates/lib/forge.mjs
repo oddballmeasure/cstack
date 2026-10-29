@@ -22,10 +22,11 @@ export const FORGES = ["github", "gitlab", "local"];
 const PASSED = new Set(["success", "skipped", "neutral"]);
 export const FAILED = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure"]);
 
+// The forge is always GitHub unless config `forge` (or CSTACK_FORGE) names another; there is no detection from
+// the remote (Monty, 2026-10-30).
 export function forgeKind(config = {}) {
-  const k = process.env.CSTACK_FORGE || config.forge || "auto";
-  if (k === "auto") return "github";
-  if (!FORGES.includes(k)) throw new UsageError(`unknown forge '${k}' (use github, gitlab, local or auto)`);
+  const k = process.env.CSTACK_FORGE || config.forge || "github";
+  if (!FORGES.includes(k)) throw new UsageError(`unknown forge '${k}' (use github, gitlab or local)`);
   return k;
 }
 

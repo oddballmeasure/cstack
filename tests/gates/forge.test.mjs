@@ -4,13 +4,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { forgeKind, openForge, FORGES } from "../../gates/lib/forge.mjs";
 
-test("forgeKind: CSTACK_FORGE, then config forge, then github for auto", () => {
+test("forgeKind: CSTACK_FORGE, then config forge, else github", () => {
   const saved = process.env.CSTACK_FORGE;
   delete process.env.CSTACK_FORGE;
   try {
     assert.deepEqual(FORGES, ["github", "gitlab", "local"]);
     assert.equal(forgeKind({}), "github");
-    assert.equal(forgeKind({ forge: "auto" }), "github");
+    assert.throws(() => forgeKind({ forge: "auto" }), /unknown forge 'auto'/, "no detection: name the forge or leave it unset");
     assert.equal(forgeKind({ forge: "gitlab" }), "gitlab");
     process.env.CSTACK_FORGE = "local";
     assert.equal(forgeKind({ forge: "gitlab" }), "local");
