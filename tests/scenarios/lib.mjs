@@ -102,7 +102,7 @@ export function seedUnit(ctx, { issue, title, intake, commits }) {
 // ---------- Phase 5: programs, workers, waits ----------
 
 export const UNATTENDED = "This is an unattended scenario run: no human will answer questions. Take documented defaults instead of asking.";
-export const REPO_NAME = "cstack-testbed";
+export const REPO_NAME = (process.env.CSTACK_TESTBED_REPO || "oddballmeasure/cstack-testbed").split("/")[1];
 export const storeOf = (ctx, slug) => path.join(ctx.testbed, ".cstack/runs", slug);
 export const orchCli = (ctx, store) => (...a) => ctx.sh("node", [path.join(ctx.cstack, "gates/orch.mjs"), "--store", store, ...a]);
 export const workerCli = (ctx, args, env = {}) => ctx.sh("node", [path.join(ctx.cstack, "gates/worker.mjs"), ...args], { env: { ...process.env, ...env } });

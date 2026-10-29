@@ -1,5 +1,7 @@
 # Notices
 
+The full MIT license texts of the adapted projects are in [LICENSES/](LICENSES/): `pstack-MIT.txt` (Copyright (c) 2026 Lauren Tan) and `tstack-MIT.txt` (Copyright (c) 2026 Theo Browne). They apply to the files listed below that were adapted from each project.
+
 cstack adapts material from these MIT-licensed projects. Each adapted file names its source in an attribution comment.
 
 ## pstack, by Lauren Tan (MIT)
@@ -62,6 +64,8 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 | `skills/modernize/SKILL.md` | `skills/modernize/SKILL.md` |
 
 ## Cardinal
+
+Cardinal is the maintainer's own earlier harness, in a private repository. References to its source paths are for provenance; nothing in cstack depends on it.
 
 `docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner. Phase 5 ports Cardinal's daemon rules: `gates/post-merge.mjs` and `skills/post-merge-ci/` from `daemon/post_merge.py`, and the worker loop in `gates/worker.mjs` and `skills/orchestrate/` from `daemon/workers.py` and `daemon/loop.py`. Phase 8 ports the rest:
 

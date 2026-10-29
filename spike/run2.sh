@@ -1,4 +1,5 @@
 #!/bin/sh
+# Set CSTACK to the cstack checkout before running.
 cd /tmp/cstack-probe/work
 exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin claude -p --output-format stream-json --verbose \
   --plugin-dir $CSTACK/spike/probe-plugin \

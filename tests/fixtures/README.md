@@ -1,6 +1,6 @@
 # L4 fixture programs
 
-Whole `/cstack:program` runs against the private testbed `oddballmeasure/cstack-testbed`, graded by a held-out suite that cstack never sees (plan section 6.3).
+Whole `/cstack:program` runs against a sandbox testbed repo you own (set `CSTACK_TESTBED_REPO=owner/name`; the maintainer's is the private `oddballmeasure/cstack-testbed`). The runs create issues and PRs there and reset its `main` branch, so never point it at a real project, graded by a held-out suite that cstack never sees (plan section 6.3).
 
 ```
 node tests/fixtures/run-fixture.mjs <f1|f2|f3> [--keep]
