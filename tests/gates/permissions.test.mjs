@@ -133,7 +133,7 @@ test("run-settings --permissions prints or writes a role's settings", () => {
   assert.equal(s.permissions.defaultMode, "dontAsk");
   assert.ok(s.permissions.allow.includes(`Read(/${ROOT}/**)`), "the plugin root defaults to this checkout");
   assert.ok(s.permissions.allow.includes(`Edit(/${worktreeRoot(os.homedir(), "o/r")}/**)`));
-  assert.ok(s.permissions.allow.includes("Bash(./scripts/test.sh)"));
+  assert.ok(s.permissions.allow.includes("Bash(sh ./scripts/test.sh)"));
 
   const file = path.join(r.base, "out/e2e.json");
   const w = gate("run-settings.mjs", ["--permissions", "e2e-author", "--repo-dir", r.root, "--worktree", path.join(r.base, "wt"), "--plugin-dir", "/opt/cstack", "--out", file]);

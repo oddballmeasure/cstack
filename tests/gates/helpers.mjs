@@ -25,6 +25,7 @@ export function write(root, rel, text, mode) {
   if (mode) chmodSync(p, mode);
 }
 
+// The commands run through sh, which Windows (Git for Windows) has too, but not shebang files.
 // test.sh passes unless src/broken exists. e2e.sh prints TAP from tests/acceptance/lanes.txt
 // lines "E1.1 pass" or "E1.2 fail <message>"; a lane passes if src/<lane id> exists.
 export function makeRepo(cfg = {}) {
@@ -34,7 +35,7 @@ export function makeRepo(cfg = {}) {
   sh(base, "git", ["init", "-q", "--bare", "-b", "main", origin]);
   sh(base, "git", ["clone", "-q", origin, root]);
   git(root, "checkout", "-q", "-b", "main");
-  const config = { ...TEMPLATE, autonomy: "stop", repo: "o/r", test_command: ["./scripts/test.sh"], e2e_command: ["./scripts/e2e.sh"], ...cfg };
+  const config = { ...TEMPLATE, autonomy: "stop", repo: "o/r", test_command: ["sh", "./scripts/test.sh"], e2e_command: ["sh", "./scripts/e2e.sh"], ...cfg };
   write(root, ".cstack/config.json", JSON.stringify(config, null, 2));
   write(root, "scripts/test.sh", "#!/bin/sh\n[ -e src/broken ] && { echo 'unit test failed: broken'; exit 1; }\necho 'ok 1 - unit'\n", 0o755);
   write(

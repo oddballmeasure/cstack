@@ -222,7 +222,7 @@ describe("pr-wait", { concurrency: true }, () => {
     assert.ok(!existsSync(lock));
   });
 
-  test("a watcher that loses its lock exits 2; SIGTERM exits and frees the lock", async () => {
+  test("a watcher that loses its lock exits 2; SIGTERM exits and frees the lock", { skip: process.platform === "win32" && "Windows has no SIGTERM handler: kill ends the process at once" }, async () => {
     const d = tmp();
     const lock = path.join(d, "state", "acme__widgets__7.lock");
     const pending = scenario({ graphql: [pr()], checks: [checks(check("build", "pending"))] });

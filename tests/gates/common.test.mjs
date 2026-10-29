@@ -13,7 +13,7 @@ test("envPath reads PATH in any case, and the first key in sort order wins", () 
   assert.equal(envPath({}), "");
 });
 
-test("which finds an executable on PATH, as command -v does", () => {
+test("which finds an executable on PATH, as command -v does", { skip: process.platform === "win32" && "a POSIX PATH cannot hold a drive letter, and Windows has no execute bit" }, () => {
   const dir = tmp();
   writeFileSync(path.join(dir, "tool"), "#!/bin/sh\n");
   chmodSync(path.join(dir, "tool"), 0o755);

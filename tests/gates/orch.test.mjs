@@ -318,7 +318,7 @@ describe("store", () => {
     assert.ok(!holderIsDead("999999999x") && !holderIsDead("0") && !holderIsDead(String(process.pid)));
   });
 
-  test("surfaces filesystem errors while taking the lock", () => {
+  test("surfaces filesystem errors while taking the lock", { skip: process.platform === "win32" && "chmod cannot make a directory read-only on Windows" }, () => {
     const { dir, store } = fresh();
     store.close();
     chmodSync(dir, 0o555);
