@@ -89,7 +89,7 @@ if (!["claude", "codex"].includes(harness)) {
   console.error("--harness must be claude or codex");
   process.exit(2);
 }
-const wanted = argv.filter((a, i) => a !== "--keep" && i !== hi && i !== hi + 1);
+const wanted = argv.filter((a, i) => a !== "--keep" && (hi < 0 || (i !== hi && i !== hi + 1)));
 const fixture = FIXTURES.find((f) => wanted.length === 1 && (f === wanted[0] || f.startsWith(`${wanted[0]}-`)));
 if (!fixture || wanted.some((a) => a.startsWith("-"))) {
   console.error(`usage: run-fixture.mjs <${FIXTURES.join("|")}> [--keep]   (--help for details)`);
