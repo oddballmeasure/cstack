@@ -87,7 +87,7 @@ codex plugin add cstack@cstack
 
 In the Codex desktop app, add the `oddballmeasure/cstack` marketplace and install cstack from the Plugins tab.
 
-Then, once per machine: run `codex`, open `/hooks` and trust the cstack hooks. Codex skips untrusted plugin hooks without a warning, and cstack's guard is one of them. `$cstack:doctor` fails with `FAIL hooks (codex)` until you have done this. cstack never runs with `--dangerously-bypass-hook-trust`.
+Then run `codex`, open `/hooks` and trust the cstack hooks. Do this again after every cstack update: Codex ties hook trust to a fingerprint of the whole plugin, so any change to the plugin revokes it. Codex skips untrusted plugin hooks without a warning, and cstack's guard is one of them. `$cstack:doctor` fails with `FAIL hooks (codex)` until you have done this. cstack never runs with `--dangerously-bypass-hook-trust`.
 
 Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
 

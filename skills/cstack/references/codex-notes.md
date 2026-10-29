@@ -32,7 +32,7 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 
 ## Hooks and trust
 
-- Codex runs plugin hooks only after the user trusts them once in `/hooks`. Untrusted hooks are skipped without a warning. `cstack:doctor` fails with `FAIL hooks (codex)` until the guard has run in the session. Do not start cstack work while that line fails, and never pass `--dangerously-bypass-hook-trust`.
+- Codex runs plugin hooks only after the user trusts them in `/hooks`. The trust is tied to a fingerprint of the whole installed plugin, so every cstack update needs it again. Untrusted hooks are skipped without a warning. `cstack:doctor` fails with `FAIL hooks (codex)` until the guard has run in the session. Do not start cstack work while that line fails, and never pass `--dangerously-bypass-hook-trust`.
 - The Stop hook keeps a coordinator going with a `decision: block` reason. Follow the reason.
 
 ## Headless and detached work
