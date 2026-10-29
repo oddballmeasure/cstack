@@ -1,3 +1,4 @@
+# Based on Cardinal's cardinal-scout@.service unit; same maintainer.
 # cstack daemon: one headless Claude Code session per repo, running /cstack:daemon every 10 minutes.
 # The instance name is the repo path, escaped:
 #   systemctl --user enable --now "cstack-daemon@$(systemd-escape --path /home/me/src/app).service"

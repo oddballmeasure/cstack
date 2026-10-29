@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Based on Cardinal's daemon/workers.py (process per run, dependency waiting); same maintainer.
 // Level B unit workers: one detached headless `claude -p` session per unit, under `systemd-run --user`.
 // Usage:
 //   worker.mjs launch --store <dir> --unit <id> [--plugin-dir <root>] [--wait] [--dry-run]

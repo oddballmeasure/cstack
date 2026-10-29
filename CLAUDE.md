@@ -1,6 +1,6 @@
 # cstack
 
-Plan: (private planning doc). ADRs in `docs/adr/`.
+Design: `docs/how-it-works.md`. Decisions: `docs/adr/`.
 
 - One phase at a time. Do not start a phase until the previous exit check passes.
 - Skills are flat: `skills/<name>/SKILL.md`, plus `references/` and `scripts/`.

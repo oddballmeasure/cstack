@@ -27,8 +27,9 @@ import { UNATTENDED } from "../scenarios/lib.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
-const REPO = "oddballmeasure/cstack-testbed";
-const REPO_NAME = "cstack-testbed";
+// A sandbox repo you own: the run replaces its main branch and restores it afterwards.
+const REPO = process.env.CSTACK_TESTBED_REPO || "oddballmeasure/cstack-testbed";
+const REPO_NAME = REPO.split("/")[1];
 const POLL_MS = 60_000;
 const PASS_RATE = 0.95;
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"];

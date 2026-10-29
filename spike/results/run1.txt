@@ -1,11 +1,11 @@
 {"apiKeySource":"none","model":"claude-opus-5-5","agents":["claude","cstack-probe:nester","Explore","general-purpose","Plan","statusline-setup"]}
 --- result (success, turns=5) ---
 MAIN_SKILL: CSTACK_HELLO_OK
-MAIN_HIDDEN: Blocked — `PreToolUse:Read hook error: ["$CSTACK/spike/probe-plugin/hooks/pretool.sh"]: cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked` (the hook comes from the cstack-probe@inline plugin)
+MAIN_HIDDEN: Blocked — `PreToolUse:Read hook error: ["<cstack>/spike/probe-plugin/hooks/pretool.sh"]: cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked` (the hook comes from the cstack-probe@inline plugin)
 SUBAGENT_REPORT:
 ```
-TOOLS: Agent, Bash, Edit, ListAgents, Read, ReportFindings, Skill, ToolSearch, Write,  (deferred, available through ToolSearch: CronCreate, CronDelete, CronList, DesignSync, EnterWorktree, ExitWorktree, Monitor, NotebookEdit, PushNotification, RemoteTrigger, SendMessage, TaskStop, WebFetch, WebSearch, )
+TOOLS: Agent, Bash, Edit, ListAgents, Read, ReportFindings, Skill, ToolSearch, Write,  (deferred, available through ToolSearch: CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, Monitor, NotebookEdit, PushNotification, RemoteTrigger, SendMessage, TaskStop, WebFetch, WebSearch, )
 NEST: NESTED_CHILD_OK
-SKILL: PROBE_SKILL_OK (the skill loaded from $CSTACK/spike/probe-plugin/skills/probe-skill and asked for exactly this line)
-HIDDEN: PreToolUse:Read hook error: ["$CSTACK/spike/probe-plugin/hooks/pretool.sh"]: cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked. This hook comes from the cstack-probe@inline plugin.
+SKILL: PROBE_SKILL_OK (the skill loaded from <cstack>/spike/probe-plugin/skills/probe-skill and asked for exactly this line)
+HIDDEN: PreToolUse:Read hook error: ["<cstack>/spike/probe-plugin/hooks/pretool.sh"]: cstack hidden-paths: access to /tmp/cstack-probe/hidden is blocked. This hook comes from the cstack-probe@inline plugin.
 ```
