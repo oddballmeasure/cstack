@@ -110,6 +110,21 @@ test("a running check waits; --wait polls until it finishes", () => {
   assert.equal(byPr(waited)[5].state, "passed");
 });
 
+test("--wait --timeout stops with merges still waiting and exits 3; --timeout needs --wait", () => {
+  const p = program();
+  const running = { json: [check({ name: "ci", id: 1, status: "in_progress", conclusion: null })] };
+  const rules = [
+    { match: "^pr view 5 ", responses: [merged()] },
+    { match: "^api repos/o/r/commits/", responses: [running, running, running, running, running, running] },
+  ];
+  const res = p.judge(rules, ["--wait", "--timeout", "0.05"], { CSTACK_POST_MERGE_POLL_MS: "30" });
+  assert.equal(res.code, 3, res.out + res.err);
+  assert.equal(res.json.timeout, 0.05);
+  assert.equal(byPr(res)[5].state, "waiting");
+  assert.equal(p.judge(rules, ["--timeout", "5"]).code, 2);
+  assert.equal(p.judge(rules, ["--wait", "--timeout", "0"]).code, 2);
+});
+
 test("a red merge is re-run once, then filed exactly once with log tails", () => {
   const p = program();
   const failedCi = (id) => check({ name: "ci", id, conclusion: "failure", details_url: job(77, 40 + id) });

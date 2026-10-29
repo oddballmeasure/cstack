@@ -5,7 +5,7 @@
 //
 //   node gates/pr-wait.mjs <pr|url> [--repo owner/name] [--until ready|green|any-change] [--store <run store>]
 //   While it runs it registers <store>/watchers/<pid> (store from --store, else CSTACK_RUN) for the Stop hook.
-//                          [--interval 20] [--state-dir <dir>]
+//                          [--interval 20] [--state-dir <dir>] [--timeout <s>]
 //
 // <pr> is a PR number or PR URL. Without --repo, the repo comes from the URL or from the
 // current checkout. Stdout carries only events, one line each, so a monitor (the Monitor tool)
@@ -28,6 +28,8 @@
 //      conflicts with its base, the PR closed, `ready` is blocked by unresolved threads or a
 //      BEHIND branch, a non-transient gh error, or GitHub stayed unreachable for 10 polls
 //   2  bad arguments, unknown PR, or another pr-wait already watches this PR
+//   3  --timeout passed before any of the above (last line `#<pr> timeout: <n>s`). Run it again: the state
+//      file keeps what was already reported. For harnesses without a Monitor tool (Codex, ADR-010).
 //
 // Events
 //   - a required check failed (name and link)
@@ -327,8 +329,8 @@ function configRequired(repo, cwd = process.cwd()) {
 }
 
 class Watcher {
-  constructor({ repo, pr, until, interval, stateDir, lock }) {
-    Object.assign(this, { repo, pr, until, interval, lock });
+  constructor({ repo, pr, until, interval, stateDir, lock, timeout = null }) {
+    Object.assign(this, { repo, pr, until, interval, lock, timeout });
     [this.owner, this.name] = repo.split("/");
     this.path = path.join(stateDir, `${repo.replace("/", "__")}__${pr}.json`);
     const state = this.load();
@@ -614,6 +616,7 @@ class Watcher {
 
   async run() {
     let failures = 0;
+    const started = Date.now();
     for (;;) {
       try {
         await this.poll();
@@ -628,6 +631,7 @@ class Watcher {
         log(`poll failed (${failures}/${MAX_FAILED_POLLS}): ${err.message}`);
         if (failures >= MAX_FAILED_POLLS) this.finish(1, [`pr-wait stopped: GitHub unreachable for ${failures} polls: ${err.message}`]);
       }
+      if (this.timeout !== null && Date.now() - started >= this.timeout * 1000) this.finish(3, [`timeout: ${this.timeout}s`]);
       await sleep(this.interval * 1000);
     }
   }
@@ -649,7 +653,7 @@ function watcherStore(explicit) {
 async function main(argv) {
   let args;
   try {
-    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir", "store"] });
+    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir", "store", "timeout"] });
   } catch (err) {
     fail(err.message);
   }
@@ -659,6 +663,8 @@ async function main(argv) {
   if (!/^\d+$/.test(rawInterval)) fail(`--interval must be a whole number of seconds, not '${rawInterval}'`);
   const interval = Math.max(Number(rawInterval), 1);
   backoffMs = interval * 100;
+  const timeout = args.timeout === undefined ? null : Number(args.timeout);
+  if (timeout !== null && !(timeout > 0)) fail(`--timeout must be a positive number of seconds, not '${args.timeout}'`);
   if (args._.length > 1) fail(`expected one PR, got ${args._.length}: ${args._.join(" ")}`);
   const stateDir = path.resolve(args["state-dir"] || path.join(os.homedir(), ".local", "state", "cstack", "pr-wait"));
 
@@ -668,7 +674,7 @@ async function main(argv) {
   process.on("exit", () => lock.release());
   const store = watcherStore(args.store);
   if (store) registerWatcher(store, "pr-wait");
-  await new Watcher({ repo, pr, until, interval, stateDir, lock }).run();
+  await new Watcher({ repo, pr, until, interval, stateDir, lock, timeout }).run();
 }
 
 process.on("SIGINT", () => process.exit(130));

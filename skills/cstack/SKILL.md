@@ -7,7 +7,7 @@ description: "cstack working style and router: verified work, deliberate subagen
 
 # cstack mode
 
-Read [the Claude Code notes](references/claude-code-notes.md) once per session. They list the tools and the measured behaviour this skill relies on.
+Read the notes for the harness you run in, once per session. In Claude Code, read [the Claude Code notes](references/claude-code-notes.md). In Codex, read [the Codex notes](references/codex-notes.md): your tools include `spawn_agent` and `apply_patch`, and shell commands see `CODEX_THREAD_ID`. The notes list the tools and the measured behaviour this skill relies on. cstack skills name Claude Code tools, and the Codex notes map each one to its Codex action.
 
 Other cstack skills live at `../<name>/SKILL.md` from this file. Put this file's absolute path in every subagent brief.
 
@@ -22,7 +22,7 @@ These rules bind every cstack skill and every subagent.
 3. **Only a non-author verdict counts.** The agent that wrote a change cannot approve it. Key every verdict to the head SHA it judged. A new commit voids it.
 4. **Implementers never read or edit hidden e2e suites.** The paths are in config `paths_hidden`. Hooks enforce this. Do not work around a block.
 5. **Progress lives in git and the run store, not in context.** Record it in commit trailers and in `.cstack/runs/<slug>/`. A fresh agent must be able to resume from those alone.
-6. **Do not end a turn while work is pending.** Wait with the `Monitor` tool on a watcher script. Never write sleep loops.
+6. **Do not end a turn while work is pending.** Wait with the `Monitor` tool on a watcher script. In Codex, run the watcher in the foreground with `--timeout` (see the Codex notes). Never write sleep loops.
 7. **Never block on the human for reversible work.** Always stop before you force-push a shared branch, deploy, delete data, or message people outside the run.
 8. **Fight scope.** Decline extras. File each one as a follow-up.
 9. **Encode lessons in structure.** Add a lint, hook, or gate before you add prose.
@@ -126,7 +126,7 @@ Config `autonomy` sets the level. `<store>/run.json` overrides it for one run (`
 - `stop` (full-stop). Never merge. End the run with the PR merge-ready and report.
 - `send` (full-send). Merge only through the merge gate. Never use `--admin` or another bypass.
 
-Under both levels, do reversible work without asking. The hard stops in rule 7 always apply. They need the human, whatever the config says. Under `claude -p` there is no `AskUserQuestion`. At a hard stop, take the safe path, leave the work unmerged, and put the question first in the final message. Headless sessions that cstack launches run under a per-role allowlist with no permission prompts: write commands with literal absolute paths in redirects, and never work around a refused call. Report it instead ([claude-code-notes](references/claude-code-notes.md)).
+Under both levels, do reversible work without asking. The hard stops in rule 7 always apply. They need the human, whatever the config says. Under `claude -p` and `codex exec` nobody can answer a question. At a hard stop, take the safe path, leave the work unmerged, and put the question first in the final message. Headless sessions that cstack launches run under a per-role allowlist with no permission prompts: write commands with literal absolute paths in redirects, and never work around a refused call. Report it instead ([claude-code-notes](references/claude-code-notes.md)).
 
 **No is an acceptable answer.** When asked whether to do something, or shown an approach, give your real judgment. Decline or push back when the work does not earn its place. Agreement is not the default.
 

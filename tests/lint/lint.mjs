@@ -126,6 +126,21 @@ for (const file of mdFiles) {
   });
 }
 
+// Harness map: skills name Claude Code tools; skills/cstack/references/codex-notes.md maps each one to Codex.
+// Every Claude Code term a skill or agent puts in backticks needs a `| \`term\` |` row there.
+const CLAUDE_TERMS = ["Agent", "Skill", "AskUserQuestion", "TodoWrite", "Monitor", "TaskStop", "Read", "Grep", "Glob", "Edit", "MultiEdit", "Write", "NotebookEdit", "Bash", "Explore", "general-purpose", "subagent_type", "isolation", "run_in_background", "SendMessage", "WebFetch", "WebSearch", "EnterPlanMode", "ExitPlanMode"];
+const codexNotes = path.join(skillsDir, "cstack", "references", "codex-notes.md");
+if (existsSync(path.join(skillsDir, "cstack"))) {
+  const mapped = existsSync(codexNotes) ? new Set([...readFileSync(codexNotes, "utf8").matchAll(/^\| `([^`]+)` \|/gm)].map((m) => m[1])) : new Set();
+  const unmapped = new Map();
+  for (const file of mdFiles.filter((f) => !f.endsWith("claude-code-notes.md") && f !== codexNotes)) {
+    for (const m of readFileSync(file, "utf8").matchAll(/`([A-Za-z_-]+)`/g)) {
+      if (CLAUDE_TERMS.includes(m[1]) && !mapped.has(m[1]) && !unmapped.has(m[1])) unmapped.set(m[1], file);
+    }
+  }
+  for (const [term, file] of unmapped) report(file, `Claude Code term \`${term}\` has no row in skills/cstack/references/codex-notes.md`);
+}
+
 // Plugin manifests: Claude Code reads .claude-plugin/, Codex reads .codex-plugin/ first.
 const manifests = {};
 for (const rel of [".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", ".codex-plugin/plugin.json"]) {

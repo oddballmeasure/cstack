@@ -80,3 +80,13 @@ test("the Codex manifest must match the Claude manifest", () => {
   writeFileSync(path.join(broken, ".codex-plugin/plugin.json"), "{");
   assert.match(lint(broken).stdout, /\.codex-plugin\/plugin.json: does not parse/);
 });
+
+test("every Claude Code term a skill uses needs a row in the Codex notes", () => {
+  const root = fixture({ cstack: ok("cstack"), a: ok("a", "Wait with the `Monitor` tool, then `update_plan`.") });
+  mkdirSync(path.join(root, "skills/cstack/references"));
+  const r = lint(root);
+  assert.equal(r.status, 1);
+  assert.match(r.stdout, /Claude Code term `Monitor` has no row/);
+  writeFileSync(path.join(root, "skills/cstack/references/codex-notes.md"), "| `Monitor` | run the watcher in the foreground |\n");
+  assert.equal(lint(root).status, 0, lint(root).stdout);
+});

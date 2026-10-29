@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Gate: judge every check on each merge commit a cstack run made, once the checks finish.
 // Adapted from Cardinal src/cardinal/daemon/post_merge.py (oddballmeasure/cardinal, same owner).
-// Usage: post-merge.mjs --store <dir> [--repo-dir <d>] [--lines 80] [--wait] [--json]
+// Usage: post-merge.mjs --store <dir> [--repo-dir <d>] [--lines 80] [--wait [--timeout <s>]] [--json]
 //
 // Merges come from units.tsv: units in state merged or done with a PR. GitHub's merge commit and
 // merge time are the truth; the units.tsv sha column is informational. Per merge:
@@ -16,7 +16,8 @@
 // post-merge.tsv (append-only, latest row per PR wins) records each verdict. The `filing` row is
 // written BEFORE the issue is created and `filed` after, so a crash in between never files twice:
 // an interrupted filing stays a finding for a human.
-// --wait judges again every CSTACK_POST_MERGE_POLL_MS (default 60000) until nothing is waiting.
+// --wait judges again every CSTACK_POST_MERGE_POLL_MS (default 60000) until nothing is waiting. With --timeout it
+// stops after that many seconds with merges still waiting and exits 3, so a session without a Monitor tool can re-run it.
 // Exit 0 when nothing is red, 1 when a merge is filed, filing, expired or failed to file, 2 on usage errors.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { registerWatcher } from "./lib/workers.mjs";
@@ -165,11 +166,13 @@ function round(ctx, json) {
 }
 
 main(async (argv) => {
-  const args = parseArgs(argv, { flags: ["json", "wait"], options: ["store", "repo-dir", "lines"] });
+  const args = parseArgs(argv, { flags: ["json", "wait"], options: ["store", "repo-dir", "lines", "timeout"] });
   const lines = Number(args.lines ?? 80);
-  if (args._.length || !args.store || !Number.isInteger(lines) || lines < 1) {
-    throw new UsageError("usage: post-merge.mjs --store <dir> [--repo-dir <d>] [--lines n] [--wait] [--json]");
+  const timeout = args.timeout === undefined ? null : Number(args.timeout);
+  if (args._.length || !args.store || !Number.isInteger(lines) || lines < 1 || (timeout !== null && (!(timeout > 0) || !args.wait))) {
+    throw new UsageError("usage: post-merge.mjs --store <dir> [--repo-dir <d>] [--lines n] [--wait [--timeout <s>]] [--json]");
   }
+  const started = Date.now();
   const store = path.resolve(args.store);
   const dir = path.resolve(args["repo-dir"] || store);
   const { config } = loadConfig(dir);
@@ -179,6 +182,10 @@ main(async (argv) => {
   for (;;) {
     const r = round(ctx, args.json);
     if (!args.wait || r.pending === 0) return r.gate.finish({ merges: r.merges, pending: r.pending });
+    if (timeout !== null && Date.now() - started >= timeout * 1000) {
+      r.gate.finish({ merges: r.merges, pending: r.pending, timeout });
+      return 3;
+    }
     await new Promise((res) => setTimeout(res, poll));
   }
 });
