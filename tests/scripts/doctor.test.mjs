@@ -107,6 +107,28 @@ test("optional retry_after_hours, scout and deploy are checked when present", ()
   assert.match(doctor(target({ deploy: { transport: "ftp" } })).out, /deploy.transport must be local or ssh/);
 });
 
+test("optional harness, models_codex, codex_sandbox and host are checked when present", () => {
+  const ok = doctor(target({ harness: "codex", models_codex: { code: "gpt-5.5", judge: "inherit" }, codex_sandbox: "workspace-write", host: { supervisor: "taskscheduler" } }));
+  assert.equal(ok.code, 0, ok.out);
+  assert.equal(doctor(target({ harness: null, models_codex: null, codex_sandbox: null, host: {} })).code, 0);
+  const bad = doctor(target({ harness: "gpt", models_codex: { code: "", review: 5, extra: "x" }, codex_sandbox: "yolo", host: { supervisor: "cron", user: "me" } }));
+  assert.equal(bad.code, 1);
+  for (const msg of [
+    "harness must be auto, claude or codex",
+    "models_codex.code must be a non-empty string",
+    "models_codex.review must be a non-empty string",
+    "unknown key models_codex.extra",
+    "codex_sandbox must be read-only, workspace-write or danger-full-access",
+    "host.supervisor must be auto, systemd, launchd, taskscheduler or detached",
+    "unknown key host.user",
+  ]) {
+    assert.ok(bad.out.includes(`FAIL config schema: ${msg}`), msg);
+  }
+  const shapes = doctor(target({ models_codex: "gpt", host: "detached" }));
+  assert.match(shapes.out, /models_codex must be an object or null/);
+  assert.match(shapes.out, /host must be an object or null/);
+});
+
 test("placeholder repo name fails", () => {
   const r = doctor(target({ repo: "owner/name" }));
   assert.match(r.out, /FAIL config schema: repo must be owner\/name/);

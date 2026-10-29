@@ -273,7 +273,7 @@ test("under Codex the guard marks the session as seen, only in a cstack context"
   const id = `test-${process.pid}-${Date.now()}`;
   const r = repo();
   const send = (cwd, extra) =>
-    spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" }, cwd, ...extra }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "" } });
+    spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "ls" }, cwd, ...extra }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "" } });
   send(r, { session_id: `${id}-claude` });
   assert.equal(existsSync(seen(`${id}-claude`)), false, "Claude Code payloads have no turn_id");
   send(mkdtempSync(path.join(tmpdir(), "cstack-guard-plain-")), { session_id: `${id}-plain`, turn_id: "t" });
@@ -287,7 +287,7 @@ test("under Codex the guard marks the session as seen, only in a cstack context"
 test("role-deny: a Codex session cstack launched gets its role's Bash deny rules; others do not", () => {
   const r = repo();
   const codex = (command, env) =>
-    spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env } });
+    spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env } });
   const worker = { CSTACK_UNIT: "U1" };
   for (const cmd of ["sudo ls", "git status && git push --force origin x", "FOO=1 curl https://x", "codex exec hi", "claude -p hi", "rm -rf /", `node ${path.resolve(GUARD, "../../../gates/supervise.mjs")} start --name a`]) {
     const out = codex(cmd, worker);
@@ -298,23 +298,27 @@ test("role-deny: a Codex session cstack launched gets its role's Bash deny rules
   assert.equal(codex("systemd-run --user x", { CSTACK_COORDINATOR: "1" }).status, 0, "a coordinator may start sessions");
   assert.equal(codex("sudo ls", {}).status, 0, "no role marker: not a cstack-launched session");
   assert.equal(codex("sudo ls", { CSTACK_ROLE: "nobody" }).status, 0, "an unknown role has no deny list");
-  const claude = spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "sudo ls" }, cwd: r }), encoding: "utf8", env: { ...process.env, CSTACK_UNIT: "U1", CSTACK_ROLE: "" } });
+  const claude = spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: "sudo ls" }, cwd: r }), encoding: "utf8", env: { ...process.env, CSTACK_UNIT: "U1", CSTACK_ROLE: "" } });
   assert.equal(claude.status, 0, "Claude Code sessions have their allowlist instead");
 });
 
 test("CSTACK_GUARD_HIDE hides paths outside the repo from Bash and file tools", () => {
   const r = repo();
-  const hide = { CSTACK_GUARD_HIDE: "/opt/cstack/tests" };
+  const h = path.resolve(tmpdir(), "opt-cstack", "tests");
+  const slashed = h.split(path.sep).join("/"); // how a Bash command on Windows often spells it
+  const hide = { CSTACK_GUARD_HIDE: h };
   for (const [tool, input] of [
-    ["Bash", { command: "cat /opt/cstack/tests/fixtures/f1/grader/g.test.js" }],
-    ["Read", { file_path: "/opt/cstack/tests/x" }],
-    ["Grep", { pattern: "G1", path: "/opt/cstack/tests" }],
-    ["apply_patch", { command: "*** Begin Patch\n*** Add File: /opt/cstack/tests/y\n+x\n*** End Patch" }],
+    ["Bash", { command: `cat ${slashed}/fixtures/f1/grader/g.test.js` }],
+    ["Bash", { command: `type ${path.join(h, "fixtures", "g.test.js")}` }],
+    ["Read", { file_path: path.join(h, "x") }],
+    ["Read", { file_path: `${slashed}/x` }],
+    ["Grep", { pattern: "G1", path: h }],
+    ["apply_patch", { command: `*** Begin Patch\n*** Add File: ${slashed}/y\n+x\n*** End Patch` }],
   ]) {
     const out = run(r, tool, input, hide);
     assert.equal(out.code, 2, `${tool} ${JSON.stringify(input)}`);
     assert.match(out.err, /hidden from this run/);
   }
-  assert.equal(run(r, "Read", { file_path: "/opt/cstack/testsuite" }, hide).code, 0, "a sibling with the same prefix");
-  assert.equal(run(r, "Read", { file_path: "/opt/cstack/tests/x" }).code, 0, "unset: nothing extra hidden");
+  assert.equal(run(r, "Read", { file_path: `${h}suite` }, hide).code, 0, "a sibling with the same prefix");
+  assert.equal(run(r, "Read", { file_path: path.join(h, "x") }).code, 0, "unset: nothing extra hidden");
 });

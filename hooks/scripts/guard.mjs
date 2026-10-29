@@ -195,10 +195,10 @@ function checkHide(tool, ti, patched, cwd) {
   if (!hide.length) return;
   const targets = tool === "Bash" ? [] : (patched ?? [ti.file_path, ti.notebook_path, ti.path]).filter((t) => typeof t === "string");
   for (const h of hide) {
-    if (tool === "Bash" && typeof ti.command === "string" && ti.command.includes(h)) block("hidden-paths", `command names a path hidden from this run (${h}).`);
+    if (tool === "Bash" && typeof ti.command === "string" && names(ti.command, h.replaceAll("\\", "/"))) block("hidden-paths", `command names a path hidden from this run (${h}).`);
     for (const t of targets) {
       const abs = path.resolve(cwd, t);
-      if (abs === h || abs.startsWith(h + path.sep)) block("hidden-paths", `${abs} is hidden from this run.`);
+      if (fold(abs) === fold(h) || fold(abs).startsWith(fold(h + path.sep))) block("hidden-paths", `${abs} is hidden from this run.`);
     }
   }
 }

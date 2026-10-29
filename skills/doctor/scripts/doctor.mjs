@@ -139,7 +139,25 @@ function schemaErrors(c) {
     errs.push(...unknown(d, ["transport", "local_directory", "auto"], "deploy."));
   }
 
-  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy"];
+  // Harness and host keys (Codex and the host supervisor). Each is optional.
+  need(c.harness == null || ["auto", "claude", "codex"].includes(c.harness), "harness must be auto, claude or codex");
+  const mc = c.models_codex;
+  if (mc != null && !isObj(mc)) errs.push("models_codex must be an object or null");
+  else if (mc != null) {
+    for (const r of ["code", "judge", "review", "gather"]) {
+      need(mc[r] == null || (type(mc[r]) === "string" && mc[r].length > 0), `models_codex.${r} must be a non-empty string`);
+    }
+    errs.push(...unknown(mc, ["code", "judge", "review", "gather"], "models_codex."));
+  }
+  need(c.codex_sandbox == null || ["read-only", "workspace-write", "danger-full-access"].includes(c.codex_sandbox), "codex_sandbox must be read-only, workspace-write or danger-full-access");
+  const h = c.host;
+  if (h != null && !isObj(h)) errs.push("host must be an object or null");
+  else if (h != null) {
+    need(h.supervisor == null || ["auto", "systemd", "launchd", "taskscheduler", "detached"].includes(h.supervisor), "host.supervisor must be auto, systemd, launchd, taskscheduler or detached");
+    errs.push(...unknown(h, ["supervisor"], "host."));
+  }
+
+  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host"];
   errs.push(...unknown(c, known, ""));
   return errs;
 }

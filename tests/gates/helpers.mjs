@@ -9,6 +9,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "../..");
 export const GATES = path.join(ROOT, "gates");
 export const FAKE_BIN = path.join(ROOT, "tests/fixtures/bin");
+// Git for Windows checks text out with CRLF (core.autocrlf), which the fixture scripts cannot read. Pin LF.
+Object.assign(process.env, { GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "core.autocrlf", GIT_CONFIG_VALUE_0: "false" });
 const TEMPLATE = JSON.parse(readFileSync(path.join(ROOT, "templates/config.json"), "utf8"));
 
 export function sh(cwd, cmd, args) {
