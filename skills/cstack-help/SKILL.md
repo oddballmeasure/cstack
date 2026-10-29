@@ -81,6 +81,13 @@ The default answer is `/cstack:program` for an idea and `/cstack:unit` for an is
 | Judge a merge commit's CI on the base branch | `cstack:post-merge-ci` |
 | Give agents a scripted way to drive the app | `cstack:create-verification-skill`, then `cstack:maintain-verification-skill` |
 | Keep and audit a decision log | `cstack:show-me-your-work` |
+| Take over a PR, branch or thread someone else started | `cstack:takeover` |
+| Bring an old PR up to date, or decide to close it | `cstack:modernize` |
+| Deploy a merged revision with the repo's committed deploy script | `cstack:deploy` |
+| Find small, verified work and propose it as issues (user-only) | `/cstack:scout` |
+| Work the repo's ready issues unattended (user-only) | `/loop 10m /cstack:daemon` |
+| Turn this session's lessons into skill edits, or make a repeated mistake impossible (user-only) | `/cstack:reflect`, `/cstack:correct` |
+| Measure whether a skill change helps (user-only, spends usage) | `/cstack:eval-skill` |
 | Clean AI tells out of prose, or write docs to a standard | `cstack:unslop`, `cstack:technical-writing` |
 
 The unit stages (`cstack:intake`, `cstack:implement-ticket`, `cstack:repair`, `cstack:verify-head`, `cstack:sync-base`, `cstack:file-pr`, `cstack:babysit-pr`, `cstack:merge-gate`, `cstack:settle`, `cstack:profile-repo`) run inside `cstack:unit`. The user rarely calls one alone. If a skill directory is missing from this table, read its frontmatter and route by its description.
@@ -99,7 +106,7 @@ The mode skill (`skills/cstack/SKILL.md`) holds ten non-negotiables and 24 princ
 
 | Symptom | Fix |
 |---|---|
-| A hook blocked a command | Read the rule name in the message (`hidden-paths`, `off-limits`, `no-sleep-loops`, `no-admin-merge`, `no-autonomy-raise`). Run `cstack:doctor` before changing anything. |
+| A hook blocked a command | Read the rule name in the message (`hidden-paths`, `off-limits`, `no-sleep-loops`, `no-admin-merge`, `no-autonomy-raise`, `no-deploy-approval`, `no-eval-publish`). Run `cstack:doctor` before changing anything. |
 | `--autonomy=send` did not merge | The session lacked `CSTACK_PROGRAM_AUTONOMY=send`. `node <root>/gates/run-settings.mjs --store <store>` prints why. Relaunch with it set. |
 | The coordinator stopped mid-run | `/cstack:program --resume <slug>`, or `cstack:resume-run <slug>` for a plain orchestrate run. |
 | A unit hit the usage limit | Nothing. The worker re-queues it after the reset. |

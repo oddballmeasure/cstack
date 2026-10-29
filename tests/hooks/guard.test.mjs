@@ -126,6 +126,28 @@ test("no-autonomy-raise blocks setting CSTACK_PROGRAM_AUTONOMY and allows readin
   assert.equal(run(r, "Bash", { command: "printenv CSTACK_PROGRAM_AUTONOMY" }).code, 0);
 });
 
+test("no-deploy-approval blocks the approved deploy command and allows a plan", () => {
+  const r = repo();
+  for (const cmd of ["node /p/gates/deploy.mjs abc --approved", "node gates/deploy.mjs abc --repo-dir . --approved --json"]) {
+    const out = run(r, "Bash", { command: cmd });
+    assert.equal(out.code, 2, cmd);
+    assert.match(out.err, /no-deploy-approval/);
+  }
+  assert.equal(run(r, "Bash", { command: "node gates/deploy.mjs abc --plan --json" }).code, 0);
+  assert.equal(run(r, "Bash", { command: "node gates/deploy.mjs abc --json" }).code, 0);
+});
+
+test("no-eval-publish blocks claude plugin eval without --no-publish", () => {
+  const r = repo();
+  for (const cmd of ["claude plugin eval . --ablation none", "cd /x && claude plugins eval /tmp/p --json out.json"]) {
+    const out = run(r, "Bash", { command: cmd });
+    assert.equal(out.code, 2, cmd);
+    assert.match(out.err, /no-eval-publish/);
+  }
+  assert.equal(run(r, "Bash", { command: "claude plugin eval . --ablation none --no-publish" }).code, 0);
+  assert.equal(run(r, "Bash", { command: "claude plugin eval --help" }).code, 0, "help runs nothing");
+});
+
 test("Bash rules apply even without a config; path rules do not", () => {
   const r = repo(null);
   assert.equal(run(r, "Read", { file_path: "tests/acceptance/x" }).code, 0);

@@ -1,0 +1,6 @@
+#!/bin/sh
+# Fake ssh for the deploy gate tests. Appends argv to FAKE_SSH_LOG, then runs the remote command
+# (the last argument) locally with bash, passing stdin through, so the exit code and output are real.
+[ -n "${FAKE_SSH_LOG:-}" ] && printf '%s\n' "$*" >> "$FAKE_SSH_LOG"
+for last; do :; done
+exec bash -c "$last"

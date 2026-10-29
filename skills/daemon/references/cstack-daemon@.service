@@ -1,0 +1,33 @@
+# cstack daemon: one headless Claude Code session per repo, running /cstack:daemon every 10 minutes.
+# The instance name is the repo path, escaped:
+#   systemctl --user enable --now "cstack-daemon@$(systemd-escape --path /home/me/src/app).service"
+# Install: copy to ~/.config/systemd/user/, edit CSTACK_PLUGIN below, then `systemctl --user daemon-reload`.
+# Keep it running after logout with `loginctl enable-linger $USER`.
+
+[Unit]
+Description=cstack daemon for /%I
+# The daemon talks to GitHub and the model provider.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# /%I is the unescaped repo path. The daemon works in the repo's main checkout.
+WorkingDirectory=/%I
+# systemd does not inherit the login PATH. Put node, claude, gh, git and jq on it.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Edit: the cstack plugin checkout.
+Environment=CSTACK_PLUGIN=%h/cstack
+# The daemon is a coordinator. Workers it launches get this unset again by gates/worker.mjs.
+Environment=CSTACK_COORDINATOR=1
+# Subscription billing only, and autonomy from config only (ADR-006).
+UnsetEnvironment=ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CSTACK_PROGRAM_AUTONOMY
+ExecStart=/usr/bin/env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CSTACK_PROGRAM_AUTONOMY claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${CSTACK_PLUGIN} --dangerously-skip-permissions "/loop 10m /cstack:daemon"
+# A crashed or finished session starts again. The delay keeps a crash loop off GitHub and the usage window.
+Restart=always
+RestartSec=600
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -64,10 +64,17 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - Comments to cut from a diff: narration, commented-out code, "do not remove" warnings, lint suppressions. Use `cstack:no-comments`.
 - Any GitHub comment or thread reply on the human's behalf. Use `cstack:leaving-pr-comments`.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
+- Take over a PR, a branch or another agent's unfinished thread. Use `cstack:takeover`. It keeps the original authors' credit.
+- An old PR to rebase or refresh, or a branch far behind its base. Use `cstack:modernize`. It decides MODERNIZE, REWORK or CLOSE before it pushes.
+- A merged revision to deploy with the repo's committed `deploy.sh`. Use `cstack:deploy`. A person approves every deploy unless config `deploy.auto` is true. The guard blocks a model from approving it.
 
 - An idea or guideline to run from spec to a merged, verified SHA. `cstack:program` is user-only, so ask the human to run `/cstack:program <guideline> [--autonomy=stop|send]`.
 - The human says "full send" or "full stop" about an issue or an idea. `cstack:full-send` and `cstack:full-stop` are user-only, so ask the human to run `/cstack:full-send <issue or guideline>` or `/cstack:full-stop <issue or guideline>`. They set autonomy for that run only.
 - A question about which cstack skill fits, how to set up, or how cstack is tested. Use `cstack:cstack-help`. It never starts the work.
+- A request to find work in the repo and propose issues. `cstack:scout` is user-only, so ask the human to run `/cstack:scout`. It files `<prefix>:proposed` issues, or `ready` only when the per-category autonomy gate allows.
+- A request to work the issue queue unattended. `cstack:daemon` is user-only, so ask the human to run `/loop 10m /cstack:daemon` in a session started with `CSTACK_COORDINATOR=1`, or to install its systemd unit.
+- The human says "reflect", or keeps correcting the same mistake. `cstack:reflect` and `cstack:correct` are user-only, so ask for `/cstack:reflect` or `/cstack:correct`.
+- A skill change whose effect must be measured. `cstack:eval-skill` is user-only and spends usage, so ask for `/cstack:eval-skill <skill>`. Every `claude plugin eval` carries `--no-publish`.
 
 ## Principles
 

@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // L4 fixture runner: one whole /cstack:program run on the private testbed, graded by a held-out suite.
-// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep]
-//   <fixture> is a directory under tests/fixtures/ (f1-cli-ledger), or its short prefix (f1).
+// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep]   (--help prints the usage and the fixtures)
+//   <fixture> is a directory under tests/fixtures/ with a fixture.json (f2-http-shortener), or its short prefix (f2).
+// Each fixture's fixture.json names its slug, the entry point the grader tests, the grader command, and the empty
+// project that replaces testbed main (package.json, .gitignore, CI steps, cstack config overrides).
 // Steps:
 //   1. Fresh clone of the testbed under tests/fixtures/results/<fixture>-<ts>/testbed (gitignored).
 //   2. Replace testbed main with the fixture's empty project and push it.
@@ -9,13 +11,14 @@
 //      CSTACK_COORDINATOR=1, CSTACK_RUN=<slug> and CSTACK_PROGRAM_AUTONOMY=send (ADR-006).
 //   4. Poll `systemctl --user is-active` every 60 s; stop the run when budget.toml `hours` runs out.
 //   5. Check out origin/main, run the held-out grader and cstack's own suite (run-e2e as grader), and
-//      write tests/fixtures/<fixture>/results/<date>.json plus <outDir>/result.json.
-//   6. Teardown (skipped with --keep): stop the run's units, close the PRs and issues the run opened,
+//      write tests/fixtures/<fixture>/results/<date>.json plus <outDir>/result.json. The grader is copied to a
+//      temporary directory only now, after every unit of the run has stopped, and runs there (with its setup).
+//   6. Teardown (skipped with --keep): stop the run's units, close the PRs and issues the run opened, delete the clone,
 //      remove its worktrees, and restore testbed main to tag baseline-p3.
 // Prints PASS when the grader pass rate is at least 0.95 and the run stayed within budget.
 // This is a plain Node script, not a model session, so it may sleep. Run one fixture at a time: a
 // program can use most of a 5-hour subscription window. Not run in CI.
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -30,22 +33,68 @@ const POLL_MS = 60_000;
 const PASS_RATE = 0.95;
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"];
 
-// Each fixture names its run slug and the project that replaces testbed main.
-const FIXTURES = {
-  "f1-cli-ledger": { slug: "f1", scaffold: nodeProject },
-};
+// A fixture is a directory under tests/fixtures/ with guideline.md, budget.toml, fixture.json and grader/.
+const FIXTURES = readdirSync(HERE, { withFileTypes: true })
+  .filter((d) => d.isDirectory() && existsSync(path.join(HERE, d.name, "fixture.json")))
+  .map((d) => d.name)
+  .sort();
+
+const USAGE = `usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep]
+       node tests/fixtures/run-fixture.mjs --help
+
+Runs one whole /cstack:program on ${REPO} for the fixture's guideline.md, then grades
+origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
+
+  <fixture>   a directory under tests/fixtures/ with a fixture.json, or its short prefix
+              (${FIXTURES.map((f) => `${f.split("-")[0]} = ${f}`).join(", ") || "none found"})
+  --keep      skip teardown: leave testbed main, the run's PRs, issues and worktrees as the run made them
+  --help      print this text
+
+The run takes hours. Start it detached and follow the journal:
+  systemd-run --user --unit=cstack-fixture-f2 --collect --working-directory="$PWD" node tests/fixtures/run-fixture.mjs f2
+  journalctl --user -fu cstack-fixture-f2
+
+fixture.json keys:
+  slug                       run slug (CSTACK_RUN); units are named cstack-${REPO_NAME}-<slug>-*
+  entry.env, entry.path      the grader gets env <entry.env> = <clone>/<entry.path>
+  grader.setup               optional command run first in a temporary copy of grader/ (for example npm ci)
+  grader.command             command run in that copy; it prints TAP whose test names start with G<n>
+  grader.timeout_seconds     limit for grader.command (default 600)
+  project.package            package.json of the empty project; devDependencies get a package-lock.json
+  project.smoke              "no-dependencies" or "no-runtime-dependencies": the scaffold's one smoke test
+  project.gitignore          .gitignore lines
+  project.readme             README.md text
+  ci.install, ci.playwright  CI runs npm ci, and npx playwright install --with-deps chromium, before npm test
+  config                     overrides merged over templates/config.json and the fixture defaults
+
+Exit 0 on PASS (grader at least ${PASS_RATE * 100}%, within budget.toml, on the subscription), 1 on FAIL, 2 on bad usage.`;
 
 const argv = process.argv.slice(2);
+if (argv.includes("--help") || argv.includes("-h")) {
+  console.log(USAGE);
+  process.exit(0);
+}
 const keep = argv.includes("--keep");
 const wanted = argv.filter((a) => a !== "--keep");
-const fixture = Object.keys(FIXTURES).find((f) => wanted.length === 1 && (f === wanted[0] || f.startsWith(`${wanted[0]}-`)));
-if (!fixture || wanted.some((a) => a.startsWith("--"))) {
-  console.error(`usage: run-fixture.mjs <${Object.keys(FIXTURES).join("|")}> [--keep]`);
+const fixture = FIXTURES.find((f) => wanted.length === 1 && (f === wanted[0] || f.startsWith(`${wanted[0]}-`)));
+if (!fixture || wanted.some((a) => a.startsWith("-"))) {
+  console.error(`usage: run-fixture.mjs <${FIXTURES.join("|")}> [--keep]   (--help for details)`);
   process.exit(2);
 }
-const { slug, scaffold } = FIXTURES[fixture];
 const FIXTURE_DIR = path.join(HERE, fixture);
 const GRADER = path.join(FIXTURE_DIR, "grader");
+const spec = JSON.parse(readFileSync(path.join(FIXTURE_DIR, "fixture.json"), "utf8"));
+for (const key of ["slug", "entry.env", "entry.path", "grader.command", "project.package", "project.smoke"]) {
+  if (key.split(".").reduce((o, k) => o?.[k], spec) == null) {
+    console.error(`${fixture}/fixture.json: missing ${key}`);
+    process.exit(2);
+  }
+}
+if (!["no-dependencies", "no-runtime-dependencies"].includes(spec.project.smoke)) {
+  console.error(`${fixture}/fixture.json: project.smoke must be no-dependencies or no-runtime-dependencies`);
+  process.exit(2);
+}
+const { slug } = spec;
 const budget = parseToml(readFileSync(path.join(FIXTURE_DIR, "budget.toml"), "utf8"));
 const ts = new Date().toISOString().replace(/[:.]/g, "-");
 const outDir = path.join(HERE, "results", `${fixture}-${ts}`);
@@ -60,6 +109,8 @@ function sh(cmd, args, opts = {}) {
   if (r.status !== 0 && !opts.allowFail) throw new Error(`${cmd} ${args.join(" ")} failed (${r.status}): ${r.stderr}`);
   return opts.full ? r : (r.stdout ?? "").trim();
 }
+// npm and npx resolve `node` from PATH; under systemd-run that PATH may lack this Node, so put it first.
+const withNode = (extra = {}) => ({ ...process.env, PATH: [path.dirname(process.execPath), process.env.PATH].filter(Boolean).join(path.delimiter), ...extra });
 const git = (...a) => sh("git", ["-C", clone, ...a]);
 const gh = (args, opts) => sh("gh", [...args, "--repo", REPO], opts);
 const orch = (...a) => sh(process.execPath, [path.join(CSTACK, "gates/orch.mjs"), "--store", store, "--json", ...a], { allowFail: true });
@@ -84,31 +135,47 @@ function parseToml(text) {
   return out;
 }
 
-// f1: an empty Node project with a real `npm test`, CI that runs it, and a cstack config.
-function nodeProject() {
+// Plain objects merge key by key (config.limits, config.models); anything else replaces.
+function merge(base, over) {
+  const out = { ...base };
+  for (const [k, v] of Object.entries(over || {})) {
+    const plain = (x) => x && typeof x === "object" && !Array.isArray(x);
+    out[k] = plain(v) && plain(base[k]) ? merge(base[k], v) : v;
+  }
+  return out;
+}
+
+// The empty project from fixture.json: a Node package with a real `npm test` (one smoke test), CI job `ci`
+// that runs it, and a cstack config. Without fixture.json `config` overrides this is exactly the f1 scaffold.
+function scaffold() {
   const template = JSON.parse(readFileSync(path.join(CSTACK, "templates/config.json"), "utf8"));
-  const config = {
-    ...template,
-    repo: REPO,
-    base_branch: "main",
-    test_command: ["npm", "test"],
-    e2e_command: null,
-    required_checks: ["ci"],
-    paths_hidden: ["tests/acceptance/**"],
-    autonomy: "stop",
-    parallel: 1,
-  };
+  const config = merge(
+    {
+      ...template,
+      repo: REPO,
+      base_branch: "main",
+      test_command: ["npm", "test"],
+      e2e_command: null,
+      required_checks: ["ci"],
+      paths_hidden: ["tests/acceptance/**"],
+      autonomy: "stop",
+      parallel: 1,
+    },
+    spec.config,
+  );
+  const { project, ci = {} } = spec;
+  const noDev = project.smoke === "no-dependencies";
   return {
-    "package.json": `${JSON.stringify({ name: "ledger", version: "0.0.0", private: true, type: "module", engines: { node: ">=22" }, scripts: { test: "node --test 'test/**/*.test.mjs'" } }, null, 2)}\n`,
+    "package.json": `${JSON.stringify(project.package, null, 2)}\n`,
     "test/smoke.test.mjs": [
       'import { test } from "node:test";',
       'import assert from "node:assert/strict";',
       'import { readFileSync } from "node:fs";',
       "",
-      'test("package.json has no dependencies", () => {',
+      `test("package.json has no ${noDev ? "" : "runtime "}dependencies", () => {`,
       '  const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));',
       '  assert.equal(pkg.dependencies, undefined, "no runtime dependencies");',
-      '  assert.equal(pkg.devDependencies, undefined, "no dev dependencies");',
+      ...(noDev ? ['  assert.equal(pkg.devDependencies, undefined, "no dev dependencies");'] : []),
       "});",
       "",
     ].join("\n"),
@@ -126,12 +193,14 @@ function nodeProject() {
       "      - uses: actions/setup-node@v4",
       "        with:",
       "          node-version: 22",
+      ...(ci.install ? ["      - run: npm ci"] : []),
+      ...(ci.playwright ? ["      - run: npx playwright install --with-deps chromium"] : []),
       "      - run: npm test",
       "",
     ].join("\n"),
     ".cstack/config.json": `${JSON.stringify(config, null, 2)}\n`,
-    ".gitignore": ".cstack/*\n!.cstack/config.json\nnode_modules/\n",
-    "README.md": "# ledger\n\nA plain-text expense ledger CLI. Built by a cstack L4 fixture run.\n",
+    ".gitignore": `${(project.gitignore || [".cstack/*", "!.cstack/config.json", "node_modules/"]).join("\n")}\n`,
+    "README.md": project.readme || `# ${project.package.name}\n\nBuilt by a cstack L4 fixture run.\n`,
   };
 }
 
@@ -143,6 +212,8 @@ function replaceMain() {
     mkdirSync(path.dirname(path.join(clone, rel)), { recursive: true });
     writeFileSync(path.join(clone, rel), text);
   }
+  // `npm ci` (CI and setup_command) needs a lockfile when the project starts with dev dependencies.
+  if (spec.project.package.devDependencies) sh("npm", ["install", "--package-lock-only", "--no-audit", "--no-fund"], { cwd: clone, env: withNode() });
   const smoke = sh("npm", ["test"], { cwd: clone, full: true, allowFail: true });
   if (smoke.status !== 0) throw new Error(`the scaffold's npm test fails: ${smoke.stdout}${smoke.stderr}`);
   git("add", "-A");
@@ -219,20 +290,39 @@ function sessionFiles() {
   return files.filter(existsSync);
 }
 
+// The held-out grader. It is copied out of the cstack repo only here, after the run's units have stopped, into a
+// fresh temporary directory (never inside the clone), set up there (for example `npm ci`), run, and removed.
+// Test ids are every `test("G<n>` in the grader's top-level .js/.mjs files; one that never reports counts as failed.
 function grade() {
-  const ids = [...readFileSync(path.join(GRADER, "index.js"), "utf8").matchAll(/\btest\(\s*["'`](G\d+)\b/g)].map((m) => m[1]);
-  const r = sh(process.execPath, ["--test", "--test-reporter=tap", GRADER], {
-    cwd: CSTACK,
-    env: { ...process.env, LEDGER_BIN: path.join(clone, "bin/ledger.mjs") },
-    full: true,
-    allowFail: true,
-    timeout: 600_000,
-  });
-  writeFileSync(path.join(outDir, "grader.tap"), `${r.stdout ?? ""}${r.stderr ?? ""}`);
-  const ok = new Map();
-  for (const m of String(r.stdout).matchAll(/^(not )?ok \d+ - (G\d+)\b/gm)) ok.set(m[2], !m[1]);
-  const failed = ids.filter((id) => !ok.get(id));
-  return { passed: ids.length - failed.length, total: ids.length, rate: ids.length ? (ids.length - failed.length) / ids.length : 0, failed };
+  const sources = readdirSync(GRADER).filter((f) => /\.m?js$/.test(f));
+  const ids = [...new Set(sources.flatMap((f) => [...readFileSync(path.join(GRADER, f), "utf8").matchAll(/\btest\(\s*["'`](G\d+)\b/g)].map((m) => m[1])))];
+  const dir = mkdtempSync(path.join(tmpdir(), `cstack-grader-${fixture}-`));
+  const tap = path.join(outDir, "grader.tap");
+  const resolve = ([cmd, ...args]) => [cmd === "node" ? process.execPath : cmd, args];
+  const env = withNode({ [spec.entry.env]: path.join(clone, spec.entry.path) });
+  const score = (stdout, extra = {}) => {
+    const ok = new Map();
+    for (const m of String(stdout).matchAll(/^(not )?ok \d+ - (G\d+)\b/gm)) if (ok.get(m[2]) !== false) ok.set(m[2], !m[1]);
+    const failed = ids.filter((id) => !ok.get(id));
+    return { passed: ids.length - failed.length, total: ids.length, rate: ids.length ? (ids.length - failed.length) / ids.length : 0, failed, ...extra };
+  };
+  try {
+    sh("rsync", ["-a", "--exclude", "/node_modules", "--exclude", "/test-results", `${GRADER}/`, `${dir}/`]);
+    if (spec.grader.setup?.length) {
+      const [cmd, args] = resolve(spec.grader.setup);
+      const s = sh(cmd, args, { cwd: dir, env, full: true, allowFail: true, timeout: 900_000 });
+      if (s.status !== 0) {
+        writeFileSync(tap, `# grader setup failed (${s.status}): ${spec.grader.setup.join(" ")}\n${s.stdout ?? ""}${s.stderr ?? ""}`);
+        return score("", { setup_error: `exit ${s.status}` });
+      }
+    }
+    const [cmd, args] = resolve(spec.grader.command);
+    const r = sh(cmd, args, { cwd: dir, env, full: true, allowFail: true, timeout: (spec.grader.timeout_seconds ?? 600) * 1000 });
+    writeFileSync(tap, `${r.stdout ?? ""}${r.stderr ?? ""}`);
+    return score(r.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function cstackE2e() {
@@ -348,6 +438,9 @@ try {
     try {
       teardown(startedIso);
       log("teardown done: PRs and issues closed, testbed main restored to baseline-p3");
+      // The clone holds the built app and its own tests. Leaving it inside the cstack repo let a broad
+      // test glob run those tests, some of which run `npm test` from the cwd: a recursive suite (2026-10-29).
+      rmSync(clone, { recursive: true, force: true });
     } catch (err) {
       log(`teardown failed: ${err.message}`);
       result.teardown_error = String(err.message);
