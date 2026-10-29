@@ -446,7 +446,7 @@ try {
   const coord = events(path.join(outDir, "coordinator.jsonl"));
   // Codex reports no billing source in its stream; its login must be ChatGPT (ADR-012).
   const init = harness === "codex"
-    ? { apiKeySource: /ChatGPT/.test(sh("codex", ["login", "status"], { allowFail: true })) ? "none" : "codex-api-key" }
+    ? { apiKeySource: /ChatGPT/.test(((r) => `${r.stdout}${r.stderr}`)(sh("codex", ["login", "status"], { allowFail: true, full: true }))) ? "none" : "codex-api-key" }
     : coord.find((e) => e.type === "system" && e.subtype === "init") || {};
   git("fetch", "-q", "origin");
   git("checkout", "-q", "-f", "--detach", "origin/main");
