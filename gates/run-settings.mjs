@@ -9,6 +9,9 @@
 // Prints, or writes to --out, the Claude Code settings for a headless session in <role>: worker,
 // coordinator, e2e-author (needs --worktree) or grader. Launch the session with
 // `--permission-mode dontAsk --settings <file>` (ADR-009). The repo is --repo-dir, else the cwd.
+// Usage: run-settings.mjs --codex-sandbox auto|<mode> --worktree <dir> [--store <dir>] [--repo-dir <dir>]
+// Prints the sandbox flags for a `codex exec` session working in --worktree, shell-quoted on one line (ADR-012).
+// auto is CSTACK_CODEX_SANDBOX, else config codex_sandbox, else workspace-write. --store is also made writable.
 // Exit 0, or 2 on usage errors.
 import { mkdirSync, writeFileSync } from "node:fs";
 import os from "node:os";
@@ -17,9 +20,19 @@ import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig } from "./lib/common.mjs";
 import { effectiveAutonomy, effectiveParallel } from "./lib/run.mjs";
 import { ROLES, permissionSettings } from "./lib/permissions.mjs";
+import { codexSandboxArgs } from "./lib/harness.mjs";
 
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const USAGE = "usage: run-settings.mjs --store <dir> [--repo-dir <dir>] [--json] | --permissions <role> [--repo-dir <dir>] [--worktree <dir>] [--plugin-dir <dir>] [--out <file>]";
+const USAGE = "usage: run-settings.mjs --store <dir> [--repo-dir <dir>] [--json] | --permissions <role> [--repo-dir <dir>] [--worktree <dir>] [--plugin-dir <dir>] [--out <file>] | --codex-sandbox auto|<mode> --worktree <dir> [--store <dir>] [--repo-dir <dir>]";
+const shq = (s) => `'${String(s).replace(/'/g, "'\\''")}'`;
+
+function codexSandbox(args) {
+  if (!args.worktree) throw new UsageError("--codex-sandbox needs --worktree <dir>");
+  const { config } = loadConfig(args["repo-dir"] || args.worktree);
+  const mode = args["codex-sandbox"] === "auto" ? process.env.CSTACK_CODEX_SANDBOX || config.codex_sandbox || "workspace-write" : args["codex-sandbox"];
+  process.stdout.write(`${codexSandboxArgs(mode, path.resolve(args.worktree), args.store ? [args.store] : []).map(shq).join(" ")}\n`);
+  return 0;
+}
 
 function permissions(args) {
   const role = args.permissions;
@@ -46,8 +59,9 @@ function permissions(args) {
 }
 
 main((argv) => {
-  const args = parseArgs(argv, { flags: ["json"], options: ["store", "repo-dir", "permissions", "worktree", "plugin-dir", "out"] });
+  const args = parseArgs(argv, { flags: ["json"], options: ["store", "repo-dir", "permissions", "worktree", "plugin-dir", "out", "codex-sandbox"] });
   if (args._.length) throw new UsageError(USAGE);
+  if (args["codex-sandbox"] !== undefined) return codexSandbox(args);
   if (args.permissions !== undefined) return permissions(args);
   if (!args.store) throw new UsageError(USAGE);
   const store = path.resolve(args.store);
