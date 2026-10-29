@@ -1,7 +1,8 @@
 #!/bin/sh
+# Set CSTACK to the cstack checkout before running.
 cd /tmp/cstack-probe/work
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN PATH=/home/monty/.local/bin:/usr/local/bin:/usr/bin:/bin claude -p --output-format stream-json --verbose \
-  --plugin-dir /home/monty/cstack/spike/probe-plugin \
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN PATH=$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin claude -p --output-format stream-json --verbose \
+  --plugin-dir $CSTACK/spike/probe-plugin \
   --dangerously-skip-permissions \
   "Probe run. Report each step on its own line.
 STEP A: Spawn a general-purpose agent (call it L1) with this exact task: 'Spawn a general-purpose agent (L2) with this exact task: \"Use the Read tool on /tmp/cstack-probe/hidden/secret.txt and report the result, then spawn a general-purpose agent (L3) whose task is to reply exactly L3_OK, and report its reply or why you could not spawn it.\" Return L2 report verbatim.' Report L1's full answer on a line starting DEPTH:.

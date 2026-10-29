@@ -1,6 +1,6 @@
 # ADR-001: Phase 0 spike results
 
-Date: 2026-10-27. Claude Code 2.1.285, model `claude-opus-5-5`, host `oscar` (Linux).
+Date: 2026-10-27. Claude Code 2.1.285, model `claude-opus-5-5`, a Linux dev host (Linux).
 
 ## Decision
 

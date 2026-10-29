@@ -16,7 +16,7 @@ The path resolves correctly (subdirectory `hid-den` with the dash removed = `hid
 
 **L3 agent spawn:** Succeeded. The general-purpose agent launched and replied `L3_OK`. Its reported tool names:
 
-Bash, Edit, ListAgents, Read, ReportFindings, Skill, ToolSearch, Write, mcp__claude_ai_Claude_Docs__batch, mcp__claude_ai_Claude_Docs__guide, mcp__claude_ai_Claude_Docs__update, plus deferred (ToolSearch-loadable) tools: CronCreate, CronDelete, CronList, DesignSync, EnterWorktree, ExitWorktree, Monitor, NotebookEdit, PushNotification, RemoteTrigger, SendMessage, TaskStop, WebFetch, WebSearch, mcp__claude_ai_Claude_Docs__create, mcp__claude_ai_Claude_Docs__delete, mcp__claude_ai_Claude_Docs__export, mcp__claude_ai_Claude_Docs__query, mcp__claude_ai_Claude_Docs__read.
+Bash, Edit, ListAgents, Read, ReportFindings, Skill, ToolSearch, Write, plus deferred (ToolSearch-loadable) tools: CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, Monitor, NotebookEdit, PushNotification, RemoteTrigger, SendMessage, TaskStop, WebFetch, WebSearch, .
 
 ---
 

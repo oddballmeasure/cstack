@@ -9,7 +9,7 @@
 // ctx: { name, testbed (a fresh clone), cstack, repo, outDir, sh, gh, git, issue, result }
 //   teardown(ctx) optional, runs after expect
 // Each run writes tests/scenarios/results/<name>-<ts>/{session.jsonl, stderr.log, verdict.json}.
-// Needs: ~/cstack-testbed clone, gh auth, claude CLI on subscription. Not run in CI.
+// Needs: a sandbox GitHub repo you own (CSTACK_TESTBED_REPO=owner/name), gh auth, claude CLI on a subscription. Not run in CI.
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
@@ -17,7 +17,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
-const REPO = "oddballmeasure/cstack-testbed";
+// A sandbox repo you own: scenarios create issues and PRs there and reset its main branch.
+const REPO = process.env.CSTACK_TESTBED_REPO || "oddballmeasure/cstack-testbed";
 
 const name = process.argv[2];
 if (!name || !existsSync(path.join(HERE, name, "scenario.mjs"))) {

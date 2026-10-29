@@ -1,10 +1,12 @@
 # L3 scenarios
 
-Live failure-injection runs against the private testbed `oddballmeasure/cstack-testbed`. Each one runs a real headless Claude Code session (`claude -p`, subscription only; the runner fails a run billed through an API key).
+Live failure-injection runs against a sandbox testbed repo you own (set `CSTACK_TESTBED_REPO=owner/name`; the maintainer's is the private `oddballmeasure/cstack-testbed`). The runs create issues and PRs there and reset its `main` branch, so never point it at a real project. Each one runs a real headless Claude Code session (`claude -p`, subscription only; the runner fails a run billed through an API key).
 
 ```
 node tests/scenarios/run.mjs <name>
 ```
+
+A testbed must match the layout the scenarios expect: a small Node project with `npm test`, a CI workflow whose job is named `ci`, a `RELEASE_TAG` repository variable (used by the CI-only release-notes check), the cstack labels, a `.cstack/config.json` with autonomy `stop`, and a `baseline-p3` tag on its starting commit.
 
 Each run clones the testbed fresh into `tests/scenarios/results/<name>-<ts>/` (gitignored) and writes `session.jsonl`, `stderr.log` and `verdict.json` there. Run one at a time: parallel runs can exhaust the 5-hour usage window. Scenarios that change testbed `main` (`coordinator-compaction`, `post-merge-red`, `dependency-order`, `happy-merge`) restore it to tag `baseline-p3` in teardown. Phase 5 scenarios pass `CSTACK_COORDINATOR=1` and `CSTACK_RUN` to the session through the `env` that `setup` returns, so the `pending-work` Stop hook is live.
 

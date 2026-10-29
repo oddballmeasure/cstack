@@ -8,7 +8,7 @@ Date: 2026-10-28.
 
 ## Why
 
-Monty decided this on 2026-10-28, after Phases 0-7 passed. The decision from the start was "full-stop until approved, then straight to full-send". The f1 L4 run merged 3 PRs under `send`, through the gates, and the held-out grader scored 24/24.
+The maintainer decided this on 2026-10-28, after Phases 0-7 passed. The decision from the start was "full-stop until approved, then straight to full-send". The f1 L4 run merged 3 PRs under `send`, through the gates, and the held-out grader scored 24/24.
 
 ## What does not change
 
