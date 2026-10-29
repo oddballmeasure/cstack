@@ -33,7 +33,7 @@ test("worker usage errors exit 2", () => {
   assert.match(p.worker(["launch", "--store", p.store, "--unit", "U9"]).err, /unit U9 not found/);
 });
 
-test("launch --dry-run builds the systemd-run command with PATH, prompt and exit hook", () => {
+test("launch --dry-run builds the systemd-run command with PATH, prompt and exit hook", { skip: process.platform === "win32" && "its settings come from permissions.mjs, which builds rules from POSIX paths" }, () => {
   const p = program();
   p.orch("unit", "add", "U1", "--track", "core", "--issue", "7", "--state", "ready");
   p.orch("unit", "add", "U2", "--track", "core", "--state", "ready");

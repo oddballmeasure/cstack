@@ -10,6 +10,8 @@ import { pathToFileURL } from "node:url";
 import { FAKE_BIN, GATES, gate, makeRepo } from "./helpers.mjs";
 
 const RUNNER = path.join(GATES, "runner.mjs");
+// A pid that exists but belongs to another user: init on POSIX, the System process on Windows.
+const OTHER_PID = process.platform === "win32" ? 4 : 1;
 const posix = { skip: process.platform === "win32" && "uses sh and POSIX signals" };
 
 // A fresh registry and log files per test; the supervisor module reads its env on every call.
@@ -78,7 +80,7 @@ test("sessionState reads the registry, and falls back to systemctl", () => {
   assert.deepEqual(JSON.parse(state("sd")), { state: "inactive", alive: false });
   assert.deepEqual(JSON.parse(state("none")), { state: "inactive", alive: false }, "no entry: systemctl says");
   assert.deepEqual(JSON.parse(lib(s, `console.log(JSON.stringify(sup.sessionState("x")))`, { PATH: "/nonexistent" })), { state: "unknown", alive: false });
-  assert.equal(lib(s, `console.log(sup.pidAlive(0), sup.pidAlive(1.5), sup.pidAlive(1))`), "false false true");
+  assert.equal(lib(s, `console.log(sup.pidAlive(0), sup.pidAlive(1.5), sup.pidAlive(${OTHER_PID}))`), "false false true");
   assert.equal(lib(s, `console.log(sup.readEntry("missing"), sup.sessionsDir() === process.env.CSTACK_SESSIONS_DIR)`), "null true");
   assert.match(lib(s, `console.log(sup.sessionsDir())`, { CSTACK_SESSIONS_DIR: "" }), /\.local[\\/]state[\\/]cstack[\\/]sessions$/);
 });
@@ -133,7 +135,7 @@ test("resolveCommand finds Windows .cmd shims and quotes for cmd.exe", () => {
   const dir = mkdtempSync(path.join(tmpdir(), "cstack-win-"));
   writeFileSync(path.join(dir, "claude.cmd"), "");
   writeFileSync(path.join(dir, "tool.exe"), "");
-  const code = `import { resolveCommand, exitVars } from ${JSON.stringify(RUNNER)};
+  const code = `import { resolveCommand, exitVars } from ${JSON.stringify(pathToFileURL(RUNNER).href)};
 const env = { PATH: ${JSON.stringify(dir)}, PATHEXT: ".EXE;.CMD" };
 console.log(JSON.stringify([
   resolveCommand(["claude", "-p", "say \\"hi\\" 100%"], env, "win32"),

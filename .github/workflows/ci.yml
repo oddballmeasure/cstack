@@ -20,10 +20,13 @@ jobs:
       - name: Unit tests (hooks, lint, scripts)
         timeout-minutes: 15
         run: npm test
+      # Windows skips the tests that need POSIX signals, chmod or POSIX permission paths, so the bar is set where
+      # the whole suite runs.
       - name: Gate coverage (100% lines and branches)
+        if: runner.os != 'Windows'
         timeout-minutes: 15
         run: npm run coverage:gates
       - name: Uncovered branches (only when the coverage bar failed)
-        if: failure()
+        if: failure() && runner.os != 'Windows'
         timeout-minutes: 15
         run: node tests/lint/uncovered.mjs

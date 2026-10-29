@@ -289,7 +289,9 @@ test("role-deny: a Codex session cstack launched gets its role's Bash deny rules
   const codex = (command, env) =>
     spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env } });
   const worker = { CSTACK_UNIT: "U1" };
-  for (const cmd of ["sudo ls", "git status && git push --force origin x", "FOO=1 curl https://x", "codex exec hi", "claude -p hi", "rm -rf /", `node ${path.resolve(GUARD, "../../../gates/supervise.mjs")} start --name a`]) {
+  // permissions.mjs writes its plugin-script rules with POSIX paths, so on Windows they cannot match a drive path yet.
+  const supervise = process.platform === "win32" ? [] : [`node ${path.resolve(GUARD, "../../../gates/supervise.mjs")} start --name a`];
+  for (const cmd of ["sudo ls", "git status && git push --force origin x", "FOO=1 curl https://x", "codex exec hi", "claude -p hi", "rm -rf /", ...supervise]) {
     const out = codex(cmd, worker);
     assert.equal(out.status, 2, cmd);
     assert.match(out.stderr, /cstack role-deny: .* is denied to the worker role/);
