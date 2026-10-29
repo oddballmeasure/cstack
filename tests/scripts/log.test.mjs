@@ -1,4 +1,4 @@
-// Tests for skills/show-me-your-work/scripts/log.sh. Run with `node --test`.
+// Tests for skills/show-me-your-work/scripts/log.mjs. Run with `node --test`.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -8,7 +8,7 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const script = resolve(here, '../../skills/show-me-your-work/scripts/log.sh');
+const script = resolve(here, '../../skills/show-me-your-work/scripts/log.mjs');
 const HEADER = 'ts\tphase\tdecision\twhy\tevidence\tresult';
 
 function withTmp(fn) {
@@ -21,7 +21,7 @@ function withTmp(fn) {
 }
 
 function run(...args) {
-	return spawnSync('sh', [script, ...args], { encoding: 'utf8' });
+	return spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
 }
 
 function lines(file) {
@@ -91,7 +91,7 @@ test('fails with a usage message on the wrong argument count', () => {
 		for (const args of [[], [log], [log, 'a', 'b', 'c', 'd'], [log, 'a', 'b', 'c', 'd', 'e', 'f']]) {
 			const r = run(...args);
 			assert.notEqual(r.status, 0, `args ${args.length} should fail`);
-			assert.match(r.stderr, /^usage: log\.sh <logfile>/);
+			assert.match(r.stderr, /^usage: log\.mjs <logfile>/);
 		}
 		assert.equal(existsSync(log), false);
 	});

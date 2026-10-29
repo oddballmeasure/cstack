@@ -43,7 +43,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 - Launch with `--strict-mcp-config` and an explicit MCP config. Without it, workers inherit user-level MCP servers (ADR-001).
 - Load a local plugin with `--plugin-dir` for tests.
 - Never `--dangerously-skip-permissions`. Launch with `--permission-mode dontAsk --settings <file>`, where the file comes from `node <root>/gates/run-settings.mjs --permissions <role>` (ADR-009). dontAsk refuses every call outside the role's allowlist at once, without a prompt, and the `result` event lists each refusal in `permission_denials`.
-- Under an allowlist, write commands it can match. Use literal absolute paths in redirect targets (`> /abs/store/x.json`, not `> $S/x.json`, which is refused), and put plugin scripts first in the command (`node <root>/gates/orch.mjs ...`, `sh <root>/skills/show-me-your-work/scripts/log.sh ...`). Shell variables in arguments are fine. When a call is refused, do not look for another way to run it. Say what was refused in the final message.
+- Under an allowlist, write commands it can match. Use literal absolute paths in redirect targets (`> /abs/store/x.json`, not `> $S/x.json`, which is refused), and put plugin scripts first in the command (`node <root>/gates/orch.mjs ...`, `node <root>/skills/show-me-your-work/scripts/log.mjs ...`). Shell variables in arguments are fine. When a call is refused, do not look for another way to run it. Say what was refused in the final message.
 
 ## Paths
 

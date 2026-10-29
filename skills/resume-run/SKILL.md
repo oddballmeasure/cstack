@@ -22,7 +22,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 | `<store>` | `<repo>/.cstack/runs/<slug>`, absolute. If it does not exist, stop: there is nothing to resume. |
 | `<orch>` | `node <root>/gates/orch.mjs --store <store>` |
 | `<worker>` | `node <root>/gates/worker.mjs` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<unit name>` | `cstack-<repo name>-<slug>-<unit>` (`<repo name>` is config `repo` after the slash). |
 
 ## Procedure

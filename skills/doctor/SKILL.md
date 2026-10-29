@@ -10,7 +10,7 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 ## Run it
 
 1. Find this skill's base directory. Claude Code prints it when it loads the skill.
-2. Run `<base dir>/scripts/doctor.sh <repo dir>` with the Bash tool.
+2. Run `node <base dir>/scripts/doctor.mjs <repo dir>` with the Bash tool.
 3. Add `--offline` only when GitHub is not reachable. Offline mode skips the repo, branch and label checks.
 
 ## What it checks

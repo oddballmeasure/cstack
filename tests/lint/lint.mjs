@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), "../.."));
 const problems = [];
-const report = (file, msg) => problems.push(`${path.relative(ROOT, file) || file}: ${msg}`);
+const report = (file, msg) => problems.push(`${(path.relative(ROOT, file) || file).split(path.sep).join("/")}: ${msg}`);
 
 const ALLOWED_SKILL_KEYS = new Set(["name", "description", "disable-model-invocation", "argument-hint", "allowed-tools", "model", "paths", "user-invocable"]);
 const ALLOWED_AGENT_KEYS = new Set(["name", "description", "tools", "model", "color"]);
@@ -186,8 +186,8 @@ if (existsSync(hooksFile)) {
   }
 }
 
-// Shipped shell scripts are executable
-for (const file of [...walk(skillsDir), ...walk(path.join(ROOT, "hooks"))].filter((f) => f.endsWith(".sh"))) {
+// Shipped shell scripts are executable. Windows has no execute bit, so the check runs elsewhere only.
+for (const file of [...walk(skillsDir), ...walk(path.join(ROOT, "hooks"))].filter((f) => f.endsWith(".sh") && process.platform !== "win32")) {
   try {
     accessSync(file, constants.X_OK);
   } catch {

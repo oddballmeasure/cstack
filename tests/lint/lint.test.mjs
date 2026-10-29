@@ -25,7 +25,7 @@ function fixture(skills) {
 }
 
 const ok = (name, body = "Body.") => `---\nname: ${name}\ndescription: Use when testing.\n---\n\n${body}\n`;
-const lint = (root) => spawnSync("node", [LINT, root], { encoding: "utf8" });
+const lint = (root) => spawnSync(process.execPath, [LINT, root], { encoding: "utf8" });
 
 test("a clean tree passes", () => {
   const r = lint(fixture({ a: ok("a", "See cstack:b."), b: ok("b") }));
@@ -89,4 +89,13 @@ test("every Claude Code term a skill uses needs a row in the Codex notes", () =>
   assert.match(r.stdout, /Claude Code term `Monitor` has no row/);
   writeFileSync(path.join(root, "skills/cstack/references/codex-notes.md"), "| `Monitor` | run the watcher in the foreground |\n");
   assert.equal(lint(root).status, 0, lint(root).stdout);
+});
+
+test("a shipped shell script must be executable, except on Windows, which has no execute bit", () => {
+  const root = fixture({ a: ok("a") });
+  mkdirSync(path.join(root, "skills/a/scripts"));
+  writeFileSync(path.join(root, "skills/a/scripts/run.sh"), "#!/bin/sh\n", { mode: 0o644 });
+  const r = lint(root);
+  if (process.platform === "win32") assert.equal(r.status, 0, r.stdout);
+  else assert.match(r.stdout, /run\.sh: script is not executable/);
 });

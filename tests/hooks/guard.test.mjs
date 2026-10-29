@@ -17,7 +17,7 @@ function repo(config = { paths_hidden: ["tests/acceptance/**"], paths_off_limits
 }
 
 function run(root, tool_name, tool_input, env = {}, cwd = root) {
-  const r = spawnSync("node", [GUARD], {
+  const r = spawnSync(process.execPath, [GUARD], {
     input: JSON.stringify({ tool_name, tool_input, cwd }),
     env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env },
     encoding: "utf8",
@@ -190,6 +190,33 @@ test("a call from outside that targets a cstack repo is in context", () => {
   assert.equal(run(r, "Bash", { command: "cd ~ && ls" }, {}, elsewhere).code, 0);
 });
 
+test("paths match the same with either separator, and a name that starts with .. is inside the repo", () => {
+  const r = repo();
+  const slashed = r.split(path.sep).join("/");
+  for (const p of [`${slashed}/tests/acceptance/e1.test.js`, path.join(r, "tests", "acceptance", "e1.test.js"), "tests/acceptance/../acceptance/e1.test.js"]) {
+    assert.equal(run(r, "Read", { file_path: p }).code, 2, p);
+  }
+  for (const cmd of ["type tests\\acceptance\\e1.test.js", "cat tests\\acceptance/e1.test.js"]) {
+    assert.match(run(r, "Bash", { command: cmd }).err, /hidden-paths/, cmd);
+  }
+  assert.equal(run(r, "Glob", { pattern: "tests\\acceptance\\*.js" }).code, 2);
+  const dots = repo({ paths_hidden: [], paths_off_limits: ["..cache/**"] });
+  assert.match(run(dots, "Write", { file_path: "..cache/x" }).err, /\.\.cache\/x is off limits/);
+  assert.equal(run(dots, "Write", { file_path: "../outside/x" }).code, 0, "a parent path is not in the repo");
+});
+
+test("on Windows and macOS hidden and off-limits paths match in any case", () => {
+  const r = repo();
+  const folds = process.platform === "win32" || process.platform === "darwin";
+  for (const [tool, input] of [
+    ["Read", { file_path: "Tests/Acceptance/e1.test.js" }],
+    ["Write", { file_path: ".GIT/config" }],
+    ["Bash", { command: "cat TESTS/acceptance/e1.test.js" }],
+  ]) {
+    assert.equal(run(r, tool, input).code, folds ? 2 : 0, `${tool} ${JSON.stringify(input)}`);
+  }
+});
+
 test("a config that does not parse blocks with a clear message", () => {
   const r = repo("{not json");
   const out = run(r, "Read", { file_path: "src/a.js" });
@@ -198,7 +225,7 @@ test("a config that does not parse blocks with a clear message", () => {
 });
 
 test("malformed hook input never blocks", () => {
-  const r = spawnSync("node", [GUARD], { input: "not json", encoding: "utf8" });
+  const r = spawnSync(process.execPath, [GUARD], { input: "not json", encoding: "utf8" });
   assert.equal(r.status, 0);
 });
 

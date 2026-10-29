@@ -34,7 +34,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<unit>` | Standalone: `U1`. Under orchestrate: the `--unit` id. |
 | `<store>` | `<repo>/.cstack/runs/<slug>` (absolute). |
 | `<orch>` | `node <root>/gates/orch.mjs --store <store>` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<branch>` | `cstack/<N>-<title slug>`. Compute the slug with `node -e 'console.log(process.argv[1].toLowerCase().replace(/[^a-z0-9]/g,"-").slice(0,40))' "<issue title>"`. |
 | `<wt>` | `~/.local/state/cstack/worktrees/<owner>-<name>/<branch with / replaced by ->`, expanded to an absolute path. |
 | `<base>` | `origin/<base_branch>` from config. |
@@ -95,7 +95,7 @@ Before stage 0, check whether this unit already ran. It ran if `<store>/units.ts
 Owner: `cstack:doctor`. Gate:
 
 ```bash
-<root>/skills/doctor/scripts/doctor.sh <repo>
+node <root>/skills/doctor/scripts/doctor.mjs <repo>
 ```
 
 Pass (exit 0): stage 1. Fail: stop with failure `setup`. Report the FAIL lines.

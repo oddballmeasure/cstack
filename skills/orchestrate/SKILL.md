@@ -30,12 +30,12 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<store>` | `<repo>/.cstack/runs/<slug>`, absolute. |
 | `<orch>` | `node <root>/gates/orch.mjs --store <store>` |
 | `<worker>` | `node <root>/gates/worker.mjs` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<unit name>` | `cstack-<repo name>-<slug>-<unit>`, the systemd unit of a Level B worker. `<repo name>` is config `repo` after the slash. |
 
 ## Preconditions
 
-1. `<root>/skills/doctor/scripts/doctor.sh <repo>` exits 0.
+1. `node <root>/skills/doctor/scripts/doctor.mjs <repo>` exits 0.
 2. `node <root>/gates/check-plan.mjs --units <store>/units.tsv --spec <store>/spec.md --e2e <store>/e2e-plan.md --plan <store>/plan.md` exits 0. If not, run `cstack:plan`.
 3. `<orch> gate list` shows no open `H2`. An open H2 means the plan waits on the human: report it and stop.
 4. Every U unit has an issue (`<orch> unit list`). If not, finish `cstack:plan` step 7.

@@ -59,7 +59,7 @@ function cliAsync(args, env = {}) {
     child.on("close", (code) => resolve({ code, stdout, stderr }));
   });
 }
-const deadPid = () => spawnSync("true").pid;
+const deadPid = () => spawnSync(process.execPath, ["-e", ""]).pid;
 const lockPath = (dir) => path.join(dir, ".orch.lock");
 
 // ---- fake gh + git stack for frontier ----
@@ -101,7 +101,7 @@ function withGh(dir, rules, fn) {
   const scenario = path.join(dir, `gh-${Math.random().toString(36).slice(2)}.json`);
   writeFileSync(scenario, JSON.stringify({ rules }));
   const saved = { PATH: process.env.PATH, FAKE_GH_SCENARIO: process.env.FAKE_GH_SCENARIO };
-  process.env.PATH = `${FAKE_BIN}:${saved.PATH}`;
+  process.env.PATH = `${FAKE_BIN}${path.delimiter}${saved.PATH}`;
   process.env.FAKE_GH_SCENARIO = scenario;
   try {
     return fn({ PATH: process.env.PATH, FAKE_GH_SCENARIO: scenario });

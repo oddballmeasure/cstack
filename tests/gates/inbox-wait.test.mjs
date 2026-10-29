@@ -21,7 +21,7 @@ function program() {
 // Runs the watcher in the background. `lines` fills as it prints; `waitFor(re)` resolves on a matching line.
 function watch(p, args) {
   const child = spawn(process.execPath, [path.join(GATES, "inbox-wait.mjs"), ...args], {
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, FAKE_SYSTEMCTL_STATES: p.states },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_SYSTEMCTL_STATES: p.states },
   });
   const lines = [];
   let err = "";

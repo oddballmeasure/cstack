@@ -22,7 +22,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 | `<tick>` | `node <root>/gates/daemon-tick.mjs` with `--repo-dir <repo> --json` on every call. |
 | `<store N>` | `<repo>/.cstack/runs/issue-<N>`, absolute. |
 | `<orch N>` | `node <root>/gates/orch.mjs --store <store N>` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <repo>/.cstack/runs/daemon/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <repo>/.cstack/runs/daemon/decisions.tsv` |
 
 Labels use config `label_prefix` (default `cstack`). The daemon only reads `ready`. It never touches an issue labelled `proposed`: `cstack:scout` files those for a person to approve.
 
@@ -37,7 +37,7 @@ Labels use config `label_prefix` (default `cstack`). The daemon only reads `read
 
 Log one row per action with `<log> "daemon" "<action>" "<why>" "<evidence>" "<result>"`.
 
-1. **Preflight, once per session.** If this session has not passed doctor yet, run `<root>/skills/doctor/scripts/doctor.sh --offline <repo>`. On any FAIL, end the tick and report the FAIL lines. Doctor is offline because the tick reads GitHub through the gates, which fail with a clear error when GitHub is down.
+1. **Preflight, once per session.** If this session has not passed doctor yet, run `node <root>/skills/doctor/scripts/doctor.mjs --offline <repo>`. On any FAIL, end the tick and report the FAIL lines. Doctor is offline because the tick reads GitHub through the gates, which fail with a clear error when GitHub is down.
 2. **Paused?** If `<repo>/.cstack/daemon.stop` exists, do steps 3 to 5 only. Launch and requeue nothing.
 3. **Scan.** Run `<tick> scan`. Each store line names its unit state, worker state, inbox count, and the flags `orphan` and `judge`.
 4. **Drain.** For each store with an inbox count above 0, run `<orch N> inbox drain`. Act on the entries:

@@ -34,7 +34,7 @@ function deployRepo(deploy, { files } = {}) {
   };
   const sha = ship(files ?? { "deploy.sh": SCRIPT, "deploy.json": JSON.stringify(spec()) });
   const log = path.join(r.base, "ssh.log");
-  const run = (args, env = {}) => gate("deploy.mjs", [...args, "--repo-dir", r.root, "--json"], { env: { PATH: `${SSH_BIN}:${FAKE_BIN}:${process.env.PATH}`, FAKE_SSH_LOG: log, ...env } });
+  const run = (args, env = {}) => gate("deploy.mjs", [...args, "--repo-dir", r.root, "--json"], { env: { PATH: `${SSH_BIN}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_SSH_LOG: log, ...env } });
   return { ...r, local, remote, spec, ship, sha, run, setDeploy, log };
 }
 

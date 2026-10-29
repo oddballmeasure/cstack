@@ -26,7 +26,7 @@ Shell variables do not persist between Bash calls. Resolve each name once and wr
 | `<slug>` | The `--run` slug, the same one `cstack:spec` used. |
 | `<store>` | `<repo>/.cstack/runs/<slug>`, absolute. It holds `spec.md`. |
 | `<orch>` | `node <root>/gates/orch.mjs --store <store>` |
-| `<log>` | `sh <root>/skills/show-me-your-work/scripts/log.sh <store>/decisions.tsv` |
+| `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<N>` | The tracking issue for PR #0 (step 3). |
 | `<branch>` | `cstack/<N>-e2e-suite` |
 | `<wt>` | `~/.local/state/cstack/worktrees/<owner>-<name>/<branch with / replaced by ->`, expanded to an absolute path. |

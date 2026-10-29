@@ -1,19 +1,32 @@
-#!/bin/sh
-# Fake gh for tests. Behaviour comes from env:
-#   FAKE_GH_AUTH=0       auth status fails
-#   FAKE_GH_BRANCHES     space-separated branches that exist (default: main)
-#   FAKE_GH_LABELS       newline-separated label names
-#   FAKE_GH_LOG          file to append argv to
-#   FAKE_GH_SCENARIO     JSON scenario file; hands every call to fake-gh.mjs (see there)
-if [ -n "${FAKE_GH_SCENARIO:-}" ]; then exec node "$(dirname "$0")/fake-gh.mjs" "$@"; fi
-[ -n "${FAKE_GH_LOG:-}" ] && printf '%s\n' "$*" >> "$FAKE_GH_LOG"
-case "$1 $2" in
-  "auth status") [ "${FAKE_GH_AUTH:-1}" = "1" ] ;;
-  "repo view") echo '{"name":"x"}' ;;
-  "label list") printf '%s\n' "${FAKE_GH_LABELS:-}" ;;
-  api*)
-    b=${2##*/branches/}
-    for x in ${FAKE_GH_BRANCHES:-main}; do [ "$x" = "$b" ] && { echo '{}'; exit 0; }; done
-    echo "HTTP 404" >&2; exit 1 ;;
-  *) echo "fake gh: unhandled: $*" >&2; exit 1 ;;
-esac
+#!/usr/bin/env node
+// Fake gh for tests. Behaviour comes from env:
+//   FAKE_GH_AUTH=0       auth status fails
+//   FAKE_GH_BRANCHES     space-separated branches that exist (default: main)
+//   FAKE_GH_LABELS       newline-separated label names
+//   FAKE_GH_LOG          file to append argv to
+//   FAKE_GH_SCENARIO     JSON scenario file; hands every call to fake-gh.mjs (see there)
+// gh.cmd runs this file on Windows.
+import { appendFileSync } from "node:fs";
+
+const argv = process.argv.slice(2);
+const env = process.env;
+if (env.FAKE_GH_SCENARIO) {
+  await import("./fake-gh.mjs");
+} else {
+  if (env.FAKE_GH_LOG) appendFileSync(env.FAKE_GH_LOG, argv.join(" ") + "\n");
+  const [a, b = ""] = argv;
+  if (a === "auth" && b === "status") process.exit((env.FAKE_GH_AUTH ?? "1") === "1" ? 0 : 1);
+  else if (a === "repo" && b === "view") process.stdout.write('{"name":"x"}\n');
+  else if (a === "label" && b === "list") process.stdout.write((env.FAKE_GH_LABELS ?? "") + "\n");
+  else if (a.startsWith("api")) {
+    const branch = b.includes("/branches/") ? b.slice(b.lastIndexOf("/branches/") + 10) : b;
+    if ((env.FAKE_GH_BRANCHES ?? "main").split(/\s+/).includes(branch)) process.stdout.write("{}\n");
+    else {
+      process.stderr.write("HTTP 404\n");
+      process.exit(1);
+    }
+  } else {
+    process.stderr.write(`fake gh: unhandled: ${argv.join(" ")}\n`);
+    process.exit(1);
+  }
+}

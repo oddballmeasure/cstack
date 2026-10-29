@@ -7,12 +7,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DOCTOR = path.resolve(HERE, "../../skills/doctor/scripts/doctor.sh");
+const DOCTOR = path.resolve(HERE, "../../skills/doctor/scripts/doctor.mjs");
 const FAKE_BIN = path.resolve(HERE, "../fixtures/bin");
 const TEMPLATE = JSON.parse(readFileSync(path.resolve(HERE, "../../templates/config.json"), "utf8"));
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"].map((l) => `cstack:${l}`).join("\n");
-
-chmodSync(path.join(FAKE_BIN, "gh"), 0o755);
 
 function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", writeConfig = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "cstack-doctor-"));
@@ -30,9 +28,9 @@ function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", wri
 }
 
 function doctor(root, args = [], env = {}) {
-  const r = spawnSync("sh", [DOCTOR, ...args, root], {
+  const r = spawnSync(process.execPath, [DOCTOR, ...args, root], {
     encoding: "utf8",
-    env: { ...process.env, PATH: `${FAKE_BIN}:${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
   });
   return { code: r.status, out: r.stdout + r.stderr };
 }

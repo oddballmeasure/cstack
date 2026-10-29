@@ -33,6 +33,8 @@ const ALWAYS_OFF = [".cstack/config.json"];
 const PRIVILEGED_ROLES = new Set(["e2e-author", "grader"]);
 // Set by gates/worker.mjs (workers and coordinators), the daemon unit, run-e2e.mjs and the e2e author launch.
 const MARKERS = ["CSTACK_ROLE", "CSTACK_RUN", "CSTACK_UNIT", "CSTACK_COORDINATOR"];
+// Windows and macOS file systems ignore case by default, so TESTS/Acceptance names tests/acceptance there.
+const fold = process.platform === "win32" || process.platform === "darwin" ? (s) => s.toLowerCase() : (s) => s;
 
 function findRoot(start) {
   let dir = path.resolve(start);
@@ -46,7 +48,7 @@ function findRoot(start) {
 
 // Directories a Bash command points at with `cd <dir>` or `-C <dir>` (git -C, make -C).
 function bashDirs(cmd) {
-  return [...cmd.matchAll(/(?:^|[\s;&|(])(?:cd|-C)\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)].map((m) => m[1].replace(/^["']|["']$/g, "").replace(/^~(?=\/|$)/, process.env.HOME || "~"));
+  return [...cmd.matchAll(/(?:^|[\s;&|(])(?:cd|-C)\s+("[^"]+"|'[^']+'|[^\s;&|)]+)/g)].map((m) => m[1].replace(/^["']|["']$/g, "").replace(/^~(?=[\\/]|$)/, homedir()));
 }
 
 // Files a Codex apply_patch touches: the Add, Update and Delete headers, and the Move to target of a rename.
@@ -86,9 +88,9 @@ function globPrefix(glob) {
 
 function matches(rel, globs) {
   for (const g of globs) {
-    if (path.matchesGlob(rel, g)) return g;
+    if (path.matchesGlob(fold(rel), fold(g))) return g;
     // "dir/**" also covers the directory itself.
-    if (g.endsWith("/**") && rel === g.slice(0, -3)) return g;
+    if (g.endsWith("/**") && fold(rel) === fold(g.slice(0, -3))) return g;
   }
   return null;
 }
@@ -97,7 +99,8 @@ function relTo(root, cwd, p) {
   if (!p || typeof p !== "string") return null;
   const abs = path.resolve(cwd, p);
   const rel = path.relative(root, abs);
-  if (rel.startsWith("..") || path.isAbsolute(rel)) return null;
+  // Outside the root: a parent (..), or another drive on Windows (an absolute rel). A file named ..x is inside.
+  if (rel === ".." || rel.startsWith(`..${path.sep}`) || path.isAbsolute(rel)) return null;
   return rel.split(path.sep).join("/");
 }
 
@@ -105,6 +108,8 @@ function relTo(root, cwd, p) {
 function hiddenNeedles(globs) {
   return globs.map(globPrefix).filter((p) => p.length > 0);
 }
+// Whether text names a needle, also when it spells the path with Windows backslashes.
+const names = (text, needle) => fold(text.replaceAll("\\", "/")).includes(fold(needle));
 
 // Codex skips plugin hooks it has not trusted, without a warning (ADR-010). So in a cstack context the guard
 // leaves <tmpdir>/cstack-hook-seen/<session_id> for each Codex session (a payload with turn_id). doctor checks
@@ -251,14 +256,14 @@ function main() {
     const pattern = tool === "Glob" ? ti.pattern : tool === "Grep" ? ti.glob : null;
     if (typeof pattern === "string") {
       for (const n of hiddenNeedles(hidden)) {
-        if (pattern.includes(n)) block("hidden-paths", `pattern names a hidden path (${n}).`);
+        if (names(pattern, n)) block("hidden-paths", `pattern names a hidden path (${n}).`);
       }
     }
   }
 
   if (tool === "Bash" && typeof ti.command === "string" && !privileged) {
     for (const n of hiddenNeedles(hidden)) {
-      if (ti.command.includes(n)) block("hidden-paths", `command names a hidden path (${n}). Run the suite with run-e2e instead.`);
+      if (names(ti.command, n)) block("hidden-paths", `command names a hidden path (${n}). Run the suite with run-e2e instead.`);
     }
   }
 

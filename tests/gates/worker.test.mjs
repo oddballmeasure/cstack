@@ -194,7 +194,7 @@ test("workers lib: names, liveness, reset times, holds", () => {
   const saved = process.env.PATH;
   const states = path.join(makeRepo().base, "s.json");
   writeFileSync(states, JSON.stringify({ a: "active", b: "" }));
-  process.env.PATH = `${FAKE_BIN}:${saved}`;
+  process.env.PATH = `${FAKE_BIN}${path.delimiter}${saved}`;
   process.env.FAKE_SYSTEMCTL_STATES = states;
   try {
     assert.deepEqual(workerState("a"), { state: "active", alive: true });

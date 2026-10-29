@@ -15,7 +15,7 @@ https://github.com/cursor/plugins/tree/main/pstack, Claude Code build `harness/p
 | `skills/cstack/references/claude-code-notes.md` | `docs/harness/claude-code.md` |
 | `skills/unslop/SKILL.md` | `skills/unslop/SKILL.md` |
 | `skills/technical-writing/SKILL.md` | `skills/technical-writing/SKILL.md` |
-| `skills/show-me-your-work/SKILL.md`, `scripts/log.sh`, `references/decision-log-template.tsv` | `skills/show-me-your-work/` |
+| `skills/show-me-your-work/SKILL.md`, `scripts/log.mjs` (ported from `scripts/log.sh`), `references/decision-log-template.tsv` | `skills/show-me-your-work/` |
 | `skills/how/` | `skills/how/` |
 | `skills/tdd/SKILL.md` | `skills/tdd/SKILL.md` |
 | `skills/implement-ticket/SKILL.md` | `skills/poteto-mode/playbooks/feature.md`, `bug-fix.md` |

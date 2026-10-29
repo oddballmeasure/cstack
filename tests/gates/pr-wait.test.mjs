@@ -81,7 +81,7 @@ function watch(dir, scen, args, { cwd = dir, env = {}, name = "scenario", onStde
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [SCRIPT, "--interval", "1", "--state-dir", path.join(dir, "state"), ...args], {
       cwd,
-      env: { ...process.env, PATH: `${BIN}:${process.env.PATH}`, FAKE_GH_SCENARIO: file, FAKE_GH_LOG: log, ...env },
+      env: { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_SCENARIO: file, FAKE_GH_LOG: log, ...env },
     });
     let stdout = "";
     let stderr = "";
