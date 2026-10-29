@@ -96,6 +96,7 @@ Each pass runs Drain, Launch, Wait, in that order. A fresh session starts at Dra
 | `in-progress` or `verifying`, worker active | Running. | Nothing. |
 | `ready`, entry `usage_limit` | The wrapper re-queued it and wrote `workers/<unit>.not-before`. | Nothing. `next` defers it until the reset. Log the reset time. |
 | any, entry `setup` | The worker billed through an API key. | Hard stop. Launch nothing more. Let running workers finish, then report it first. |
+| `in-progress` or `verifying`, entry `denied` | The worker's allowlist refused tool calls it needed (`workers/<unit>.denied.txt`). | Do not restart: it would be refused again. Settle the issue as failed with kind `setup` through `cstack:settle`, set `<orch> unit set <unit> --state needs-human`, and report each refused call. The fix is a rule in config `permissions_allow`, which a person adds. |
 | `in-progress` or `verifying`, worker not active (entry `crash`, or no entry) | The worker died. | **Restart** it. |
 
 **Restart.** Count the earlier `restart <unit>` rows in `<store>/decisions.tsv`. With none, log `<log> "drain" "restart <unit>" "<the exit line from workers/<unit>.exit.txt>" "<launch count>" "restart"` and relaunch it with `<worker> launch --store <store> --unit <unit>`. The new session runs `cstack:unit`, which resumes from git trailers, the ledger and the PR (its Resume section), so no ticket or comment repeats. With one restart already, do not relaunch. Settle the issue as failed with kind `crash` through `cstack:settle` and set `<orch> unit set <unit> --state error`.

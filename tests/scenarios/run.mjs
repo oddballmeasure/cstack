@@ -55,14 +55,18 @@ async function session(prompt, env) {
 const extra = Object.entries(env).map(([k, v]) => `${k}=${JSON.stringify(String(v))} `).join("");
 writeFileSync(path.join(outDir, "prompt.txt"), prompt);
 
-// Run the session detached under systemd so a long run survives this process (ADR-001).
+// Run the session detached under systemd so a long run survives this process (ADR-001), with the worker
+// allowlist instead of a permission bypass (ADR-009).
+const settings = path.join(outDir, "settings.json");
+const gen = spawnSync(process.execPath, [path.join(CSTACK, "gates/run-settings.mjs"), "--permissions", "worker", "--repo-dir", TESTBED, "--out", settings], { encoding: "utf8" });
+if (gen.status !== 0) throw new Error(`run-settings failed: ${gen.stderr}`);
 const script = path.join(outDir, "session.sh");
 writeFileSync(
   script,
   `#!/bin/sh
 cd ${JSON.stringify(TESTBED)}
 exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN ${extra}PATH=${JSON.stringify(path.dirname(process.execPath) + ":" + process.env.HOME + "/.local/bin:/usr/local/bin:/usr/bin:/bin")} \\
-  claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${JSON.stringify(CSTACK)} --dangerously-skip-permissions \\
+  claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${JSON.stringify(CSTACK)} --permission-mode dontAsk --settings ${JSON.stringify(settings)} \\
   "$(cat ${JSON.stringify(path.join(outDir, "prompt.txt"))})" > ${JSON.stringify(path.join(outDir, "session.jsonl"))} 2> ${JSON.stringify(path.join(outDir, "stderr.log"))}
 `,
   { mode: 0o755 },

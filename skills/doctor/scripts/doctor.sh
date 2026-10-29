@@ -63,6 +63,7 @@ schema_errors=$(jq -r '
   need((.required_checks | type) == "array"; "required_checks must be an array"),
   need((.paths_off_limits | type) == "array"; "paths_off_limits must be an array"),
   need((.paths_hidden | type) == "array"; "paths_hidden must be an array"),
+  need(.permissions_allow == null or ((.permissions_allow | type) == "array" and all(.permissions_allow[]; type == "string" and test("^[A-Za-z]+(\\(.+\\))?$"))); "permissions_allow must be an array of permission rules such as Bash(make check)"),
   need((.label_prefix | type) == "string" and (.label_prefix | test("^[a-z][a-z0-9-]*$")); "label_prefix must be lowercase letters, digits or dashes"),
   need(.autonomy == "stop" or .autonomy == "send"; "autonomy must be stop or send"),
   need((.parallel | type) == "number" and .parallel >= 1 and .parallel <= 8; "parallel must be 1 to 8"),
@@ -98,7 +99,7 @@ schema_errors=$(jq -r '
      need(.auto == null or (.auto | type) == "boolean"; "deploy.auto must be true or false"),
      (keys - ["transport","local_directory","auto"] | .[] | "unknown key deploy.\(.)"))
    end),
-  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","label_prefix","autonomy","parallel","models","limits","retry_after_hours","scout","deploy"]
+  (keys - ["version","repo","base_branch","setup_command","test_command","e2e_command","required_checks","paths_off_limits","paths_hidden","permissions_allow","label_prefix","autonomy","parallel","models","limits","retry_after_hours","scout","deploy"]
      | .[] | "unknown key \(.)")
 ' "$cfg")
 if [ -n "$schema_errors" ]; then
@@ -130,7 +131,8 @@ else fail "run store" ".cstack/runs is not writable"; fi
 # Hooks: the guard blocks a known-bad call
 guard="$plugin_root/hooks/scripts/guard.mjs"
 if [ -f "$guard" ]; then
-  if printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 1"},"cwd":"/"}' | node "$guard" >/dev/null 2>&1; then
+  # The guard acts only in a cstack context; the CSTACK_RUN marker gives the probe one from any cwd.
+  if printf '%s' '{"tool_name":"Bash","tool_input":{"command":"gh pr merge 1"},"cwd":"/"}' | CSTACK_RUN=doctor-self-test node "$guard" >/dev/null 2>&1; then
     fail "hooks" "guard did not block a direct merge"
   else
     pass "hooks" "guard self-test blocks a direct merge"

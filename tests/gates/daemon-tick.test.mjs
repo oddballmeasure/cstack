@@ -189,6 +189,9 @@ test("the systemd user unit runs the loop prompt as a coordinator, on the subscr
   const exec = unit.split("\n").find((l) => l.startsWith("ExecStart="));
   assert.match(exec, /-u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CSTACK_PROGRAM_AUTONOMY claude -p /);
   assert.match(exec, /--strict-mcp-config/);
+  assert.doesNotMatch(unit, /dangerously|bypassPermissions/);
+  assert.match(exec, /--permission-mode dontAsk --settings \/%I\/\.cstack\/permissions\/coordinator\.json /);
+  assert.match(unit, /^ExecStartPre=\/usr\/bin\/env node \$\{CSTACK_PLUGIN\}\/gates\/run-settings\.mjs --permissions coordinator --repo-dir \/%I .*--out \/%I\/\.cstack\/permissions\/coordinator\.json$/m);
   assert.match(exec, /"\/loop 10m \/cstack:daemon"$/);
   assert.match(unit, /^Environment=CSTACK_COORDINATOR=1$/m);
   assert.match(unit, /^Environment=PATH=/m);

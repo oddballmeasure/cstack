@@ -1,8 +1,15 @@
 {
   "name": "cstack",
-  "version": "0.0.1",
+  "displayName": "cstack",
+  "version": "0.1.0",
   "description": "Agent-only coding harness: Cardinal's lifecycle, pstack's playbooks, tstack's proof and PR discipline.",
-  "author": { "name": "oddballmeasure" },
+  "author": { "name": "oddballmeasure", "url": "https://github.com/oddballmeasure" },
+  "homepage": "https://github.com/oddballmeasure/cstack",
   "repository": "https://github.com/oddballmeasure/cstack",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": ["agents", "workflow", "code-review", "testing", "github", "pull-requests", "orchestration"],
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/oddballmeasure/cstack/blob/main/docs/how-it-works.md",
+  "supportUrl": "https://github.com/oddballmeasure/cstack/issues",
+  "privacyPolicyUrl": "https://github.com/oddballmeasure/cstack/blob/main/PRIVACY.md"
 }

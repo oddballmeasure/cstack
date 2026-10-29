@@ -40,6 +40,12 @@ test("inert outside a coordinator session or without a run", () => {
   assert.equal(stop({ cwd: root, stop_hook_active: true }).code, 0, "the second stop in a row is allowed");
 });
 
+test("a no-op in a project with no cstack run store", () => {
+  const plain = mkdtempSync(path.join(tmpdir(), "cstack-stop-plain-"));
+  assert.equal(stop({ cwd: plain }, { CSTACK_COORDINATOR: "", CSTACK_RUN: "" }).code, 0, "ordinary session");
+  assert.equal(stop({ cwd: plain }).code, 0, "markers set but no store under the cwd");
+});
+
 test("blocks while units are in progress and no watcher is armed", () => {
   const { root, store } = repo({ states: ["merged", "in-progress", "verifying", "pr-open"] });
   const out = stop({ cwd: path.join(root, "src") });

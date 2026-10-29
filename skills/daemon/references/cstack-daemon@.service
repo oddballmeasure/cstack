@@ -23,7 +23,10 @@ Environment=CSTACK_PLUGIN=%h/cstack
 Environment=CSTACK_COORDINATOR=1
 # Subscription billing only, and autonomy from config only (ADR-006).
 UnsetEnvironment=ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CSTACK_PROGRAM_AUTONOMY
-ExecStart=/usr/bin/env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CSTACK_PROGRAM_AUTONOMY claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${CSTACK_PLUGIN} --dangerously-skip-permissions "/loop 10m /cstack:daemon"
+# No permission bypass (ADR-009): generate the coordinator allowlist, then run with dontAsk, which refuses
+# every call outside it without a prompt. .cstack/* is gitignored, so the settings file stays local.
+ExecStartPre=/usr/bin/env node ${CSTACK_PLUGIN}/gates/run-settings.mjs --permissions coordinator --repo-dir /%I --plugin-dir ${CSTACK_PLUGIN} --out /%I/.cstack/permissions/coordinator.json
+ExecStart=/usr/bin/env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CSTACK_PROGRAM_AUTONOMY claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${CSTACK_PLUGIN} --permission-mode dontAsk --settings /%I/.cstack/permissions/coordinator.json "/loop 10m /cstack:daemon"
 # A crashed or finished session starts again. The delay keeps a crash loop off GitHub and the usage window.
 Restart=always
 RestartSec=600

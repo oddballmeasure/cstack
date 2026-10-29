@@ -126,7 +126,7 @@ Config `autonomy` sets the level. `<store>/run.json` overrides it for one run (`
 - `stop` (full-stop). Never merge. End the run with the PR merge-ready and report.
 - `send` (full-send). Merge only through the merge gate. Never use `--admin` or another bypass.
 
-Under both levels, do reversible work without asking. The hard stops in rule 7 always apply. They need the human, whatever the config says. Under `claude -p` there is no `AskUserQuestion`. At a hard stop, take the safe path, leave the work unmerged, and put the question first in the final message.
+Under both levels, do reversible work without asking. The hard stops in rule 7 always apply. They need the human, whatever the config says. Under `claude -p` there is no `AskUserQuestion`. At a hard stop, take the safe path, leave the work unmerged, and put the question first in the final message. Headless sessions that cstack launches run under a per-role allowlist with no permission prompts: write commands with literal absolute paths in redirects, and never work around a refused call. Report it instead ([claude-code-notes](references/claude-code-notes.md)).
 
 **No is an acceptable answer.** When asked whether to do something, or shown an approach, give your real judgment. Decline or push back when the work does not earn its place. Agreement is not the default.
 

@@ -103,7 +103,7 @@ Every comment and PR body ends with the badge line from `templates/footer.md`. R
 |---|---|
 | Worker prompt | `/cstack:unit <N> --run <slug> --unit <id>`, with `CSTACK_RUN` and `CSTACK_UNIT` set, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_COORDINATOR` unset, an explicit PATH, `--strict-mcp-config`. |
 | Worker files | `<store>/workers/<unit>.{jsonl,stderr.log,launches,exit.txt,not-before}` (header of `gates/lib/workers.mjs`). |
-| Exit entry | systemd `ExecStopPost` runs `worker.mjs exit`, which pushes one inbox entry from agent `worker` with status `setup`, the unit's settled state, `usage_limit`, or `crash`. It runs after SIGKILL too. |
+| Exit entry | systemd `ExecStopPost` runs `worker.mjs exit`, which pushes one inbox entry from agent `worker` with status `setup`, the unit's settled state, `usage_limit`, `denied` (the allowlist refused calls; `workers/<unit>.denied.txt`), or `crash`. It runs after SIGKILL too. |
 | Usage limit | `worker.mjs exit` sets the unit back to `ready` and writes `not-before` from "resets <time>" in the output (else one hour). `worker.mjs next` defers the unit until then. |
 | Standing orders | The unit reads `orch standing show` at stage 1 and carries each line into its briefs. |
 | Merge SHA | After a merge, stage 12 sets the unit's `sha` column to the merge commit. `gates/post-merge.mjs` judges that commit's checks. |

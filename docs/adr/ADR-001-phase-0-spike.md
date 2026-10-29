@@ -8,7 +8,7 @@ Keep the two-level delegation design from the plan (section 2.2), and allow Leve
 
 ## Measurements
 
-Evidence: `spike/results/run{1,2,3}.txt` and the run scripts `spike/run{1,2,3}.sh`. Each run used `systemd-run --user --wait`, with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset, in a scratch git repo, and loaded the probe plugin through `--plugin-dir`.
+Evidence: `spike/results/run{1,2,3}.txt` and the run scripts `spike/run{1,2,3}.sh`, removed from the tree before the directory listing (they are in git history before PR #15). The spike runs used `--dangerously-skip-permissions`; no cstack launch does any more (ADR-009). Each run used `systemd-run --user --wait`, with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset, in a scratch git repo, and loaded the probe plugin through `--plugin-dir`.
 
 | # | Question | Result | Evidence |
 |---|---|---|---|

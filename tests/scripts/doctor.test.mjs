@@ -60,6 +60,16 @@ test("schema errors are each reported", () => {
   assert.match(r.out, /unknown key extra/);
 });
 
+test("permissions_allow takes permission rules only", () => {
+  assert.equal(doctor(target({ permissions_allow: ["Bash(make lint)", "Monitor"] })).code, 0);
+  assert.equal(doctor(target({ permissions_allow: null })).code, 0);
+  for (const bad of ["Bash(make lint)", ["make lint"], [3], ["Bash()"]]) {
+    const r = doctor(target({ permissions_allow: bad }));
+    assert.equal(r.code, 1, JSON.stringify(bad));
+    assert.match(r.out, /permissions_allow must be an array of permission rules/);
+  }
+});
+
 test("optional retry_after_hours, scout and deploy are checked when present", () => {
   const ok = doctor(target({ retry_after_hours: 24, scout: { autonomy: "auto", categories: ["bug"] }, deploy: { transport: "local", local_directory: "~/deploys", auto: false } }));
   assert.equal(ok.code, 0, ok.out);
