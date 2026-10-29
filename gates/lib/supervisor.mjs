@@ -9,7 +9,7 @@
 // spec's onExit command when the command ends. Liveness reads the registry: the runner's pid, then its exit
 // record. A name with no registry entry falls back to `systemctl --user is-active`, which is how systemd
 // sessions are seen.
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -39,6 +39,12 @@ export function readEntry(name) {
 export function writeEntry(name, entry) {
   mkdirSync(sessionsDir(), { recursive: true });
   writeFileSync(entryFile(name), `${JSON.stringify(entry, null, 2)}\n`);
+}
+
+// A systemd session has no registry entry, so an entry left by an earlier session of the same name under another
+// backend would shadow it (cstack#30). Every systemd start clears it first.
+export function clearEntry(name) {
+  rmSync(entryFile(name), { force: true });
 }
 
 export function pickBackend(config = {}, platform = process.platform) {

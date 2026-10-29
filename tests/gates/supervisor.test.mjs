@@ -234,7 +234,9 @@ test("supervise start under systemd, launchd and Task Scheduler", () => {
   const s = sandbox();
   const logs = path.join(s.dir, "logs");
   const go = (backend, extra = {}) => s.sup(["start", "--name", "cstack-e2e-x", "--cwd", s.dir, "--log-dir", logs, "--", "node", "a.mjs"], { CSTACK_SUPERVISOR: backend, ...extra });
+  s.setEntry("cstack-e2e-x", { backend: "detached", pid: 1, exited: new Date().toISOString(), code: 0 });
   assert.equal(go("systemd").code, 0);
+  assert.equal(existsSync(path.join(s.env.CSTACK_SESSIONS_DIR, "cstack-e2e-x.json")), false, "a stale entry from another backend is cleared (cstack#30)");
   const sd = JSON.parse(s.calls("FAKE_SYSTEMD_RUN_LOG")[0]);
   assert.ok(sd.includes("--unit=cstack-e2e-x") && sd.includes(`--property=StandardOutput=append:${path.join(logs, "cstack-e2e-x.out.log")}`));
   assert.deepEqual(sd.slice(-2), ["node", "a.mjs"]);

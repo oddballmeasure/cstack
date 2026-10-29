@@ -330,3 +330,13 @@ test("a hidden glob written with backslashes still blocks a command naming it", 
   assert.equal(run(r, "Bash", { command: "cat tests\\acceptance/x" }).code, 2);
   assert.equal(run(r, "Bash", { command: "cat tests/acceptance/x" }).code, 2);
 });
+
+test("role-deny: an allow rule more specific than a broad deny wins", () => {
+  const r = repo();
+  const codex = (command, env) =>
+    spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd2-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env } });
+  assert.equal(codex("rm -rf /tmp/cstack-mutation/x", { CSTACK_ROLE: "e2e-author" }).status, 0, "the author's own scratch cleanup");
+  assert.equal(codex("rm -rf /tmp/cstack-run-1", { CSTACK_UNIT: "U1" }).status, 0, "a worker's tmp cleanup");
+  assert.equal(codex("rm -rf /etc", { CSTACK_UNIT: "U1" }).status, 2, "the broad deny still holds elsewhere");
+  assert.equal(codex("rm -rf /", { CSTACK_UNIT: "U1" }).status, 2);
+});

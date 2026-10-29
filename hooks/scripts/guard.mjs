@@ -172,18 +172,22 @@ function ruleRegex(rule) {
 }
 
 // Codex sessions run without Claude Code's per-session allowlist, so apply the role's Bash deny list here.
+// A broad deny such as `rm -rf /*` must not refuse what the role's allowlist names more precisely
+// (`rm -rf /tmp/cstack-*`): a deny hit stands unless an allow rule with a longer literal prefix also matches.
 function checkRoleDeny(cmd, role, root, cwd, cfg) {
-  let rules;
+  let perms;
   try {
-    rules = permissionSettings(role, { pluginRoot: PLUGIN_ROOT, repoRoot: root || cwd, home: homedir(), config: cfg || {}, worktree: cwd }).permissions.deny;
+    perms = permissionSettings(role, { pluginRoot: PLUGIN_ROOT, repoRoot: root || cwd, home: homedir(), config: cfg || {}, worktree: cwd }).permissions;
   } catch {
     return; // an unknown role has no deny list
   }
-  const patterns = rules.filter((r) => r.startsWith("Bash(")).map((r) => [r, ruleRegex(r.slice(5, -1))]);
+  const compile = (rules) => rules.filter((r) => r.startsWith("Bash(")).map((r) => [r, ruleRegex(r.slice(5, -1)), r.slice(5, -1).split("*")[0].length]);
+  const denies = compile(perms.deny);
+  const allows = compile(perms.allow);
   for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
     const simple = part.trim().replace(/^(?:\w+=\S*\s+)+/, "");
-    const hit = patterns.find(([, re]) => re.test(simple));
-    if (hit) block("role-deny", `\`${simple}\` is denied to the ${role} role (${hit[0]}).`);
+    const hit = denies.find(([, re]) => re.test(simple));
+    if (hit && !allows.some(([, re, len]) => len > hit[2] && re.test(simple))) block("role-deny", `\`${simple}\` is denied to the ${role} role (${hit[0]}).`);
   }
 }
 
