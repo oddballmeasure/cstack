@@ -24,6 +24,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { UNATTENDED } from "../scenarios/lib.mjs";
+import { codexSandboxArgs } from "../../gates/lib/harness.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
@@ -263,13 +264,13 @@ function launch() {
   const hide = q(graders.join(path.delimiter));
   if (harness === "codex") {
     const sandbox = process.env.CSTACK_CODEX_SANDBOX || "workspace-write";
-    const net = sandbox === "workspace-write" ? " -c sandbox_workspace_write.network_access=true" : "";
+    const box = codexSandboxArgs(sandbox, clone).map((x) => q(x)).join(" ");
     writeFileSync(
       script,
       `#!/bin/sh
 cd ${q(clone)}
 exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
-  codex exec --json -C ${q(clone)} -s ${sandbox}${net} \\
+  codex exec --json -C ${q(clone)} ${box} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" < /dev/null > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
       { mode: 0o755 },
