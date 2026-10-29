@@ -25,7 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { openStore } from "./lib/store.mjs";
-import { gh, latestChecks, checkTail } from "./lib/checks.mjs";
+import { openForge } from "./lib/forge.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GIVE_UP_MS = 6 * 3600 * 1000;
@@ -33,7 +33,6 @@ const LISTING_GRACE_MS = 10 * 60 * 1000;
 const PASSED = new Set(["success", "skipped", "neutral"]);
 const TERMINAL = new Set(["passed", "no_checks", "expired", "filing", "filed"]);
 const HEADER = "ts\tunit\tpr\tmerge_sha\tstate\tdetail";
-const ACTIONS_RUN = /\/actions\/runs\/(\d+)\//;
 
 function readRows(file) {
   if (!existsSync(file)) return [];
@@ -56,7 +55,7 @@ function appendRow(file, row) {
 const names = (list) => list.map((n) => `\`${n}\``).join(", ");
 
 function judge(ctx, unit, rows) {
-  const { repo, dir, file } = ctx;
+  const { forge, file } = ctx;
   const last = rows.findLast((r) => r.pr === unit.pr);
   const record = (state, detail, sha) => {
     appendRow(file, { unit: unit.id, pr: unit.pr, merge_sha: sha, state, detail });
@@ -64,14 +63,14 @@ function judge(ctx, unit, rows) {
   };
   if (last && TERMINAL.has(last.state)) return { state: last.state, detail: last.detail, sha: last.merge_sha, cached: true };
 
-  const pr = JSON.parse(gh(["pr", "view", unit.pr, "--repo", repo, "--json", "state,mergeCommit,mergedAt"], dir));
-  if (pr.state !== "MERGED") return { state: "not-merged", detail: `PR is ${pr.state}`, sha: unit.sha };
-  const sha = pr.mergeCommit.oid;
+  const pr = forge.change(unit.pr, ["state", "mergeCommit", "mergedAt"]);
+  if (pr.state !== "merged") return { state: "not-merged", detail: `PR is ${pr.state.toUpperCase()}`, sha: unit.sha };
+  const sha = pr.mergeSha;
   const age = Date.now() - Date.parse(pr.mergedAt);
   const out = (state, detail) => ({ ...record(state, detail, sha), sha });
   if (age > GIVE_UP_MS) return out("expired", "no verdict 6h after the merge");
 
-  const checks = latestChecks(repo, sha, dir);
+  const checks = forge.checks(sha);
   if (checks.length === 0) {
     if (age > LISTING_GRACE_MS) return out("no_checks", "no checks listed 10 minutes after the merge");
     return { state: "waiting", detail: "no checks listed yet", sha };
@@ -84,11 +83,11 @@ function judge(ctx, unit, rows) {
   const failed = checks.filter((c) => !PASSED.has(c.conclusion));
   if (!failed.length) return out("passed", `${checks.length} checks passed`);
 
-  const actions = new Map(failed.filter((c) => ACTIONS_RUN.test(String(c.details_url))).map((c) => [c.name, String(c.details_url).match(ACTIONS_RUN)[1]]));
+  const actions = new Map(failed.map((c) => [c.name, forge.rerunHandle(c)]).filter(([, h]) => h));
   if (!rerun && actions.size) {
     const ok = new Set();
     for (const id of new Set(actions.values())) {
-      if (run("gh", ["run", "rerun", id, "--failed", "--repo", repo], { cwd: dir }).code === 0) ok.add(id);
+      if (forge.rerun(id).ok) ok.add(id);
     }
     if (ok.size) {
       const ids = failed.filter((c) => ok.has(actions.get(c.name))).map((c) => c.id);
@@ -109,12 +108,12 @@ function parseRerun(detail) {
 function isFollowUp(ctx, unit, rows) {
   if (!unit.issue) return false;
   if (rows.some((r) => r.state === "filed" && r.detail === `#${unit.issue}`)) return true;
-  const view = run("gh", ["issue", "view", unit.issue, "--repo", ctx.repo, "--json", "title"], { cwd: ctx.dir });
-  return view.code === 0 && JSON.parse(view.stdout).title.startsWith(`CI failed on ${ctx.base} after #`);
+  const view = ctx.forge.issue(unit.issue, ["title"]);
+  return view.ok && view.title.startsWith(`CI failed on ${ctx.base} after #`);
 }
 
 function fileFollowUp(ctx, unit, rows, failed, repeated, sha, record) {
-  const { repo, base, prefix, dir, store, lines } = ctx;
+  const { base, prefix, store, lines } = ctx;
   const looping = isFollowUp(ctx, unit, rows);
   const label = `${prefix}:${looping ? "needs-human" : "ready"}`;
   const failedNames = failed.map((c) => c.name);
@@ -123,7 +122,7 @@ function fileFollowUp(ctx, unit, rows, failed, repeated, sha, record) {
   const parts = [];
   if (repeated.length) parts.push(`these checks failed on \`${base}\` at that commit, and again when re-run: ${names(repeated)}.`);
   if (once.length) parts.push(`${repeated.length ? "These checks failed and were not re-run" : `these checks failed on \`${base}\` at that commit`}: ${names(once)}.`);
-  const tails = failed.map((c) => `Check \`${c.name}\` concluded ${c.conclusion} on ${sha.slice(0, 12)}. Log tail:\n${checkTail(repo, c, lines, dir)}`);
+  const tails = failed.map((c) => `Check \`${c.name}\` concluded ${c.conclusion} on ${sha.slice(0, 12)}. Log tail:\n${ctx.forge.checkTail(c, lines)}`);
   const footer = readFileSync(path.join(HERE, "..", "templates", "footer.md"), "utf8").trim();
   const body = [
     `cstack merged #${unit.pr}${unit.issue ? ` (for #${unit.issue})` : ""} as \`${sha}\`. Afterwards ${parts.join(" ")}`,
@@ -134,9 +133,9 @@ function fileFollowUp(ctx, unit, rows, failed, repeated, sha, record) {
   const bodyFile = path.join(store, `post-merge-${sha.slice(0, 12)}.md`);
   writeFileSync(bodyFile, `${body}\n`);
   record("filing", title, sha);
-  const created = run("gh", ["issue", "create", "--repo", repo, "--title", title, "--body-file", bodyFile, "--label", label], { cwd: dir });
-  if (created.code !== 0) return { ...record("file-error", created.stderr.trim(), sha), sha };
-  const number = created.stdout.trim().split("/").pop();
+  const created = ctx.forge.createIssue({ title, bodyFile, label });
+  if (!created.ok) return { ...record("file-error", created.error, sha), sha };
+  const number = created.id;
   return { ...record("filed", `#${number}`, sha), sha, label };
 }
 
@@ -176,7 +175,7 @@ main(async (argv) => {
   const store = path.resolve(args.store);
   const dir = path.resolve(args["repo-dir"] || store);
   const { config } = loadConfig(dir);
-  const ctx = { repo: config.repo, base: config.base_branch, prefix: config.label_prefix, dir, store, file: path.join(store, "post-merge.tsv"), lines };
+  const ctx = { repo: config.repo, forge: openForge(config, { cwd: dir }), base: config.base_branch, prefix: config.label_prefix, dir, store, file: path.join(store, "post-merge.tsv"), lines };
   const poll = Number(process.env.CSTACK_POST_MERGE_POLL_MS || 60000);
   if (args.wait) registerWatcher(store, "post-merge");
   for (;;) {

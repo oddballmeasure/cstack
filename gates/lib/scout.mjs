@@ -161,12 +161,12 @@ export function markers(body) {
 // What became of one filed issue: done, error, approved, rejected, or null (undecided).
 // An auto-filed issue starts ready. That is the scout's own decision, not a person's approval.
 export function outcome(issue, prefix) {
-  const labels = new Set(issue.labels.map((l) => l.name));
+  const labels = new Set(issue.labels);
   const mode = markers(issue.body).mode;
   if (labels.has(`${prefix}:done`)) return "done";
   if (labels.has(`${prefix}:error`)) return "error";
   if (mode !== "auto" && (labels.has(`${prefix}:ready`) || labels.has(`${prefix}:in-progress`))) return "approved";
-  if (issue.state === "CLOSED") return "rejected";
+  if (issue.state === "closed") return "rejected";
   return null;
 }
 

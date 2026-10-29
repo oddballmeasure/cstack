@@ -23,7 +23,7 @@ import { existsSync, readdirSync, readFileSync, renameSync, statSync } from "nod
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
-import { gh } from "./lib/checks.mjs";
+import { openForge } from "./lib/forge.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveAutonomy } from "./lib/run.mjs";
 import { notBefore, workerFile, workerName, workerState } from "./lib/workers.mjs";
@@ -82,7 +82,7 @@ function scanCommand(gate, ctx) {
 }
 
 function select(gate, ctx) {
-  const ready = JSON.parse(gh(["issue", "list", "--repo", ctx.config.repo, "--state", "open", "--label", `${ctx.prefix}:ready`, "--json", "number,title,createdAt", "--limit", "200"], ctx.root));
+  const ready = ctx.forge.issues({ state: "open", label: `${ctx.prefix}:ready`, want: ["number", "title", "createdAt"] });
   ready.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.number - b.number);
   const rows = new Map(scan(ctx).map((r) => [r.issue, r]));
   const parallel = Number.isInteger(ctx.config.parallel) && ctx.config.parallel > 0 ? ctx.config.parallel : 1;
@@ -130,7 +130,7 @@ function retry(gate, ctx, apply) {
     return gate.finish({ eligible: [] });
   }
   const cutoff = Date.now() - hours * 3600 * 1000;
-  const errored = JSON.parse(gh(["issue", "list", "--repo", ctx.config.repo, "--state", "open", "--label", `${ctx.prefix}:error`, "--json", "number", "--limit", "200"], ctx.root));
+  const errored = ctx.forge.issues({ state: "open", label: `${ctx.prefix}:error`, want: ["number"] });
   const eligible = [];
   for (const { number } of errored.sort((a, b) => a.number - b.number)) {
     const store = path.join(ctx.root, ".cstack", "runs", `issue-${number}`);
@@ -168,7 +168,7 @@ await main(async (argv) => {
   const ok = ["scan", "select", "retry"].includes(command) ? args._.length === 1 : command === "prepare" && args._.length === 2 && /^[1-9]\d*$/.test(issue);
   if (!ok) throw new UsageError(USAGE);
   const { root, config } = loadConfig(args["repo-dir"] || process.cwd());
-  const ctx = { root, config, prefix: config.label_prefix };
+  const ctx = { root, config, prefix: config.label_prefix, forge: openForge(config, { cwd: root }) };
   const gate = new Gate(`daemon-tick ${command}`, { json: args.json });
   if (command === "scan") return scanCommand(gate, ctx);
   if (command === "select") return select(gate, ctx);

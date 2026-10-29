@@ -7,28 +7,18 @@
 // --merge merges only when every check passes AND the run's effective autonomy is "send": config autonomy,
 // overridden by <store>/run.json, which may only lower it unless this session has
 // CSTACK_PROGRAM_AUTONOMY=send (gates/lib/run.mjs, ADR-006). It runs
-// `gh pr merge --merge --match-head-commit <sha>` as a subprocess (the guard hook blocks the model from doing that).
-// A merge command that reports an error still counts when GitHub shows the PR merged at the verified head.
+// the forge's merge at exactly that SHA with a merge commit (`gh pr merge --merge --match-head-commit <sha>` on GitHub)
+// as a subprocess (the guard hook blocks the model from doing that). A merge command that reports an error still
+// counts when the forge shows the change merged at the verified head.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { Gate, main, parseArgs, UsageError, loadConfig, run, git, matchesAny } from "./lib/common.mjs";
 import { isDoc } from "./lib/repo.mjs";
 import { effectiveAutonomy } from "./lib/run.mjs";
+import { openForge } from "./lib/forge.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PR_FIELDS = "number,state,isDraft,headRefOid,baseRefName,baseRefOid,mergeStateStatus,reviewDecision,mergeCommit,files";
-const OK_CONCLUSIONS = new Set(["success", "skipped", "neutral"]);
-
-function gh(args, cwd) {
-  return run("gh", args, { cwd });
-}
-
-function prView(pr, repo, cwd) {
-  const r = gh(["pr", "view", String(pr), "--repo", repo, "--json", PR_FIELDS], cwd);
-  if (r.code !== 0) throw new UsageError(`gh pr view ${pr} failed: ${r.stderr.trim()}`);
-  return JSON.parse(r.stdout);
-}
 
 await main(async (argv) => {
   const args = parseArgs(argv, { flags: ["json", "merge"], options: ["unit", "repo-dir", "store"] });
@@ -36,12 +26,12 @@ await main(async (argv) => {
   if (!pr || !/^\d+$/.test(pr) || !args.unit) throw new UsageError("usage: check-merge.mjs <pr> --unit <id> [--repo-dir <dir>] [--store <dir>] [--merge]");
   const repoDir = args["repo-dir"] || process.cwd();
   const { config } = loadConfig(repoDir);
-  const repo = config.repo;
+  const forge = openForge(config, { cwd: repoDir });
   const gate = new Gate("check-merge", { json: args.json });
 
-  const p = prView(pr, repo, repoDir);
-  const sha = p.headRefOid;
-  gate.check(p.state === "OPEN" && !p.isDraft, "pr state", `open at ${sha.slice(0, 12)}`, `state ${p.state}${p.isDraft ? " (draft)" : ""}`);
+  const p = forge.change(pr);
+  const sha = p.head;
+  gate.check(p.state === "open" && !p.draft, "pr state", `open at ${sha.slice(0, 12)}`, `state ${p.state.toUpperCase()}${p.draft ? " (draft)" : ""}`);
 
   const storeArgs = args.store ? ["--store", args.store] : [];
   const ledger = run(process.execPath, [path.join(HERE, "orch.mjs"), ...storeArgs, "ledger", "check", args.unit, sha], { cwd: repoDir });
@@ -52,7 +42,7 @@ await main(async (argv) => {
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
   // PR #0 (unit E2E) holds only the hidden suite and the config line that runs it. A reviewer may not
   // read paths_hidden, so check-e2e, the red check and the mutation spot-check judge it instead (ADR-006).
-  const code = p.files.map((f) => f.path).filter((f) => !isDoc(f));
+  const code = p.files.filter((f) => !isDoc(f));
   const suiteOnly = args.unit === "E2E" && code.every((f) => f === ".cstack/config.json" || matchesAny(f, config.paths_hidden));
   if (!code.length) {
     gate.pass("review", "docs-only change; no review round needed");
@@ -76,19 +66,19 @@ await main(async (argv) => {
 
   const required = config.required_checks;
   if (required.length) {
-    const r = gh(["api", `repos/${repo}/commits/${sha}/check-runs?per_page=100`, "--jq", ".check_runs"], repoDir);
-    if (r.code !== 0) gate.fail("required checks", `cannot read check runs: ${r.stderr.trim()}`);
-    else {
+    let checks = null;
+    try {
+      checks = forge.checks(sha);
+    } catch (err) {
+      gate.fail("required checks", `cannot read check runs: ${err.message}`);
+    }
+    if (checks) {
       // Newest run per name wins.
-      const latest = new Map();
-      for (const c of JSON.parse(r.stdout)) {
-        const prev = latest.get(c.name);
-        if (!prev || String(c.started_at) > String(prev.started_at)) latest.set(c.name, c);
-      }
+      const latest = new Map(checks.map((c) => [c.name, c]));
       for (const name of required) {
         const c = latest.get(name);
         gate.check(
-          !!c && c.status === "completed" && OK_CONCLUSIONS.has(c.conclusion),
+          !!c && (c.state === "pass" || c.state === "skipped"),
           `check ${name}`,
           c?.conclusion,
           !c ? "not reported on this SHA" : c.status !== "completed" ? `still ${c.status}` : `concluded ${c.conclusion}`,
@@ -99,17 +89,17 @@ await main(async (argv) => {
     gate.pass("required checks", "none configured");
   }
 
-  gate.check(p.reviewDecision !== "CHANGES_REQUESTED", "reviews", p.reviewDecision || "no decision required", "changes requested");
-  gate.check(!["DIRTY", "BEHIND", "BLOCKED", "UNKNOWN"].includes(p.mergeStateStatus), "merge state", p.mergeStateStatus, `${p.mergeStateStatus}${p.mergeStateStatus === "UNKNOWN" ? " (GitHub still computing; retry)" : ""}`);
+  gate.check(p.review !== "changes", "reviews", p.reviewRaw || "no decision required", "changes requested");
+  gate.check(p.merge === "clean", "merge state", p.mergeRaw, `${p.mergeRaw}${p.merge === "unknown" ? ` (${forge.name} still computing; retry)` : ""}`);
 
   // Base moved since the PR was based: refuse if the new base commits touch the PR's files.
-  const fetch = git(repoDir, ["fetch", "--quiet", "origin", p.baseRefName]);
+  const fetch = git(repoDir, ["fetch", "--quiet", "origin", p.base]);
   if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetch.stderr.trim()}`);
   else {
-    const tip = git(repoDir, ["rev-parse", `origin/${p.baseRefName}`]).stdout.trim();
-    if (tip && tip !== p.baseRefOid) {
-      const moved = git(repoDir, ["diff", "--name-only", `${p.baseRefOid}..${tip}`]).stdout.split("\n").filter(Boolean);
-      const prFiles = new Set(p.files.map((f) => f.path));
+    const tip = git(repoDir, ["rev-parse", `origin/${p.base}`]).stdout.trim();
+    if (tip && tip !== p.baseSha) {
+      const moved = git(repoDir, ["diff", "--name-only", `${p.baseSha}..${tip}`]).stdout.split("\n").filter(Boolean);
+      const prFiles = new Set(p.files);
       const overlap = moved.filter((f) => prFiles.has(f));
       gate.check(!overlap.length, "base", `base moved without touching PR files`, `base moved and touched: ${overlap.join(", ")}; sync the branch and verify again`);
     } else {
@@ -124,14 +114,14 @@ await main(async (argv) => {
       gate.fail("autonomy", `autonomy is stop (${autonomy.source}${autonomy.note ? `; ${autonomy.note}` : ""}); the PR is merge-ready and a human merges it`);
     } else {
       gate.pass("autonomy", `send (${autonomy.source})`);
-      const m = gh(["pr", "merge", String(pr), "--repo", repo, "--merge", "--match-head-commit", sha], repoDir);
-      const after = prView(pr, repo, repoDir);
-      const ok = after.state === "MERGED" && after.headRefOid === sha && after.mergeCommit?.oid;
+      const m = forge.merge(pr, sha);
+      const after = forge.change(pr);
+      const ok = after.state === "merged" && after.head === sha && after.mergeSha;
       if (ok) {
-        merged = after.mergeCommit.oid;
-        gate.pass("merge", `merged at ${sha.slice(0, 12)} as ${merged.slice(0, 12)}${m.code !== 0 ? " (merge command reported an error, GitHub shows it merged)" : ""}`);
+        merged = after.mergeSha;
+        gate.pass("merge", `merged at ${sha.slice(0, 12)} as ${merged.slice(0, 12)}${!m.ok ? ` (merge command reported an error, ${forge.name} shows it merged)` : ""}`);
       } else {
-        gate.fail("merge", `merge failed: ${m.stderr.trim() || after.state}`);
+        gate.fail("merge", `merge failed: ${m.error || after.state.toUpperCase()}`);
       }
     }
   }

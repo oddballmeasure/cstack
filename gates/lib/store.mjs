@@ -25,7 +25,8 @@ import {
   writeSync,
 } from "node:fs";
 import path from "node:path";
-import { UsageError, run } from "./common.mjs";
+import { UsageError, run, loadConfig } from "./common.mjs";
+import { openForge } from "./forge.mjs";
 
 export { UsageError };
 
@@ -478,7 +479,7 @@ ${table(
 `;
 }
 
-// ---- Frontier: walk the PR base chain through gh ----
+// ---- Frontier: walk the PR base chain through the forge ----
 
 function tool(command, args, repo) {
   const r = run(command, args, { cwd: repo, env: process.env });
@@ -486,38 +487,18 @@ function tool(command, args, repo) {
   return r.stdout;
 }
 
-const GH_STATES = new Map([
-  ["OPEN", "OPEN"],
-  ["MERGED", "MERGED"],
-  ["CLOSED", "CLOSED"],
-]);
-
+// Through the forge layer, in the repo's own checkout (gates/lib/forge.mjs).
 function listPullRequests(filter, branch, repo) {
-  const label = `gh pr list ${filter} ${branch}`;
-  // Every state is fetched: a merged or closed PR still anchors the chain, and a draft counts as OPEN.
-  const raw = tool("gh", ["pr", "list", filter, branch, "--state", "all", "--json", "number,state,headRefName,baseRefName"], repo);
-  let value;
+  return openForge(forgeConfig(repo), { cwd: repo }).changesOn(filter, branch);
+}
+
+// The forge choice for a checkout: its config when it has one, else the default.
+function forgeConfig(repo) {
   try {
-    value = JSON.parse(raw);
+    return loadConfig(repo).config;
   } catch {
-    throw new UsageError(`${label} output is not valid JSON`);
+    return {};
   }
-  if (!Array.isArray(value)) throw new UsageError(`${label} output is not a JSON array`);
-  return value.map((row) => {
-    const state = isRecord(row) ? (GH_STATES.get(row.state) ?? null) : null;
-    if (
-      state === null ||
-      !Number.isSafeInteger(row.number) ||
-      row.number < 1 ||
-      typeof row.headRefName !== "string" ||
-      row.headRefName === "" ||
-      typeof row.baseRefName !== "string" ||
-      row.baseRefName === ""
-    ) {
-      throw new UsageError(`${label} output has an invalid PR row`);
-    }
-    return { pr: row.number, state, branch: row.headRefName, base: row.baseRefName };
-  });
 }
 
 function branchPullRequest(branch, repo) {
