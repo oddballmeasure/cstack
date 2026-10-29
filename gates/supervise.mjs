@@ -21,7 +21,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { resolveCommand } from "./runner.mjs";
-import { cmdQuote, launchdLabel, listSessions, pickBackend, plist, sessionState, startRunner, stopSession } from "./lib/supervisor.mjs";
+import { clearEntry, cmdQuote, launchdLabel, listSessions, pickBackend, plist, sessionState, startRunner, stopSession } from "./lib/supervisor.mjs";
 
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -45,6 +45,7 @@ function start(args, argv) {
   const err = path.join(path.resolve(logDir), `${name}.err.log`);
   let r;
   if (backend === "systemd") {
+    clearEntry(name);
     r = run("systemd-run", ["--user", "--collect", "--quiet", `--unit=${name}`, `--working-directory=${path.resolve(cwd)}`, `--property=StandardOutput=append:${out}`, `--property=StandardError=append:${err}`, ...argv]);
   } else {
     const specFile = path.join(path.resolve(logDir), `${name}.spec.json`);

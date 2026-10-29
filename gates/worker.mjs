@@ -34,7 +34,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
-import { RUNNER, pickBackend, startRunner, writeEntry } from "./lib/supervisor.mjs";
+import { RUNNER, clearEntry, pickBackend, startRunner, writeEntry } from "./lib/supervisor.mjs";
 import { BILLING_VARS, COORDINATOR_SANDBOX, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
@@ -164,6 +164,7 @@ function launch(store, unit, args) {
     return 0;
   }
   markLaunched(store, unit, id, name, coordinator, row);
+  clearEntry(name);
   const r = run("systemd-run", argv);
   // With --wait, systemd-run exits with the session's own status, which `exit` has already classified.
   if (r.code !== 0 && !args.wait) throw new UsageError(`systemd-run failed (${r.code}): ${r.stderr.trim()}`);
