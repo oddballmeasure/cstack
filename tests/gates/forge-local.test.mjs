@@ -1,7 +1,7 @@
 // The local forge backend (gates/lib/forge-local.mjs) against real git repos: one with a bare origin, one with none.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { local } from "../../gates/lib/forge-local.mjs";
@@ -168,7 +168,7 @@ test("without a remote, the merge updates the local base branch; repo info and i
   git(dir, "checkout", "-q", "main");
   const f = local({ forge: "local", ci_command: CI }, dir);
   assert.equal(f.repo, path.basename(dir));
-  assert.deepEqual(f.repoInfo(), { path: path.basename(dir), defaultBranch: "main", url: dir });
+  assert.deepEqual(f.repoInfo(), { path: path.basename(dir), defaultBranch: "main", url: realpathSync.native(dir) });
   assert.deepEqual(f.currentUser(), { login: "t", name: "t", bot: false });
   assert.match(f.createChange({ head: "nope", base: "main", title: "A", bodyFile: body(dir, "x") }).error, /^branch nope not found; push it first$/);
   assert.equal(f.createChange({ head: "feat", base: "main", title: "A", bodyFile: body(dir, "x") }).ok, true);

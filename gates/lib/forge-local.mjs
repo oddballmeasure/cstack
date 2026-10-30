@@ -26,7 +26,7 @@ export function local(config, cwd) {
   };
   // The main checkout holds the store, whichever worktree the gate runs in.
   const common = out(["rev-parse", "--path-format=absolute", "--git-common-dir"]);
-  const top = path.dirname(common);
+  const top = path.resolve(path.dirname(common));
   const store = path.join(top, ".cstack", "forge");
   const file = (kind, id) => path.join(store, kind, `${id}.json`);
   const read = (kind, id) => {
