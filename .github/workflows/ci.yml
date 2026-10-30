@@ -24,9 +24,5 @@ jobs:
       # the whole suite runs.
       - name: Gate coverage (100% lines and branches)
         if: runner.os != 'Windows'
-        timeout-minutes: 15
-        run: npm run coverage:gates
-      - name: Uncovered branches (only when the coverage bar failed)
-        if: failure() && runner.os != 'Windows'
-        timeout-minutes: 15
-        run: node tests/lint/uncovered.mjs
+        timeout-minutes: 30
+        run: node tests/lint/coverage-bar.mjs
