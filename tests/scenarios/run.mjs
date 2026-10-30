@@ -55,8 +55,8 @@ async function session(prompt, env) {
 const extra = Object.entries(env).map(([k, v]) => `${k}=${JSON.stringify(String(v))} `).join("");
 writeFileSync(path.join(outDir, "prompt.txt"), prompt);
 
-// Run the session detached under systemd so a long run survives this process (ADR-001), with the worker
-// allowlist instead of a permission bypass (ADR-009).
+// Run the session detached under systemd so a long run survives this process, with the worker
+// allowlist instead of a permission bypass.
 const settings = path.join(outDir, "settings.json");
 const gen = spawnSync(process.execPath, [path.join(CSTACK, "gates/run-settings.mjs"), "--permissions", "worker", "--repo-dir", TESTBED, "--out", settings], { encoding: "utf8" });
 if (gen.status !== 0) throw new Error(`run-settings failed: ${gen.stderr}`);

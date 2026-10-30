@@ -2,17 +2,17 @@
 
 <!-- Adapted from pstack docs/harness/claude-code.md @ 519d36a (MIT, Lauren Tan). -->
 
-cstack skills use Claude Code tool names directly. This file lists the tools and behaviours they rely on. Facts marked ADR-001 were measured in the Phase 0 spike (`docs/adr/ADR-001-phase-0-spike.md`, Claude Code 2.1.285).
+cstack skills use Claude Code tool names directly. This file lists the tools and behaviours they rely on. Most facts here were measured on Claude Code 2.1.285.
 
 ## Tools
 
 | Tool | Use in cstack |
 | --- | --- |
 | `Agent` | Spawn a subagent. Fields: `subagent_type`, `model`, `isolation`, `run_in_background`, `prompt`, `description`. |
-| `Skill` | Run another cstack skill by name, for example `cstack:unslop`. It works inside subagents (ADR-001). |
+| `Skill` | Run another cstack skill by name, for example `cstack:unslop`. It works inside subagents. |
 | `AskUserQuestion` | Ask the human a decision question. It is absent in `claude -p`, so ask in plain text there and take the safe default. |
 | `TodoWrite` | Keep the step list. When the session has no `TodoWrite`, keep the list in the reply and update it at each phase. |
-| `Monitor` | Wait on a watcher script. The session ends its turn, stays alive, and wakes on the event. It works in `-p` mode (ADR-001). |
+| `Monitor` | Wait on a watcher script. The session ends its turn, stays alive, and wakes on the event. It works in `-p` mode. |
 | `Grep`, `Glob` | When the session lacks them, use `Bash` with `rg`. |
 
 ## Subagents
@@ -28,21 +28,21 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 
 ## Depth
 
-Subagents nest to depth 3: main, L1, L2, L3. The L3 tool list has no `Agent` tool, so L3 is a leaf (ADR-001). Plan coordinator, sub-coordinator, worker inside that budget.
+Subagents nest to depth 3: main, L1, L2, L3. The L3 tool list has no `Agent` tool, so L3 is a leaf. Plan coordinator, sub-coordinator, worker inside that budget.
 
 ## Hooks
 
-Plugin `PreToolUse` hooks fire in the main session, in every subagent level, and in `-p` sessions. The hook payload carries `agent_id` for subagent calls. Exit code 2 blocks the call, and the model reports the block (ADR-001).
+Plugin `PreToolUse` hooks fire in the main session, in every subagent level, and in `-p` sessions. The hook payload carries `agent_id` for subagent calls. Exit code 2 blocks the call, and the model reports the block.
 
-Hooks must match parsed `tool_input` fields, not the raw input text. Check `file_path` and `path` for Read, Edit, Write, Grep and Glob, and `command` for Bash. Do not match Agent or Skill input, because a brief that only mentions a path is not an access. The Bash check is heuristic, so hidden suites also need filesystem isolation (ADR-001).
+Hooks must match parsed `tool_input` fields, not the raw input text. Check `file_path` and `path` for Read, Edit, Write, Grep and Glob, and `command` for Bash. Do not match Agent or Skill input, because a brief that only mentions a path is not an access. The Bash check is heuristic, so hidden suites also need filesystem isolation.
 
 ## Headless workers
 
-- Run `claude -p` through the host supervisor, `node <root>/gates/supervise.mjs` or `gates/worker.mjs` (ADR-011). Under systemd the unit does not inherit the login `PATH`, so the launcher sets `PATH` (ADR-001).
+- Run `claude -p` through the host supervisor, `node <root>/gates/supervise.mjs` or `gates/worker.mjs`. Under systemd the unit does not inherit the login `PATH`, so the launcher sets `PATH`.
 - Unset `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` to run on the subscription. Check `apiKeySource: "none"` in the init event as the billing guard. `total_cost_usd` is an estimate only.
-- Launch with `--strict-mcp-config` and an explicit MCP config. Without it, workers inherit user-level MCP servers (ADR-001).
+- Launch with `--strict-mcp-config` and an explicit MCP config. Without it, workers inherit user-level MCP servers.
 - Load a local plugin with `--plugin-dir` for tests.
-- Never `--dangerously-skip-permissions`. Launch with `--permission-mode dontAsk --settings <file>`, where the file comes from `node <root>/gates/run-settings.mjs --permissions <role>` (ADR-009). dontAsk refuses every call outside the role's allowlist at once, without a prompt, and the `result` event lists each refusal in `permission_denials`.
+- Never `--dangerously-skip-permissions`. Launch with `--permission-mode dontAsk --settings <file>`, where the file comes from `node <root>/gates/run-settings.mjs --permissions <role>`. dontAsk refuses every call outside the role's allowlist at once, without a prompt, and the `result` event lists each refusal in `permission_denials`.
 - Under an allowlist, write commands it can match. Use literal absolute paths in redirect targets (`> /abs/store/x.json`, not `> $S/x.json`, which is refused), and put plugin scripts first in the command (`node <root>/gates/orch.mjs ...`, `node <root>/skills/show-me-your-work/scripts/log.mjs ...`). Shell variables in arguments are fine. When a call is refused, do not look for another way to run it. Say what was refused in the final message.
 
 ## Paths

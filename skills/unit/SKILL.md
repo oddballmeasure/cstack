@@ -247,7 +247,7 @@ Owner: `cstack:merge-gate`. Gate:
 node <root>/gates/check-merge.mjs <pr> --unit <unit> --repo-dir <wt> --store <store> [--merge] --json
 ```
 
-Pass `--merge` only when the run's effective autonomy is `send`: `node <root>/gates/run-settings.mjs --store <store>` prints `autonomy send`. It reads config, overridden by `<store>/run.json` (ADR-006). Never `--admin`.
+Pass `--merge` only when the run's effective autonomy is `send`: `node <root>/gates/run-settings.mjs --store <store>` prints `autonomy send`. It reads config, overridden by `<store>/run.json`. Never `--admin`.
 
 - Merged (send): stage 12, outcome merged.
 - Ready to merge or Waiting for required approval (stop): stage 12, outcome merge-ready.

@@ -11,7 +11,7 @@ argument-hint: "<skill> [<baseline ref> <variant ref> | --with-without]"
 
 You own the experiment design. Frame it, blind it, run it, then synthesize.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first, and [Explain the Number](../cstack/references/principles/explain-the-number.md). Read [ADR-005](../../docs/adr/ADR-005-review-evals.md) for a worked example. Look at [one case's prompt](../../evals/review-loop-off-by-one/prompt.md) and the `graders/` beside it for the shape of a case.
+Read the [cstack mode skill](../cstack/SKILL.md) first, and [Explain the Number](../cstack/references/principles/explain-the-number.md). Look at [one case's prompt](../../evals/review-loop-off-by-one/prompt.md) and the `graders/` beside it for the shape of a case.
 
 ## Hard rule: `--no-publish`
 
@@ -63,7 +63,7 @@ Plugin against no plugin:
 claude plugin eval <plugin> --ablation with-without --no-publish --case '<skill>-*' --json /tmp/<skill>.json
 ```
 
-Pass `--judge-model <model>` from config `models.judge` when it is not `inherit`. The default `haiku` judge was noisy in ADR-005.
+Pass `--judge-model <model>` from config `models.judge` when it is not `inherit`. The default `haiku` judge proved noisy.
 
 **Cost.** Each run is a full `claude` child on the human's own credential. Runs per case default to 3 (`--runs`).
 

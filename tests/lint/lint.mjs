@@ -105,7 +105,7 @@ for (const file of walk(path.join(ROOT, "agents")).filter((f) => f.endsWith(".md
 
 // Content rules over every markdown file in skills/ and agents/
 const mdFiles = [...walk(skillsDir), ...walk(path.join(ROOT, "agents"))].filter((f) => f.endsWith(".md"));
-// Skills reach the forge through gates/forge.mjs (ADR-013). A forge CLI may appear only in the cstack mode
+// Skills reach the forge through gates/forge.mjs. A forge CLI may appear only in the cstack mode
 // skill's references and in prohibitions.
 const forgeExempt = path.join(skillsDir, "cstack", "references") + path.sep;
 for (const file of mdFiles) {

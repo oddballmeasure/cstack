@@ -5,7 +5,7 @@
 // effective autonomy send, from config and <store>/run.json, where the run still merges them) and no
 // watcher is alive for the store. inbox-wait, pr-wait and post-merge --wait each hold <store>/watchers/<pid>. Allows (exit 0) otherwise, and on the second stop in a row
 // (stop_hook_active), so a session that cannot comply is nudged once and never trapped.
-// Under Codex (a payload with turn_id, ADR-010) the block is {"decision":"block","reason":…} on stdout with exit 0,
+// Under Codex (a payload with turn_id) the block is {"decision":"block","reason":…} on stdout with exit 0,
 // the form measured to keep a Codex session going.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";

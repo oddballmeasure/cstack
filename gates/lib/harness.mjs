@@ -1,7 +1,7 @@
 // The agent harness a headless cstack session runs in: Claude Code (`claude -p`) or Codex (`codex exec`).
 // Picked by CSTACK_HARNESS, else config `harness`, else the harness this process runs under (Codex sets
-// CODEX_THREAD_ID in its shell commands, ADR-010), else claude.
-// Codex sessions differ from Claude Code ones in four ways (ADR-012):
+// CODEX_THREAD_ID in its shell commands), else claude.
+// Codex sessions differ from Claude Code ones in four ways:
 //   - no --plugin-dir: Codex runs the plugin installed with `codex plugin add`, and its hooks must be trusted;
 //   - no per-session allowlist: the guard applies the role's deny rules to cstack-launched Codex sessions;
 //   - billing is checked before launch with `codex login status`, which must say ChatGPT;
@@ -36,7 +36,7 @@ export const skillPrompt = (harness, prompt) => (harness === "codex" ? prompt.re
 // Sandbox flags for a Codex session working in dir. workspace-write keeps .git read-only and allows writes only
 // under the working root, but cstack sessions commit, make worktrees under ~/.local/state/cstack and use the temp
 // dir, so those become writable roots, with any extra ones (the e2e author's run store), and network stays on for
-// git and gh (measured, ADR-012). The git root is the common git dir, so a worktree's session can commit too.
+// git and gh (measured). The git root is the common git dir, so a worktree's session can commit too.
 // The state dir must exist before the sandbox can bind it.
 export function codexSandboxArgs(sandbox, dir, extra = []) {
   if (sandbox !== "workspace-write") return ["-s", sandbox];
@@ -50,7 +50,7 @@ export function codexSandboxArgs(sandbox, dir, extra = []) {
 }
 
 // A sandboxed Codex session cannot start a session outside its sandbox: the systemd user bus is out of reach,
-// and a nested codex cannot write ~/.codex (measured, ADR-012). Coordinators start the e2e author and workers,
+// and a nested codex cannot write ~/.codex (measured). Coordinators start the e2e author and workers,
 // so they run with danger-full-access; every session they start gets the configured sandbox through systemd.
 export const COORDINATOR_SANDBOX = "danger-full-access";
 

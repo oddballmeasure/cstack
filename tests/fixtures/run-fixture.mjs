@@ -8,7 +8,7 @@
 //   1. Fresh clone of the testbed under tests/fixtures/results/<fixture>-<ts>/testbed (gitignored).
 //   2. Replace testbed main with the fixture's empty project and push it.
 //   3. Launch the program as a detached headless coordinator under systemd-run, with
-//      CSTACK_COORDINATOR=1, CSTACK_RUN=<slug> and CSTACK_PROGRAM_AUTONOMY=send (ADR-006).
+//      CSTACK_COORDINATOR=1, CSTACK_RUN=<slug> and CSTACK_PROGRAM_AUTONOMY=send.
 //   4. Poll `systemctl --user is-active` every 60 s; stop the run when budget.toml `hours` runs out.
 //   5. Check out origin/main, run the held-out grader and cstack's own suite (run-e2e as grader), and
 //      write tests/fixtures/<fixture>/results/<date>.json plus <outDir>/result.json. The grader is copied to a
@@ -30,7 +30,7 @@ import { openForge } from "../../gates/lib/forge.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
 // A sandbox repo you own: the run replaces its main branch and restores it afterwards.
-// The forge decides which: GitHub by default, a GitLab project, or a fresh bare repo under the run's results (ADR-013, ADR-014).
+// The forge decides which: GitHub by default, a GitLab project, or a fresh bare repo under the run's results.
 const FORGE_AT = process.argv.indexOf("--forge");
 const FORGE = FORGE_AT < 0 ? "github" : process.argv[FORGE_AT + 1];
 const REPO = process.env.CSTACK_TESTBED_REPO || { github: "oddballmeasure/cstack-testbed", gitlab: "trademark/cstack-testbed", local: "local/cstack-testbed" }[FORGE];
@@ -62,7 +62,7 @@ origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
               Every grader/ in the checkout and in the install is hidden from the run by the guard.
               CSTACK_CODEX_SANDBOX picks the sandbox of the sessions the coordinator starts (default
               workspace-write); the coordinator itself runs with danger-full-access. Codex must be logged in with
-              ChatGPT (ADR-010, ADR-012).
+              ChatGPT.
   --help      print this text
 
 The run takes hours. Start it detached and follow the journal:
@@ -283,7 +283,7 @@ function launch() {
   const prompt = `${harness === "codex" ? "$" : "/"}cstack:program ${guideline} --autonomy=send --slug ${slug}\n\n${UNATTENDED}`;
   writeFileSync(path.join(outDir, "prompt.txt"), prompt);
   const q = JSON.stringify;
-  // The coordinator runs under its role's allowlist with dontAsk, never a permission bypass (ADR-009).
+  // The coordinator runs under its role's allowlist with dontAsk, never a permission bypass.
   const settings = path.join(outDir, "coordinator.settings.json");
   sh(process.execPath, [path.join(plugin, "gates/run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", clone, "--plugin-dir", plugin, "--out", settings]);
   const PATH = [path.dirname(process.execPath), `${process.env.HOME}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
@@ -294,7 +294,7 @@ function launch() {
   const hide = q(graders.join(path.delimiter));
   if (harness === "codex") {
     const sandbox = process.env.CSTACK_CODEX_SANDBOX || "workspace-write";
-    // The coordinator starts the e2e author and workers, so it runs outside the sandbox (ADR-012); they get `sandbox`.
+    // The coordinator starts the e2e author and workers, so it runs outside the sandbox; they get `sandbox`.
     const box = codexSandboxArgs(COORDINATOR_SANDBOX, clone).map((x) => q(x)).join(" ");
     writeFileSync(
       script,
@@ -506,7 +506,7 @@ try {
   log(`run ended after ${wallSeconds}s${overBudget ? " (over budget, stopped)" : ""}${interrupted ? ` (${interrupted})` : ""}`);
 
   const coord = events(path.join(outDir, "coordinator.jsonl"));
-  // Codex reports no billing source in its stream; its login must be ChatGPT (ADR-012).
+  // Codex reports no billing source in its stream; its login must be ChatGPT.
   const init = harness === "codex"
     ? { apiKeySource: /ChatGPT/.test(((r) => `${r.stdout}${r.stderr}`)(sh("codex", ["login", "status"], { allowFail: true, full: true }))) ? "none" : "codex-api-key" }
     : coord.find((e) => e.type === "system" && e.subtype === "init") || {};

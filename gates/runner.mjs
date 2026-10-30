@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Portable session runner for the host supervisor (gates/lib/supervisor.mjs, ADR-011). Every backend but
+// Portable session runner for the host supervisor (gates/lib/supervisor.mjs). Every backend but
 // systemd starts `node runner.mjs <spec.json>`. Spec:
 //   { "name", "backend", "argv": [cmd, ...args], "cwd", "env": {k: v}, "unset": [k],
 //     "stdout": file, "stderr": file, "onExit": [cmd, ...args] | null }

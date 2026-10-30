@@ -121,7 +121,7 @@ Read the leaf file in full before you cite or apply a principle.
 
 ## Autonomy
 
-Config `autonomy` sets the level. `<store>/run.json` overrides it for one run (`/cstack:program --autonomy=...`, `cstack:full-send`, `cstack:full-stop`). Read the effective level with `gates/run-settings.mjs --store <store>` from the plugin root (two directories up from this file). `run.json` may always lower it. It raises `stop` to `send` only in a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send` (ADR-006). Never set that variable yourself. The guard blocks it.
+Config `autonomy` sets the level. `<store>/run.json` overrides it for one run (`/cstack:program --autonomy=...`, `cstack:full-send`, `cstack:full-stop`). Read the effective level with `gates/run-settings.mjs --store <store>` from the plugin root (two directories up from this file). `run.json` may always lower it. It raises `stop` to `send` only in a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send`. Never set that variable yourself. The guard blocks it.
 
 - `stop` (full-stop). Never merge. End the run with the PR merge-ready and report.
 - `send` (full-send). Merge only through the merge gate. Never use `--admin` or another bypass.

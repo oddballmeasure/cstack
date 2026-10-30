@@ -9,7 +9,7 @@
 // that asks later reads the same verdict, and a model never reports it. The merge gate's merge is
 // `git merge --no-ff` in its own worktree at exactly the judged head, then a push of the base with
 // --force-with-lease to the base it judged; without a remote, an atomic update of the local base branch.
-// This is weaker than server-side CI: "green" means ci_command passed on this machine (ADR-014).
+// This is weaker than server-side CI: "green" means ci_command passed on this machine.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";

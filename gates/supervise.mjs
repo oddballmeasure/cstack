@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One cross-platform CLI over the host supervisor (gates/lib/supervisor.mjs, ADR-011). Skills use it
+// One cross-platform CLI over the host supervisor (gates/lib/supervisor.mjs). Skills use it
 // instead of systemd-run, systemctl and journalctl.
 // Usage:
 //   supervise.mjs backend [--repo-dir <d>]                     the backend in use: systemd, launchd, taskscheduler, detached

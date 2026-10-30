@@ -5,7 +5,7 @@
 // protects .cstack/config.json. So run.json may LOWER autonomy (send to stop) but never raise it on its
 // own. It raises stop to send only when the session that runs the gate has CSTACK_PROGRAM_AUTONOMY=send
 // in its environment, which only a human-launched session or the headless coordinator launch sets
-// (ADR-006). An unreadable run.json or an unknown autonomy value fails closed to stop.
+//. An unreadable run.json or an unknown autonomy value fails closed to stop.
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 

@@ -15,7 +15,7 @@ Read [full-send](../full-send/SKILL.md) and follow its steps, proof rules, revie
 
 ## Autonomy stop for this run
 
-In full-send step 2, record `"autonomy": "stop"` in `<store>/run.json`. For a program, pass `--autonomy=stop` to `cstack:program`. `run.json` may always lower autonomy, so the merge gate refuses to merge in this run even when config says `send` (ADR-006). Skip full-send step 3: a lowered autonomy always takes effect. Check it once with `node <root>/gates/run-settings.mjs --store <store>`, which must print `autonomy stop`.
+In full-send step 2, record `"autonomy": "stop"` in `<store>/run.json`. For a program, pass `--autonomy=stop` to `cstack:program`. `run.json` may always lower autonomy, so the merge gate refuses to merge in this run even when config says `send`. Skip full-send step 3: a lowered autonomy always takes effect. Check it once with `node <root>/gates/run-settings.mjs --store <store>`, which must print `autonomy stop`.
 
 ## No merging
 

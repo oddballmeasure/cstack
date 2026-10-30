@@ -229,7 +229,7 @@ test("malformed hook input never blocks", () => {
   assert.equal(r.status, 0);
 });
 
-// Codex payloads (ADR-010): edits arrive as apply_patch with the patch text in tool_input.command.
+// Codex payloads: edits arrive as apply_patch with the patch text in tool_input.command.
 const patch = (...lines) => ["*** Begin Patch", ...lines, "*** End Patch"].join("\n");
 
 test("apply_patch: hidden, off-limits and config paths are blocked, ordinary edits pass", () => {

@@ -1,4 +1,4 @@
-// change-watch: pr-wait's watcher for every forge but GitHub, built only on forge-layer verbs (ADR-013).
+// change-watch: pr-wait's watcher for every forge but GitHub, built only on forge-layer verbs.
 // gates/pr-wait.mjs runs it when forgeKind(config) is not github, and keeps its flags, exit codes, lock, state
 // file and Stop-hook registration; pr-wait passes those in as `io`. Semantics:
 //   green  every required check passes on the head. Required: config required_checks, else

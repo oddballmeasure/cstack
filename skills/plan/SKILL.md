@@ -83,7 +83,7 @@ The gate skips the `E2E` row (track `e2e`). On rejection, fix the store from the
 
 ### 6. Human gate H2
 
-Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`. It is config `autonomy`, overridden by `<store>/run.json` when `cstack:program` ran with `--autonomy` (ADR-006).
+Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`. It is config `autonomy`, overridden by `<store>/run.json` when `cstack:program` ran with `--autonomy`.
 
 - **`send`.** Skip H2. Log `"H2" "skipped" "autonomy send"`. Go to step 7.
 - **`stop`.** Ask once with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it, run the gate again, and ask again. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. A later session resumes after `<orch> gate resolve H2 --answer <a>`.

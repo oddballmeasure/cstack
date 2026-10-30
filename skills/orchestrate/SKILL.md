@@ -53,7 +53,7 @@ The `pending-work` Stop hook keeps a coordinator from ending its turn while unit
 
 ## Choose the level
 
-Count the U units (skip track `e2e`). Read the run's `parallel` and autonomy with `node <root>/gates/run-settings.mjs --store <store>`: `<store>/run.json` overrides config for one run (ADR-006). `<worker> next` applies the same `parallel`.
+Count the U units (skip track `e2e`). Read the run's `parallel` and autonomy with `node <root>/gates/run-settings.mjs --store <store>`: `<store>/run.json` overrides config for one run. `<worker> next` applies the same `parallel`.
 
 - **Level A** when there are 5 units or fewer and `parallel` is 1. You run each unit yourself, in this session, one at a time.
 - **Level B** otherwise. Each unit runs as a detached headless worker. Workers survive your compaction, crashes and restarts. You read their results from the store.
@@ -127,7 +127,7 @@ For each `launch` line:
 <worker> launch --store <store> --unit <unit>
 ```
 
-It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and starts the session through the host supervisor (`systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, else a detached process; ADR-011): `claude -p --strict-mcp-config --plugin-dir <root> "/cstack:unit <issue> --run <slug> --unit <unit>"` with an explicit PATH and `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
+It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and starts the session through the host supervisor (`systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, else a detached process): `claude -p --strict-mcp-config --plugin-dir <root> "/cstack:unit <issue> --run <slug> --unit <unit>"` with an explicit PATH and `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
 
 ### Wait
 

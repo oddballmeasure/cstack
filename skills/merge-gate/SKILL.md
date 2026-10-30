@@ -9,7 +9,7 @@ description: "Use when a cstack unit's PR is green and must be judged for merge 
 
 This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator runs it after `cstack:babysit-pr` reports green.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`, not from config. It is config `autonomy`, overridden for one run by `<store>/run.json`, which `cstack:program`, `cstack:full-send` and `cstack:full-stop` write. `run.json` may always lower autonomy. It raises it to `send` only when this session has `CSTACK_PROGRAM_AUTONOMY=send` from the human's launch (ADR-006). The gate applies the same rule itself, so the two never disagree.
+`<root>` is the plugin root, two directories up from this skill's base directory. Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`, not from config. It is config `autonomy`, overridden for one run by `<store>/run.json`, which `cstack:program`, `cstack:full-send` and `cstack:full-stop` write. `run.json` may always lower autonomy. It raises it to `send` only when this session has `CSTACK_PROGRAM_AUTONOMY=send` from the human's launch. The gate applies the same rule itself, so the two never disagree.
 
 ## The only way to merge
 

@@ -104,9 +104,9 @@ Write the brief to `<store>/brief-e2e.md` with the Write tool. Use the headings 
 - FORBIDDEN: everything outside `<hidden>/`, `<store>` and `/tmp/cstack-mutation/<slug>/`; config; pushes; GitHub writes; product code.
 - REPORT: the report section of the agent file.
 
-**Default: a headless session.** The guard hook reads `CSTACK_ROLE` from the environment of the session that runs the hook, and every hook inherits the session's environment. A prefix on one Bash command does not change it. So only a session started with `CSTACK_ROLE=e2e-author` can write the suite. Launch the author as its own `claude -p` session under systemd (ADR-001), with the worktree as its working directory.
+**Default: a headless session.** The guard hook reads `CSTACK_ROLE` from the environment of the session that runs the hook, and every hook inherits the session's environment. A prefix on one Bash command does not change it. So only a session started with `CSTACK_ROLE=e2e-author` can write the suite. Launch the author as its own `claude -p` session under systemd, with the worktree as its working directory.
 
-Generate the author's permission settings first. The session runs with `--permission-mode dontAsk`: it may write only inside `paths_hidden` of `<wt>` and the run store, and every call outside its allowlist is refused without a prompt (ADR-009):
+Generate the author's permission settings first. The session runs with `--permission-mode dontAsk`: it may write only inside `paths_hidden` of `<wt>` and the run store, and every call outside its allowlist is refused without a prompt:
 
 ```sh
 node <root>/gates/run-settings.mjs --permissions e2e-author --repo-dir <repo> --worktree <wt> --out <store>/e2e-author.settings.json
@@ -125,13 +125,13 @@ env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_ROLE=e2e-author PATH=<di
 echo $? > <store>/e2e-author.exit
 ```
 
-Under Codex (see the Codex notes), the script runs `codex exec --json -C <wt> <sandbox flags> -m <models_codex.judge>` in place of `claude -p ...`, with `env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_ROLE=e2e-author`, `</dev/null`, and the same output and exit files. The sandbox flags are the exact output of `node <root>/gates/run-settings.mjs --codex-sandbox auto --repo-dir <repo> --worktree <wt> --store <store>`: paste that line into the script as it is. It makes the repo's common `.git`, the run store, `~/.local/state/cstack` and the temp dir writable, which the author needs to commit and report (ADR-012). Codex loads no `--agent`, so the brief starts with "First read `<root>/agents/cstack-e2e-author.md` and follow it as your role." With the `CSTACK_ROLE` marker, the guard limits its writes to `paths_hidden` and applies the role's deny rules.
+Under Codex (see the Codex notes), the script runs `codex exec --json -C <wt> <sandbox flags> -m <models_codex.judge>` in place of `claude -p ...`, with `env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_ROLE=e2e-author`, `</dev/null`, and the same output and exit files. The sandbox flags are the exact output of `node <root>/gates/run-settings.mjs --codex-sandbox auto --repo-dir <repo> --worktree <wt> --store <store>`: paste that line into the script as it is. It makes the repo's common `.git`, the run store, `~/.local/state/cstack` and the temp dir writable, which the author needs to commit and report. Codex loads no `--agent`, so the brief starts with "First read `<root>/agents/cstack-e2e-author.md` and follow it as your role." With the `CSTACK_ROLE` marker, the guard limits its writes to `paths_hidden` and applies the role's deny rules.
 
 Drop `--model <judge>` when `models.judge` is `inherit`. Fill `<dir of node>` from `dirname "$(command -v node)"` and `<home>` from `$HOME`: a systemd unit does not inherit the login `PATH`. The hard-coded `--plugin-dir` makes the author load this plugin's hooks and agent. `--strict-mcp-config` keeps user MCP servers out.
 
 Start it and wait on it with the `Monitor` tool. Never a sleep loop.
 
-- Start: `rm -f <store>/e2e-author.exit && node <root>/gates/supervise.mjs start --name cstack-e2e-<slug> --cwd <wt> --log-dir <store> -- sh <store>/e2e-author.sh`. The host supervisor picks systemd, launchd, Task Scheduler or a detached process (ADR-011).
+- Start: `rm -f <store>/e2e-author.exit && node <root>/gates/supervise.mjs start --name cstack-e2e-<slug> --cwd <wt> --log-dir <store> -- sh <store>/e2e-author.sh`. The host supervisor picks systemd, launchd, Task Scheduler or a detached process.
 - Monitor command, timeout `1800000`:
   ```sh
   node <root>/gates/supervise.mjs wait cstack-e2e-<slug> --timeout 1700 && { cat <store>/e2e-author.exit 2>/dev/null || echo "author ended without an exit code"; }
@@ -215,7 +215,7 @@ PR #0 goes through the ship stages of `docs/unit-flow.md` with unit id `E2E`, is
 |---|---|---|
 | 8 Publish | `cstack:unit` | `<orch> ledger check E2E <head>` must exit 0 first. Then `node <root>/gates/publish.mjs <wt>`. |
 | 9 PR | `cstack:file-pr` | The body starts `Closes #<N>`. It lists the lanes by id and title (from the plan, not the suite source), the red-check summary and the mutation summary. If step 4 ran, add a section "Config change for review" that names the `e2e_command` it set. |
-| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` when the diff touches only `paths_hidden` and `.cstack/config.json` (ADR-006). Log `skip: hidden suite`. |
+| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` when the diff touches only `paths_hidden` and `.cstack/config.json`. Log `skip: hidden suite`. |
 | 11 Merge gate | `cstack:merge-gate` | Merges only under the run's effective autonomy `send` (`gates/run-settings.mjs`), as for any unit. |
 | 12 Settle | `cstack:settle` | Settle `<N>` and set the unit state. |
 
