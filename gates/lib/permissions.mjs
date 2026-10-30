@@ -13,6 +13,10 @@
 // Path rules use `//` (absolute): in a --settings file a single leading slash anchors at the file's dir.
 import path from "node:path";
 
+// Deleting a system root. Not `rm -rf /*`: Claude Code reads that * as a wildcard, and a deny beats every allow, so
+// it would also refuse the allowed /tmp/cstack-* scratch cleanup and stop a run at the e2e step (measured, 2.1.308).
+const SYSTEM_ROOTS = ["/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/media", "/mnt", "/opt", "/proc", "/root", "/run", "/sbin", "/srv", "/sys", "/usr", "/var", "/Applications", "/Library", "/System", "/Users", "/Volumes", "/private"];
+
 export const ROLES = ["worker", "coordinator", "e2e-author", "grader"];
 const JS_PMS = new Set(["npm", "pnpm", "yarn", "bun"]);
 
@@ -105,7 +109,7 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     "Bash(glab mr merge *)", "Bash(glab repo delete *)", "Bash(glab repo edit *)", "Bash(glab auth *)", "Bash(glab variable *)",
     "Bash(glab ssh-key *)", "Bash(glab release *)", "Bash(glab api -X DELETE *)", "Bash(glab api --method DELETE *)",
     "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git push --mirror *)", "Bash(git push --delete *)",
-    "Bash(npm publish *)", "Bash(rm -rf /)", "Bash(rm -rf /*)", "Bash(rm -rf ~*)", "Bash(crontab *)",
+    "Bash(npm publish *)", "Bash(rm -rf /)", ...SYSTEM_ROOTS.map((d) => `Bash(rm -rf ${d}*)`), "Bash(rm -rf ~*)", "Bash(crontab *)",
     // A session may not start another Claude Code or Codex session, or change its own permissions.
     "Bash(claude *)", "Bash(codex *)", "Bash(systemctl --user enable *)", "Bash(loginctl *)",
   ];

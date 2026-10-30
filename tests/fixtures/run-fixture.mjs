@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // L4 fixture runner: one whole /cstack:program run on the private testbed, graded by a held-out suite.
-// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex]   (--help prints the usage and the fixtures)
+// Usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex] [--forge github|gitlab|local]   (--help prints the usage and the fixtures)
 //   <fixture> is a directory under tests/fixtures/ with a fixture.json (f2-http-shortener), or its short prefix (f2).
 // Each fixture's fixture.json names its slug, the entry point the grader tests, the grader command, and the empty
 // project that replaces testbed main (package.json, .gitignore, CI steps, cstack config overrides).
@@ -25,12 +25,17 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { UNATTENDED } from "../scenarios/lib.mjs";
 import { COORDINATOR_SANDBOX, codexSandboxArgs } from "../../gates/lib/harness.mjs";
+import { openForge } from "../../gates/lib/forge.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CSTACK = path.resolve(HERE, "../..");
 // A sandbox repo you own: the run replaces its main branch and restores it afterwards.
-const REPO = process.env.CSTACK_TESTBED_REPO || "oddballmeasure/cstack-testbed";
-const REPO_NAME = REPO.split("/")[1];
+// The forge decides which: GitHub by default, a GitLab project, or a fresh bare repo under the run's results (ADR-013, ADR-014).
+const FORGE_AT = process.argv.indexOf("--forge");
+const FORGE = FORGE_AT < 0 ? "github" : process.argv[FORGE_AT + 1];
+const REPO = process.env.CSTACK_TESTBED_REPO || { github: "oddballmeasure/cstack-testbed", gitlab: "trademark/cstack-testbed", local: "local/cstack-testbed" }[FORGE];
+const GITLAB_HOST = process.env.CSTACK_TESTBED_GITLAB_HOST || "gitlab.com";
+const REPO_NAME = String(REPO).split("/").pop();
 const POLL_MS = 60_000;
 const PASS_RATE = 0.95;
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"];
@@ -41,7 +46,7 @@ const FIXTURES = readdirSync(HERE, { withFileTypes: true })
   .map((d) => d.name)
   .sort();
 
-const USAGE = `usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex]
+const USAGE = `usage: node tests/fixtures/run-fixture.mjs <fixture> [--keep] [--harness claude|codex] [--forge github|gitlab|local]
        node tests/fixtures/run-fixture.mjs --help
 
 Runs one whole /cstack:program on ${REPO} for the fixture's guideline.md, then grades
@@ -50,6 +55,8 @@ origin/main with the fixture's held-out grader/ and with cstack's own e2e suite.
   <fixture>   a directory under tests/fixtures/ with a fixture.json, or its short prefix
               (${FIXTURES.map((f) => `${f.split("-")[0]} = ${f}`).join(", ") || "none found"})
   --keep      skip teardown: leave testbed main, the run's PRs, issues and worktrees as the run made them
+  --forge     github (default), gitlab (the project in CSTACK_TESTBED_REPO, default trademark/cstack-testbed, whose main
+              is restored to tag baseline afterwards) or local (a fresh bare repo under the results, CI as ci_command).
   --harness   claude (default) or codex. Codex runs the coordinator as codex exec with CSTACK_HARNESS=codex,
               using the installed Codex plugin, which must be this checkout with its hooks trusted in /hooks.
               Every grader/ in the checkout and in the install is hidden from the run by the guard.
@@ -89,7 +96,12 @@ if (!["claude", "codex"].includes(harness)) {
   console.error("--harness must be claude or codex");
   process.exit(2);
 }
-const wanted = argv.filter((a, i) => a !== "--keep" && (hi < 0 || (i !== hi && i !== hi + 1)));
+if (!["github", "gitlab", "local"].includes(FORGE)) {
+  console.error("--forge must be github, gitlab or local");
+  process.exit(2);
+}
+const flagAt = [hi, FORGE_AT - 2].filter((i) => i >= 0);
+const wanted = argv.filter((a, i) => a !== "--keep" && !flagAt.some((f) => i === f || i === f + 1));
 const fixture = FIXTURES.find((f) => wanted.length === 1 && (f === wanted[0] || f.startsWith(`${wanted[0]}-`)));
 if (!fixture || wanted.some((a) => a.startsWith("-"))) {
   console.error(`usage: run-fixture.mjs <${FIXTURES.join("|")}> [--keep]   (--help for details)`);
@@ -129,6 +141,9 @@ const git = (...a) => sh("git", ["-C", clone, ...a]);
 const gh = (args, opts) => sh("gh", [...args, "--repo", REPO], opts);
 const orch = (...a) => sh(process.execPath, [path.join(CSTACK, "gates/orch.mjs"), "--store", store, "--json", ...a], { allowFail: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const GL_PROJECT = `projects/${encodeURIComponent(String(REPO))}`;
+const glab = (method, api, extra = []) => json(sh("glab", ["api", "-X", method, api, ...extra], { allowFail: true }), []);
+const forge = () => openForge({ forge: FORGE, repo: REPO, base_branch: "main", ci_command: ["npm", "test"] }, { cwd: clone });
 const log = (line) => console.log(`[${new Date().toISOString()}] ${line}`);
 const isActive = (unit) => ["active", "activating", "deactivating", "reloading"].includes(sh("systemctl", ["--user", "is-active", unit], { allowFail: true }));
 const json = (text, fallback) => {
@@ -174,10 +189,41 @@ function scaffold() {
       paths_hidden: ["tests/acceptance/**"],
       autonomy: "stop",
       parallel: 1,
+      forge: FORGE,
+      ...(FORGE === "gitlab" ? { paths_off_limits: [".gitlab-ci.yml"] } : {}),
+      ...(FORGE === "local" ? { paths_off_limits: [], ci_command: spec.ci?.install ? ["sh", "-c", "npm ci && npm test"] : ["npm", "test"] } : {}),
     },
     spec.config,
   );
   const { project, ci = {} } = spec;
+  // The CI job `ci` that runs the tests, in the forge's own format. Local has none: ci_command is its CI.
+  const ciFile = {
+    github: {
+      ".github/workflows/ci.yml": [
+        "name: CI",
+        "on:",
+        "  push:",
+        "    branches: [main]",
+        "  pull_request:",
+        "jobs:",
+        "  ci:",
+        "    runs-on: ubuntu-latest",
+        "    steps:",
+        "      - uses: actions/checkout@v4",
+        "      - uses: actions/setup-node@v4",
+        "        with:",
+        "          node-version: 22",
+        ...(ci.install ? ["      - run: npm ci"] : []),
+        ...(ci.playwright ? ["      - run: npx playwright install --with-deps chromium"] : []),
+        "      - run: npm test",
+        "",
+      ].join("\n"),
+    },
+    gitlab: {
+      ".gitlab-ci.yml": ["ci:", "  image: node:22", "  script:", ...(ci.install ? ["    - npm ci"] : []), ...(ci.playwright ? ["    - npx playwright install --with-deps chromium"] : []), "    - npm test", ""].join("\n"),
+    },
+    local: {},
+  }[FORGE];
   const noDev = project.smoke === "no-dependencies";
   return {
     "package.json": `${JSON.stringify(project.package, null, 2)}\n`,
@@ -193,25 +239,7 @@ function scaffold() {
       "});",
       "",
     ].join("\n"),
-    ".github/workflows/ci.yml": [
-      "name: CI",
-      "on:",
-      "  push:",
-      "    branches: [main]",
-      "  pull_request:",
-      "jobs:",
-      "  ci:",
-      "    runs-on: ubuntu-latest",
-      "    steps:",
-      "      - uses: actions/checkout@v4",
-      "      - uses: actions/setup-node@v4",
-      "        with:",
-      "          node-version: 22",
-      ...(ci.install ? ["      - run: npm ci"] : []),
-      ...(ci.playwright ? ["      - run: npx playwright install --with-deps chromium"] : []),
-      "      - run: npm test",
-      "",
-    ].join("\n"),
+    ...ciFile,
     ".cstack/config.json": `${JSON.stringify(config, null, 2)}\n`,
     ".gitignore": `${(project.gitignore || [".cstack/*", "!.cstack/config.json", "node_modules/"]).join("\n")}\n`,
     "README.md": project.readme || `# ${project.package.name}\n\nBuilt by a cstack L4 fixture run.\n`,
@@ -236,7 +264,8 @@ function replaceMain() {
   git("fetch", "-q", "origin");
   git("checkout", "-q", "-B", "main", "origin/main");
   git("branch", "-q", "-D", "fixture-main");
-  for (const l of LABELS) gh(["label", "create", `cstack:${l}`, "--force", "--color", "5319e7"], { allowFail: true });
+  if (FORGE === "github") for (const l of LABELS) gh(["label", "create", `cstack:${l}`, "--force", "--color", "5319e7"], { allowFail: true });
+  if (FORGE === "gitlab") forge().ensureLabels(LABELS.map((l) => `cstack:${l}`), "5319e7");
 }
 
 function launch() {
@@ -404,6 +433,14 @@ function repairRounds() {
 
 // PRs and issues the run opened: everything created on the testbed since the run started.
 function createdSince(kind, since) {
+  if (FORGE === "gitlab") {
+    const rows = glab("GET", `${GL_PROJECT}/${kind === "pr" ? "merge_requests" : "issues"}?state=all&created_after=${encodeURIComponent(since)}&per_page=100`);
+    return rows.map((x) => ({ number: x.iid, state: { opened: "OPEN", merged: "MERGED" }[x.state] ?? "CLOSED", title: x.title, createdAt: x.created_at, headRefName: x.source_branch })).sort((a, b) => a.number - b.number);
+  }
+  if (FORGE === "local") {
+    if (kind === "pr") return forge().findChanges({ state: "all" }).map((c) => ({ number: c.id, state: c.state.toUpperCase(), title: c.title, headRefName: c.branch })).sort((a, b) => a.number - b.number);
+    return forge().issues({ state: "all", want: [] }).map((i) => ({ number: i.number, state: i.state.toUpperCase(), title: i.title })).sort((a, b) => a.number - b.number);
+  }
   const fields = kind === "pr" ? "number,state,title,createdAt,mergedAt,headRefName" : "number,state,title,createdAt";
   const list = json(gh([kind, "list", "--state", "all", "--limit", "200", "--json", fields], { allowFail: true }), []);
   return list.filter((x) => x.createdAt >= since).sort((a, b) => a.number - b.number);
@@ -412,13 +449,22 @@ function createdSince(kind, since) {
 function teardown(since) {
   stopRun();
   for (const pr of createdSince("pr", since)) {
-    if (pr.state === "OPEN") gh(["pr", "close", String(pr.number), "--delete-branch"], { allowFail: true });
-    else sh("git", ["-C", clone, "push", "-q", "origin", "--delete", pr.headRefName], { allowFail: true });
+    if (pr.state === "OPEN" && FORGE === "github") gh(["pr", "close", String(pr.number), "--delete-branch"], { allowFail: true });
+    else {
+      if (pr.state === "OPEN" && FORGE === "gitlab") glab("PUT", `${GL_PROJECT}/merge_requests/${pr.number}`, ["-f", "state_event=close"]);
+      sh("git", ["-C", clone, "push", "-q", "origin", "--delete", pr.headRefName], { allowFail: true });
+    }
   }
-  for (const issue of createdSince("issue", since)) if (issue.state === "OPEN") gh(["issue", "close", String(issue.number)], { allowFail: true });
+  for (const issue of createdSince("issue", since)) {
+    if (issue.state !== "OPEN") continue;
+    if (FORGE === "github") gh(["issue", "close", String(issue.number)], { allowFail: true });
+    if (FORGE === "gitlab") glab("PUT", `${GL_PROJECT}/issues/${issue.number}`, ["-f", "state_event=close"]);
+  }
   const worktrees = [...git("worktree", "list", "--porcelain").matchAll(/^worktree (.+)$/gm)].map((m) => m[1]).filter((p) => path.resolve(p) !== path.resolve(clone));
   for (const wt of worktrees) sh("git", ["-C", clone, "worktree", "remove", "--force", wt], { allowFail: true });
-  git("push", "-q", "-f", "origin", "baseline-p3^{commit}:refs/heads/main");
+  // The local forge's bare repo is this run's own and stays under the results; a server testbed goes back to its baseline.
+  if (FORGE === "github") git("push", "-q", "-f", "origin", "baseline-p3^{commit}:refs/heads/main");
+  if (FORGE === "gitlab") git("push", "-q", "-f", "origin", "baseline^{commit}:refs/heads/main");
 }
 
 const stopping = { signal: null };
@@ -426,7 +472,23 @@ for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => (stopping.signal 
 
 const startedIso = new Date().toISOString();
 log(`fixture ${fixture} -> ${outDir}`);
-sh("gh", ["repo", "clone", REPO, clone, "--", "-q"]);
+if (FORGE === "github") sh("gh", ["repo", "clone", REPO, clone, "--", "-q"]);
+if (FORGE === "gitlab") {
+  // glab's credential helper, so the run's pushes work over HTTPS whatever glab's ssh settings are.
+  const helper = "!glab auth git-credential";
+  sh("git", ["-c", `credential.helper=${helper}`, "clone", "-q", `https://${GITLAB_HOST}/${REPO}.git`, clone]);
+  git("config", `credential.https://${GITLAB_HOST}.helper`, helper);
+}
+if (FORGE === "local") {
+  // A fresh bare origin with one commit, so main exists for replaceMain to replace.
+  const origin = path.join(outDir, "origin.git");
+  sh("git", ["init", "-q", "--bare", "-b", "main", origin]);
+  sh("git", ["clone", "-q", origin, clone]);
+  writeFileSync(path.join(clone, "README.md"), "Replaced by the fixture scaffold.\n");
+  git("add", "-A");
+  sh("git", ["-C", clone, "-c", "user.name=cstack-fixture", "-c", "user.email=cstack@localhost", "commit", "-q", "-m", "Start"]);
+  git("push", "-q", "origin", "HEAD:refs/heads/main");
+}
 git("config", "user.name", "cstack-fixture");
 git("config", "user.email", "cstack@users.noreply.github.com");
 
@@ -464,6 +526,7 @@ try {
   result = {
     fixture,
     harness,
+    forge: FORGE,
     date: startedIso.slice(0, 10),
     started_at: startedIso,
     wall_seconds: wallSeconds,
@@ -493,7 +556,7 @@ try {
   if (!keep) {
     try {
       teardown(startedIso);
-      log("teardown done: PRs and issues closed, testbed main restored to baseline-p3");
+      log(`teardown done: PRs and issues closed${FORGE === "local" ? "" : ", testbed main restored to its baseline"}`);
       // The clone holds the built app and its own tests. Leaving it inside the cstack repo let a broad
       // test glob run those tests, some of which run `npm test` from the cwd: a recursive suite (2026-10-29).
       rmSync(clone, { recursive: true, force: true });

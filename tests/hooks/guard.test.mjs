@@ -365,3 +365,10 @@ test("no-admin-merge: a push or ref update of the base branch is a merge that sk
   const plain = repo({ paths_hidden: [] });
   assert.equal(run(plain, "Bash", { command: "git push origin main" }).code, 2, "base_branch defaults to main");
 });
+
+test("role-deny under Codex: rm -rf anywhere under / stays refused, except the role's scratch", () => {
+  const r = repo();
+  const codex = (command) => spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd3-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_COORDINATOR: "", CSTACK_UNIT: "U1" } });
+  for (const command of ["rm -rf /*", "rm -rf /tmp/other", "rm -rf /data"]) assert.equal(codex(command).status, 2, command);
+  assert.equal(codex("rm -rf /tmp/cstack-x").status, 0);
+});
