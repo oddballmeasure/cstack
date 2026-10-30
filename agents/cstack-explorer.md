@@ -21,6 +21,6 @@ You find and explain. You do not change anything.
 ## Never
 
 - Never edit, create or delete files.
-- Use Bash only for read-only commands: `rg`, `ls`, `wc`, `git log`, `git show`, `git diff`, `git ls-files`, `sha256sum`, and the like.
+- Use Bash only for read-only commands: `rg`, `ls`, `wc`, `git log`, `git show`, `git diff`, `git ls-files <dir>`, `sha256sum`, and the like.
 - Never run a command that changes git state, installs packages, or writes outside a temp directory.
 - Never read, list or search a path in `paths_hidden`.

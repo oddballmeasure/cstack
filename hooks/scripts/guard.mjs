@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // cstack PreToolUse guard. One entry point, seven rules:
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
+//                     and no Bash command may list the tree without naming directories outside them
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
 //   no-sleep-loops    no sleep/poll loops in Bash; wait with Monitor + a watcher script
 //   no-admin-merge    no direct `gh pr merge`, `glab mr merge`, auto-merge, merge API call, or push or ref update of the
@@ -111,6 +112,21 @@ function hiddenNeedles(globs) {
 }
 // Whether text names a needle, also when it spells the path with Windows backslashes.
 const names = (text, needle) => fold(text.replaceAll("\\", "/")).includes(fold(needle.replaceAll("\\", "/")));
+
+// A sparse checkout keeps the hidden suite off disk, but its names stay in the index and the tree, so git's
+// listing commands print them. Each listing must name what it wants, outside the hidden area. Returns the
+// offending command, or null. Text-based, like the other Bash rules: a guard against mistakes, not a sandbox.
+function listsHidden(command, needles) {
+  if (!needles.length) return null;
+  for (const [whole, verb, args] of command.matchAll(/\bgit(?:\s+-[cC]\s+\S+)*\s+(ls-files|ls-tree)\b([^;&|\n)<>]*)/gi)) {
+    const words = args.trim().replace(/(^|\s)\d$/, "").split(/\s+/).map((w) => w.replace(/^["']|["']$/g, ""));
+    const specs = words.filter((w) => w && !w.startsWith("-")).map((w) => w.replaceAll("\\", "/").replace(/^(\.\/)+/, "").replace(/\/+$/, ""));
+    if (verb.toLowerCase() === "ls-tree") specs.shift(); // the tree-ish
+    const wide = (spec) => spec === "" || /^\.\.?(\/|$)/.test(spec) || /[*?[]/.test(spec) || needles.some((n) => fold(n).startsWith(fold(`${spec}/`)));
+    if (!specs.length || specs.some(wide)) return whole.trim();
+  }
+  return null;
+}
 
 // Codex skips plugin hooks it has not trusted, without a warning. So in a cstack context the guard
 // leaves <tmpdir>/cstack-hook-seen/<session_id> for each Codex session (a payload with turn_id). doctor checks
@@ -291,6 +307,8 @@ function main() {
     for (const n of hiddenNeedles(hidden)) {
       if (names(ti.command, n)) block("hidden-paths", `command names a hidden path (${n}). Run the suite with run-e2e instead. To write a file whose text mentions it, use the edit tool (Write or Edit; apply_patch in Codex), not a shell command.`);
     }
+    const listing = listsHidden(ti.command, hiddenNeedles(hidden));
+    if (listing) block("hidden-paths", `\`${listing}\` would list hidden file names. Name the directories you need, outside the hidden area, for example \`git ls-files src\`.`);
   }
 
   const writes = ["Edit", "MultiEdit", "Write", "NotebookEdit"].includes(tool) ? [ti.file_path || ti.notebook_path] : patched ?? [];
