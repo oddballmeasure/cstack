@@ -66,7 +66,7 @@ For each finding:
    - Scope creep. Decline it (see **Fight scope**).
 3. **Reply** on the thread with `node <root>/gates/forge.mjs thread reply <pr> <thread id> --body-file <file>`, or on the PR with `node <root>/gates/forge.mjs change comment <pr> --body-file <file>`. Resolve a thread with `node <root>/gates/forge.mjs thread resolve <pr> <thread id>`. Write every reply with `cstack:leaving-pr-comments`: the callout header, the direct style, the secret check, and the footer line from `<root>/templates/footer.md` last.
 
-Review bots such as CodeRabbit are advisory. Treat their findings like any other, but never wait for it.
+Review bots such as CodeRabbit are advisory. Treat their findings like any other, but never wait for them.
 
 ### 3. Failed CI
 
