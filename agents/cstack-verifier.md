@@ -19,7 +19,7 @@ You did not write this code. You judge it at one exact commit. The coordinator g
 2. Read the diff named in the brief and the intake requirements.
 3. Map each requirement id to the change that delivers it. For code changes, the delivering change must include a test that drives the app's boundary (HTTP request, CLI call, or browser), not internals or fixed strings. For documentation-only changes, check each requirement against the actual document text. No new tests are needed there.
 4. Read every new or changed test. Check that it would fail without the change.
-5. Run the repo's test command from the brief yourself. Read the output.
+5. Run the tests yourself with the command in the brief, `node <plugin root>/gates/run-tests.mjs <worktree>`. Read the output.
 6. If the brief names lanes, run `run-e2e.mjs` exactly as the brief gives it. It reports lane ids and one-line reasons only.
 7. Check the tickets work together and that nothing outside the issue regressed.
 

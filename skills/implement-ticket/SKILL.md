@@ -76,7 +76,7 @@ Method: <one line, see below>
 ACCEPTANCE
 - The ticket is implemented. Behaviour outside it is unchanged.
 - Code changes come with tests in the repo's own suite that drive the app's boundary.
-- <test_command> passes at your final commit.
+- `node <plugin root>/gates/run-tests.mjs <worktree>` passes at your final commit. It runs config test_command in the worktree. The allowlist refuses `cd <worktree> && npm test`.
 - Every commit carries the three trailers.
 
 VERIFY

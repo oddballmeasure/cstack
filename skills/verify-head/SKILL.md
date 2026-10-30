@@ -66,7 +66,7 @@ head_sha is <sha>. Every requirement id above is assessed.
 findings lists only unresolved problems that block approval, each specific enough to fix.
 
 VERIFY
-Run the test command yourself: <test_command>.
+Run the tests yourself: node <plugin root>/gates/run-tests.mjs <worktree>. It runs config test_command there.
 If lanes are given: node <plugin root>/gates/run-e2e.mjs <worktree> --sha <sha> --lanes <ids>
 The coordinator then runs check-verdict.mjs on your file. It reruns the tests and rejects on any failure.
 
