@@ -86,7 +86,9 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
   } else {
     allow = [...reads, ...tools, ...store, `Edit(${abs(wtRoot)}/**)`, `Edit(${abs(repoRoot)}/.cstack/profile.json)`, ...scripts, ...shell, ...build];
     if (role === "coordinator") {
-      allow.push("Bash(systemd-run --user --collect --quiet --unit=cstack-e2e-*)", "Bash(systemctl --user is-active *)", "Bash(systemctl --user show *)", "Bash(systemctl --user stop cstack-*)", "Bash(journalctl --user *)");
+      // The ChatGPT login check before launching a Codex session. Every role denies `codex *`; the guard lets this
+      // longer, exact allow rule through.
+      allow.push("Bash(codex login status)", "Bash(systemd-run --user --collect --quiet --unit=cstack-e2e-*)", "Bash(systemctl --user is-active *)", "Bash(systemctl --user show *)", "Bash(systemctl --user stop cstack-*)", "Bash(journalctl --user *)");
     } else {
       allow.push("Bash(systemctl --user is-active *)", "Bash(systemctl --user show *)", "Bash(journalctl --user *)");
     }

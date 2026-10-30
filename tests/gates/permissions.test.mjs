@@ -58,6 +58,7 @@ test("coordinator adds the e2e author launch and stopping cstack units, and may 
   const p = perms("coordinator");
   assert.ok(p.allow.includes("Bash(systemd-run --user --collect --quiet --unit=cstack-e2e-*)"));
   assert.ok(p.allow.includes("Bash(systemctl --user stop cstack-*)"));
+  assert.ok(p.allow.includes("Bash(codex login status)"));
   assert.ok(!p.deny.includes("Bash(systemd-run *)"));
   assert.ok(!p.deny.some((r) => r.includes("supervise.mjs")), "the coordinator starts and stops sessions");
   for (const rule of perms("worker").allow) assert.ok(p.allow.includes(rule), `coordinator keeps ${rule}`);
