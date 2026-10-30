@@ -61,7 +61,7 @@ Earlier feedback (what was already found and fixed): <store>/feedback-<unit>.md
 Verdict format: the header of <plugin root>/gates/check-verdict.mjs
 
 ACCEPTANCE
-Write exactly one file: <verdict path>. Nothing else changes.
+Record exactly one verdict, as one single-quoted argument, never a heredoc: node <plugin root>/gates/record-verdict.mjs --store <store> --unit <unit> --sha <sha> --by <judge model> --verdict '<json>'. It writes <verdict path>. Nothing else changes.
 head_sha is <sha>. Every requirement id above is assessed.
 findings lists only unresolved problems that block approval, each specific enough to fix.
 
@@ -84,6 +84,7 @@ After it finishes:
 
 - HEAD still equals `sha`. If not, the run is broken. Discard the verdict and start this skill again from step 1.
 - `git -C <worktree> status --porcelain` prints nothing. If it prints anything, the verifier edited files. Discard the verdict, record `verifier-failed`, and spawn a fresh verifier once.
+- The verdict file exists and carries `by`, which `record-verdict.mjs` adds. Never write, copy or edit a verdict file yourself, even to save a verdict the verifier reported in its reply: a verdict on disk must come from the verifier through the gate (cstack#41). With no recorded verdict, spawn a fresh verifier once. A second miss is failure `verification`.
 
 ### 5. Gate the verdict
 
