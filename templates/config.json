@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "forge": "github",
   "repo": "owner/name",
   "base_branch": "main",
   "setup_command": null,

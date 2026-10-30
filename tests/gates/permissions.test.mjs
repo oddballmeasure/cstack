@@ -38,10 +38,11 @@ test("worker edits only the repo's worktrees and the run store, and runs the con
   assert.ok(p.allow.includes(`Edit(${WT}/**)`));
   assert.ok(p.allow.includes("Edit(//src/app/.cstack/profile.json)"));
   assert.ok(!p.allow.some((r) => r === "Edit(//src/app/**)"), "the main checkout is not writable");
-  for (const rule of ["Bash(git *)", "Bash(gh *)", "Bash(node *)", "Bash(npm test)", "Bash(npm test *)", "Bash(npm install *)", "Bash(npx playwright *)", "Bash(sh /opt/cstack/skills/*)", "Agent", "Monitor"]) {
+  for (const rule of ["Bash(git *)", "Bash(gh *)", "Bash(glab *)", "Bash(node *)", "Bash(npm test)", "Bash(npm test *)", "Bash(npm install *)", "Bash(npx playwright *)", "Bash(sh /opt/cstack/skills/*)", "Agent", "Monitor"]) {
     assert.ok(p.allow.includes(rule), rule);
   }
   assert.ok(p.deny.includes("Bash(systemd-run *)"), "a worker launches no detached session");
+  for (const rule of ["Bash(glab mr merge *)", "Bash(glab auth *)", "Read(~/.config/glab-cli/**)"]) assert.ok(p.deny.includes(rule), rule);
   for (const c of ["start", "stop", "daemon-run"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/supervise.mjs ${c} *)`), c);
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader node *)"), "verifiers run the suite as the grader");
   assert.ok(!p.allow.some((r) => r.startsWith("Bash(systemctl --user stop")));
@@ -75,7 +76,7 @@ test("grader reads, runs gates and the suite, and writes only to the store", WIN
   assert.ok(p.allow.includes("Bash(./scripts/e2e.sh *)"));
   assert.ok(p.allow.includes("Bash(gh pr checks *)"));
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader ./scripts/e2e.sh *)") && p.allow.includes("Bash(CSTACK_ROLE=grader node /opt/cstack/*)"));
-  for (const rule of ["Bash(git *)", "Bash(gh *)", "Bash(node *)", "Agent", `Edit(${WT}/**)`]) assert.ok(!p.allow.includes(rule), rule);
+  for (const rule of ["Bash(git *)", "Bash(gh *)", "Bash(glab *)", "Bash(node *)", "Agent", `Edit(${WT}/**)`]) assert.ok(!p.allow.includes(rule), rule);
   // It reads the forge through gates/forge.mjs, but its write verbs are denied.
   for (const v of ["change create", "issue comment", "thread reply", "labels ensure"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/forge.mjs ${v} *)`), v);
   assert.ok(!perms("worker").deny.some((r) => r.includes("forge.mjs")));

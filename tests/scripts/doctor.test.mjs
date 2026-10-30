@@ -192,3 +192,33 @@ test("a gh without pr checks --json or baseRefOid fails (cstack#32)", () => {
   assert.equal(old.code, 1);
   assert.match(old.out, /FAIL gh features: this gh lacks/);
 });
+
+test("forge gitlab: glab auth, the project, its base branch and labels; nested group paths", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-doctor-glab-"));
+  const scenario = path.join(dir, "glab.json");
+  const labels = LABELS.split("\n").map((name) => ({ name }));
+  const P = "projects/grp%2Fsub%2Fapp";
+  writeFileSync(scenario, JSON.stringify({ rules: [
+    { match: "^auth status$", responses: [{ stdout: "Logged in" }] },
+    { match: `^api --hostname git\\.example\\.com ${P}$`, responses: [{ json: { id: 1 } }] },
+    { match: `^api --hostname git\\.example\\.com ${P}/repository/branches/main$`, responses: [{ json: { name: "main" } }] },
+    { match: `^api --hostname git\\.example\\.com ${P}/labels`, responses: [{ json: labels }] },
+  ] }));
+  const root = target({ forge: "gitlab", forge_host: "git.example.com", repo: "grp/sub/app" });
+  const r = doctor(root, [], { FAKE_GLAB_SCENARIO: scenario });
+  assert.equal(r.code, 0, r.out);
+  for (const line of [/PASS glab auth/, /PASS gitlab project: grp\/sub\/app/, /PASS base branch: main exists/, /PASS labels/]) assert.match(r.out, line);
+  assert.doesNotMatch(r.out, /gh features|github repo/);
+  const missing = doctor(target({ forge: "gitlab", repo: "grp/app" }), [], { FAKE_GLAB_SCENARIO: path.join(dir, "none.json") });
+  assert.equal(missing.code, 1);
+  for (const line of [/FAIL glab auth/, /FAIL gitlab project/, /FAIL base branch/, /FAIL labels/]) assert.match(missing.out, line);
+});
+
+test("forge keys are validated; a nested path is GitLab-only; local needs no forge CLI", () => {
+  const bad = doctor(target({ forge: "gitea", forge_host: "not a host", review_bots: [""], repo: "a/b/c" }), ["--offline"]);
+  assert.equal(bad.code, 1);
+  for (const msg of ["forge must be github, gitlab or local", "forge_host must be a host name", "review_bots must be an array of bot logins", "repo must be owner/name"]) assert.ok(bad.out.includes(`FAIL config schema: ${msg}`), msg);
+  assert.match(doctor(target({ forge: "gitlab", repo: "solo" }), ["--offline"]).out, /repo must be the project path, group\/project/);
+  const local = doctor(target({ forge: "local", review_bots: ["greptile-apps"] }), []);
+  assert.doesNotMatch(local.out, /tool gh|tool glab|github repo|gitlab project/);
+});

@@ -48,6 +48,10 @@
 // watcher for the same PR exit at once. A state file lets a restarted watcher report what arrived
 // while no watcher ran. The first run for a PR records what already exists and reports only what
 // comes after. State older than 6 hours is discarded.
+//
+// Other forges: when forgeKind (CSTACK_FORGE, else config `forge`) is not github, gates/lib/change-watch.mjs
+// watches the change through forge verbs only, with the same flags, exit codes, lock and state. <pr> may then be
+// a merge request URL and --repo a group/project path. Review bots gate only when config `review_bots` lists them.
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, statSync, linkSync, unlinkSync, writeSync } from "node:fs";
 import os from "node:os";
@@ -55,6 +59,8 @@ import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs, loadConfig, run } from "./lib/common.mjs";
 import { registerWatcher } from "./lib/workers.mjs";
+import { forgeKind } from "./lib/forge.mjs";
+import { watchChange } from "./lib/change-watch.mjs";
 
 // Review bots. A gating bot must review the head before `ready`. An advisory bot is reported only.
 const GATING_BOTS = ["greptile", "macroscope"];
@@ -666,6 +672,39 @@ async function main(argv) {
   if (timeout !== null && !(timeout > 0)) fail(`--timeout must be a positive number of seconds, not '${args.timeout}'`);
   if (args._.length > 1) fail(`expected one PR, got ${args._.length}: ${args._.join(" ")}`);
   const stateDir = path.resolve(args["state-dir"] || path.join(os.homedir(), ".local", "state", "cstack", "pr-wait"));
+
+  let config = {};
+  try {
+    config = loadConfig(process.cwd()).config;
+  } catch {
+    // No config, or a broken one: the forge comes from CSTACK_FORGE, else GitHub.
+  }
+  let kind;
+  try {
+    kind = forgeKind(config);
+  } catch (err) {
+    fail(err.message);
+  }
+  if (kind !== "github") {
+    const io = {
+      out,
+      log,
+      fail,
+      exit: (code) => {
+        throw new Exit(code);
+      },
+      lock: (file) => {
+        const lock = new Lock(file);
+        process.on("exit", () => lock.release());
+        return lock;
+      },
+      register: () => {
+        const store = watcherStore(args.store);
+        if (store) registerWatcher(store, "pr-wait");
+      },
+    };
+    return watchChange({ target: args._[0], repo: args.repo, config, cwd: process.cwd(), until, interval, timeout, stateDir, io });
+  }
 
   const { repo, pr } = await parseTarget(args._[0], args.repo);
   mkdirSync(stateDir, { recursive: true });
