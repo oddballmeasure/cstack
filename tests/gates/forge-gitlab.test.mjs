@@ -107,10 +107,10 @@ test("issues: view with notes, relabel, comment, list, create", () => {
     { match: `^api -X GET ${P}/issues/9$`, responses: [{ stderr: "404 Not Found", code: 1 }] },
     { match: `^api -X PUT ${P}/issues/3 -f add_labels=a -f remove_labels=b,c$`, responses: [{ json: issue }] },
     { match: `^api -X PUT ${P}/issues/3$`, responses: [{ stderr: "nothing to change", code: 1 }] },
-    { match: `^api -X POST ${P}/issues/3/notes -f body=the body\\n$`, responses: [{ json: {} }] },
+    { match: `^api -X POST ${P}/issues/3/notes -F body=@\\S*body\\.md$`, responses: [{ json: {} }] },
     { match: `^api -X GET ${P}/issues\\?state=opened&per_page=100&order_by=created_at&sort=desc&labels=cstack%3Aready --paginate$`, responses: [{ json: [issue] }] },
     { match: `^api -X GET ${P}/issues\\?state=all&per_page=100&order_by=created_at&sort=desc&search=Cstack-Scout&in=description --paginate$`, responses: [{ json: [issue, { ...issue, iid: 4, state: "closed", labels: undefined }] }] },
-    { match: `^api -X POST ${P}/issues -f title=New -f description=the body\\n -f labels=cstack:ready$`, responses: [{ json: issue }, { stderr: "422", code: 1 }] },
+    { match: `^api -X POST ${P}/issues -F description=@\\S*body\\.md -f title=New -f labels=cstack:ready$`, responses: [{ json: issue }, { stderr: "422", code: 1 }] },
   ];
   const r = call(rules, `return [f.issue(3, ["labels", "comments"]), f.issue(3, ["title"]), f.issue(9, ["title"]), f.issue(3, ["comments"]), f.relabel(3, { add: ["a"], remove: ["b", "c"] }), f.relabel(3, {}), f.comment(3, body), f.issues({ label: "cstack:ready", want: ["number"] }), f.issues({ state: "all", search: "Cstack-Scout", want: [], limit: 1 }), f.issues({ state: "all", search: "Cstack-Scout", want: [] }), f.createIssue({ title: "New", bodyFile: body, label: "cstack:ready" }), f.createIssue({ title: "New", bodyFile: body, label: "cstack:ready" })];`);
   assert.equal(r.code, 0, r.err);
@@ -149,12 +149,12 @@ test("skill verbs: repo, user, change detail, find, merged, create, edit, ready,
     { match: `^api -X GET ${P}/merge_requests\\?state=all&per_page=100$`, responses: [{ json: [] }] },
     { match: `^api -X GET ${P}/merge_requests\\?state=opened&per_page=100$`, responses: [{ json: [mr()] }] },
     { match: `^api -X GET ${P}/merge_requests\\?state=merged&order_by=merged_at&sort=desc&per_page=2$`, responses: [{ json: [{ iid: 5, title: "Old", web_url: "u5", merged_at: "t" }] }] },
-    { match: `^api -X POST ${P}/merge_requests -f source_branch=feat -f target_branch=main -f title=Fix -f description=the body\\n$`, responses: [{ json: { iid: 9, web_url: "u9" } }, { stderr: "409 conflict", code: 1 }] },
-    { match: `^api -X PUT ${P}/merge_requests/7 -f title=New -f description=the body\\n$`, responses: [{ json: {} }] },
+    { match: `^api -X POST ${P}/merge_requests -F description=@\\S*body\\.md -f source_branch=feat -f target_branch=main -f title=Fix$`, responses: [{ json: { iid: 9, web_url: "u9" } }, { stderr: "409 conflict", code: 1 }] },
+    { match: `^api -X PUT ${P}/merge_requests/7 -F description=@\\S*body\\.md -f title=New$`, responses: [{ json: {} }] },
     { match: `^api -X PUT ${P}/merge_requests/7 -f title=Ready one$`, responses: [{ json: {} }] },
     { match: `^api -X PUT ${P}/merge_requests/7$`, responses: [{ stderr: "nothing", code: 1 }] },
     { match: `^api -X GET ${P}/merge_requests/7$`, responses: [{ json: { title: "Draft: Ready one" } }, { json: { title: "Ready one" } }] },
-    { match: `^api -X POST ${P}/merge_requests/7/notes -f body=the body\\n$`, responses: [{ json: {} }] },
+    { match: `^api -X POST ${P}/merge_requests/7/notes -F body=@\\S*body\\.md$`, responses: [{ json: {} }] },
   ];
   const r = call(rules, `return [f.repoInfo(), f.currentUser(), f.changeDetail(7), f.changeDetail(7), f.findChanges({ head: "feat/a", base: "main" }), f.findChanges({ state: "all" }), f.findChanges(), f.recentMerged(2), f.createChange({ head: "feat", base: "main", title: "Fix", bodyFile: body }), f.createChange({ head: "feat", base: "main", title: "Fix", bodyFile: body }), f.editChange(7, { title: "New", bodyFile: body }), f.editChange(7), f.markReady(7), f.markReady(7), f.commentChange(7, body)];`);
   assert.equal(r.code, 0, r.err);
@@ -181,7 +181,7 @@ test("skill verbs: threads, reviews, replies, resolving, issue detail, labels, r
       { id: "d5", notes: [] },
     ] }] },
     { match: `^api -X GET ${P}/merge_requests/7/approvals$`, responses: [{ json: { approved_by: [{ user: { username: "lead" } }] } }, { json: {} }] },
-    { match: `^api -X POST ${P}/merge_requests/7/discussions/d1/notes -f body=the body\\n$`, responses: [{ json: {} }, { stderr: "403", code: 1 }] },
+    { match: `^api -X POST ${P}/merge_requests/7/discussions/d1/notes -F body=@\\S*body\\.md$`, responses: [{ json: {} }, { stderr: "403", code: 1 }] },
     { match: `^api -X PUT ${P}/merge_requests/7/discussions/d1 -f resolved=true$`, responses: [{ json: {} }] },
     { match: `^api -X GET ${P}/issues/3$`, responses: [{ json: { iid: 3, title: "T", state: "opened", labels: ["x"], web_url: "https://g/i/3", author: { username: "a" }, description: "d", created_at: "t" } }, { json: { iid: 3, title: "T", state: "closed", author: null, created_at: "t" } }] },
     { match: `^api -X GET ${P}/issues/3/notes`, responses: [{ json: [n(8), n(9, { system: true })] }] },

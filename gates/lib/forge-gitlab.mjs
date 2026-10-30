@@ -7,7 +7,6 @@
 //   - checks are the jobs of the newest pipeline for a SHA, mapped to GitHub's status and conclusion words, which
 //     the gates already read; an allowed failure counts as neutral
 //   - the exact-SHA merge is `PUT …/merge` with `sha`, which answers HTTP 409 when the head moved
-import { readFileSync } from "node:fs";
 import { UsageError, run } from "./common.mjs";
 
 // detailed_merge_status → the forge layer's merge state. Anything not listed blocks: it names a rule that stops a merge.
@@ -53,6 +52,8 @@ export function gitlab(repo, cwd, host = null) {
     return r.stdout;
   };
   const json = (method, path, fields, extra) => JSON.parse(must(method, path, fields, extra));
+  // Text bodies go as `-F key=@file`, which glab reads itself: newlines survive any shell and Windows shim.
+  const fileField = (key, file) => ["-F", `${key}=@${file}`];
   const result = (r) => ({ ok: r.code === 0, error: r.stderr.trim() });
   const toIssue = (i, notes = []) => ({
     number: i.iid,
@@ -160,7 +161,7 @@ export function gitlab(repo, cwd, host = null) {
       return result(glab("PUT", `${project}/issues/${id}`, fields));
     },
     comment(id, bodyFile) {
-      return result(glab("POST", `${project}/issues/${id}/notes`, { body: readFileSync(bodyFile, "utf8") }));
+      return result(glab("POST", `${project}/issues/${id}/notes`, {}, fileField("body", bodyFile)));
     },
     issues({ state = "open", label = null, search = null, within = "body", limit = 200 }) {
       const q = [`state=${state === "open" ? "opened" : "all"}`, "per_page=100", "order_by=created_at", "sort=desc"];
@@ -169,7 +170,7 @@ export function gitlab(repo, cwd, host = null) {
       return json("GET", `${project}/issues?${q.join("&")}`, {}, ["--paginate"]).slice(0, limit).map((i) => toIssue(i));
     },
     createIssue({ title, bodyFile, label }) {
-      const r = glab("POST", `${project}/issues`, { title, description: readFileSync(bodyFile, "utf8"), labels: label });
+      const r = glab("POST", `${project}/issues`, { title, labels: label }, fileField("description", bodyFile));
       if (r.code !== 0) return { ok: false, error: r.stderr.trim() };
       const i = JSON.parse(r.stdout);
       return { ok: true, id: i.iid, url: i.web_url };
@@ -211,7 +212,7 @@ export function gitlab(repo, cwd, host = null) {
     },
     // Open a real MR, never a draft. GitLab has one REST API, so there is no fallback to report.
     createChange({ head, base, title, bodyFile }) {
-      const r = glab("POST", `${project}/merge_requests`, { source_branch: head, target_branch: base, title, description: readFileSync(bodyFile, "utf8") });
+      const r = glab("POST", `${project}/merge_requests`, { source_branch: head, target_branch: base, title }, fileField("description", bodyFile));
       if (r.code !== 0) return { ok: false, error: r.stderr.trim() };
       const m = JSON.parse(r.stdout);
       return { ok: true, id: m.iid, url: m.web_url, via: "rest" };
@@ -219,8 +220,7 @@ export function gitlab(repo, cwd, host = null) {
     editChange(id, { bodyFile = null, title = null } = {}) {
       const fields = {};
       if (title) fields.title = title;
-      if (bodyFile) fields.description = readFileSync(bodyFile, "utf8");
-      return result(glab("PUT", `${project}/merge_requests/${id}`, fields));
+      return result(glab("PUT", `${project}/merge_requests/${id}`, fields, bodyFile ? fileField("description", bodyFile) : []));
     },
     // GitLab marks a draft by a title prefix; ready means the prefix is gone.
     markReady(id) {
@@ -229,7 +229,7 @@ export function gitlab(repo, cwd, host = null) {
       return title === m.title ? { ok: true, error: "" } : result(glab("PUT", `${project}/merge_requests/${id}`, { title }));
     },
     commentChange(id, bodyFile) {
-      return result(glab("POST", `${project}/merge_requests/${id}/notes`, { body: readFileSync(bodyFile, "utf8") }));
+      return result(glab("POST", `${project}/merge_requests/${id}/notes`, {}, fileField("body", bodyFile)));
     },
     // Resolvable discussions only: those are GitLab's review threads. Discussion ids belong to one MR.
     threads(id) {
@@ -254,7 +254,7 @@ export function gitlab(repo, cwd, host = null) {
       return [...approvals, ...comments].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
     },
     replyThread(id, threadId, bodyFile) {
-      const r = glab("POST", `${project}/merge_requests/${id}/discussions/${threadId}/notes`, { body: readFileSync(bodyFile, "utf8") });
+      const r = glab("POST", `${project}/merge_requests/${id}/discussions/${threadId}/notes`, {}, fileField("body", bodyFile));
       return r.code === 0 ? { ok: true, url: null } : { ok: false, error: r.stderr.trim() };
     },
     resolveThread(id, threadId) {

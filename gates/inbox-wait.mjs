@@ -45,8 +45,9 @@ main(async (argv) => {
     }
   };
   snapshot();
-  registerWatcher(store, "inbox-wait");
+  // Handle signals before the mark announces this watcher, so a stop never finds it unprepared.
   for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => process.exit(0));
+  registerWatcher(store, "inbox-wait");
 
   const seen = new Set();
   const workers = new Map();
