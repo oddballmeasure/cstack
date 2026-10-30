@@ -42,7 +42,11 @@ test("worker edits only the repo's worktrees and the run store, and runs the con
     assert.ok(p.allow.includes(rule), rule);
   }
   assert.ok(p.deny.includes("Bash(systemd-run *)"), "a worker launches no detached session");
-  for (const rule of ["Bash(glab mr merge *)", "Bash(glab auth *)", "Read(~/.config/glab-cli/**)"]) assert.ok(p.deny.includes(rule), rule);
+  for (const rule of ["Bash(glab mr merge *)", "Bash(glab auth *)", "Read(~/.config/glab-cli/**)", "Bash(rm -rf /)", "Bash(rm -rf /etc*)", "Bash(rm -rf /home*)"]) assert.ok(p.deny.includes(rule), rule);
+  // Claude Code reads the * as a wildcard and a deny beats an allow, so this rule would refuse /tmp/cstack-* cleanup.
+  assert.ok(!p.deny.includes("Bash(rm -rf /*)"));
+  assert.ok(p.allow.includes("Bash(rm -rf /tmp/cstack-*)"));
+  assert.ok(!p.deny.some((r) => r.startsWith("Bash(rm -rf /tmp")));
   for (const c of ["start", "stop", "daemon-run"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/supervise.mjs ${c} *)`), c);
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader node *)"), "verifiers run the suite as the grader");
   assert.ok(!p.allow.some((r) => r.startsWith("Bash(systemctl --user stop")));

@@ -190,7 +190,8 @@ function checkRoleDeny(cmd, role, root, cwd, cfg) {
     return; // an unknown role has no deny list
   }
   const compile = (rules) => rules.filter((r) => r.startsWith("Bash(")).map((r) => [r, ruleRegex(r.slice(5, -1)), r.slice(5, -1).split("*")[0].length]);
-  const denies = compile(perms.deny);
+  // Everything else under / is covered too: Codex has no allowlist to refuse it by default.
+  const denies = compile([...perms.deny, "Bash(rm -rf /*)"]);
   const allows = compile(perms.allow);
   for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
     const simple = part.trim().replace(/^(?:\w+=\S*\s+)+/, "");
