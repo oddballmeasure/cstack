@@ -12,7 +12,7 @@ You can delete any of these at any time.
 
 ## What leaves your machine, through your own accounts
 
-- **GitHub**, through your logged-in `gh` and `git`: the branches, commits, pull requests, issues, comments and labels cstack creates on the repo you point it at. GitHub's privacy terms apply.
+- **GitHub or GitLab**, whichever the repo's `forge` config names, through your logged-in `gh` or `glab` and `git` (plain git sends only what you push to your own remote): the branches, commits, pull requests, issues, comments and labels cstack creates on the repo you point it at. GitHub's privacy terms apply.
 - **Anthropic**, through your own Claude Code login: the prompts, code and tool output of the Claude Code sessions and subagents cstack runs, as with any Claude Code session. Anthropic's privacy terms apply.
 - **Your deploy host**, only if you configure `deploy` with `ssh` transport: your committed `deploy.sh` and health command run there over `ssh`.
 

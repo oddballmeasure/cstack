@@ -1,0 +1,63 @@
+{
+  "fixture": "f1-cli-ledger",
+  "harness": "codex",
+  "forge": "gitlab",
+  "date": "2026-10-30",
+  "started_at": "2026-10-30T17:24:00.282Z",
+  "wall_seconds": 1207,
+  "budget": {
+    "hours": 2,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "e35322eb6a7b876a410f6d5744d30ce4e477b54a",
+  "grader": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 12,
+    "total": 12,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f1/e2e-author.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 2
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 0,
+    "SYNC": 0,
+    "total": 0
+  },
+  "decision_rows": 25,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 9,
+      "state": "MERGED",
+      "title": "Add independent ledger CLI acceptance suite"
+    },
+    {
+      "number": 10,
+      "state": "MERGED",
+      "title": "Record and report expenses with a plain-text ledger CLI"
+    }
+  ],
+  "final_message": "The done predicate passed at `e35322eb6a7b876a410f6d5744d30ce4e477b54a`.\n\n- Both PRs merged: [suite !9](https://gitlab.com/trademark/cstack-testbed/-/merge_requests/9), [CLI !10](https://gitlab.com/trademark/cstack-testbed/-/merge_requests/10).\n- CI is green; seven public tests and all 12 acceptance lanes passed.\n- Council scores were 8/10, 9/10 and 9/10.\n\nAttention\n\nreviewed by gpt-6-astra\n\nPartial-write recovery remains unproven, tracked in [#17](https://gitlab.com/trademark/cstack-testbed/-/work_items/17). The report records this limitation, the coarse requirement mapping, defaults and other follow-ups.\n\n[Full report and requirement trace](/home/monty/cstack/tests/fixtures/results/f1-cli-ledger-2026-10-30T17-24-00-258Z/testbed/.cstack/runs/f1/report.md) · [Decision log](/home/monty/cstack/tests/fixtures/results/f1-cli-ledger-2026-10-30T17-24-00-258Z/testbed/.cstack/runs/f1/decisions.tsv)",
+  "pass": true
+}

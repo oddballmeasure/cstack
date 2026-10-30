@@ -29,3 +29,13 @@ Date: 2026-10-30. Decided by Monty: plain git with any remote, or none; other fo
 - The records are per checkout. Two machines working one remote do not share issues or change requests.
 - There are no review bots and no approvals. The cstack review loop and the ledger verdict are the review, as on every forge.
 - Without a server, a merge that crashes between the merge commit and its record leaves the record open. The next merge attempt sees the head already contained in the base and fails safely. A person closes the record.
+
+## F5 proof
+
+f1 end to end, held-out grader, all within the 2 h budget. Results are in `tests/fixtures/f1-cli-ledger/results/`.
+
+| Forge | Harness | Grader | Own e2e | Time |
+|---|---|---|---|---|
+| plain git | Claude Code | 24/24 | 51/51 | 63 min |
+
+The plain-git forge has not been run under Codex.
