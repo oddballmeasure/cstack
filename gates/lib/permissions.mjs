@@ -61,7 +61,7 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
   const tools = ["Agent", "Skill", "Monitor", "TaskStop", "TodoWrite", "ToolSearch"];
   const store = [`Edit(${abs(runs)}/**)`, "Edit(//tmp/cstack-*)", "Edit(//tmp/cstack-*/**)"];
   const scripts = [`Bash(node ${plugin}/*)`, `Bash(sh ${plugin}/skills/*)`, `Bash(bash ${plugin}/skills/*)`, `Bash(${plugin}/skills/*)`];
-  const shell = ["Bash(jq *)", "Bash(column *)", "Bash(sort *)", "Bash(printf *)", "Bash(date *)", "Bash(sleep *)", "Bash(mkdir *)", "Bash(touch *)"];
+  const shell = ["Bash(printenv CSTACK_*)", "Bash(command -v *)", "Bash(jq *)", "Bash(column *)", "Bash(sort *)", "Bash(printf *)", "Bash(date *)", "Bash(sleep *)", "Bash(mkdir *)", "Bash(touch *)"];
   const build = [
     "Bash(git *)", "Bash(gh *)", "Bash(glab *)", "Bash(node *)", "Bash(cp *)", "Bash(mv *)", "Bash(chmod +x *)", "Bash(rm -f *)",
     "Bash(rm -rf /tmp/cstack-*)", ...repoCommands(config), ...(Array.isArray(config.permissions_allow) ? config.permissions_allow : []),

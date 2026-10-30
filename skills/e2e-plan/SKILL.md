@@ -82,10 +82,10 @@ Log the choice.
 
 ### 4. Set the e2e command (when config had none)
 
-The author cannot write config. The guard blocks every file-tool write to `.cstack/config.json` for every role. The coordinator sets it with `jq` through Bash, and the human reviews the change in PR #0.
+The author cannot write config. The guard blocks every file-tool write to `.cstack/config.json` for every role. The coordinator sets it through a gate that changes that one key, and the human reviews the change in PR #0.
 
 ```sh
-jq --slurpfile c <store>/e2e-command.json '.e2e_command = $c[0]' <wt>/.cstack/config.json > <wt>/.cstack/config.json.new && mv <wt>/.cstack/config.json.new <wt>/.cstack/config.json
+node <root>/gates/set-e2e-command.mjs <wt> --command-file <store>/e2e-command.json
 git -C <wt> add .cstack/config.json
 git -C <wt> commit -m "Set e2e_command for the hidden suite" -m "Cstack-Unit: E2E
 Cstack-Ticket: E2E-CONFIG

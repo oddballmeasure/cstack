@@ -46,6 +46,8 @@ test("worker edits only the repo's worktrees and the run store, and runs the con
   // Claude Code reads the * as a wildcard and a deny beats an allow, so this rule would refuse /tmp/cstack-* cleanup.
   assert.ok(!p.deny.includes("Bash(rm -rf /*)"));
   assert.ok(p.allow.includes("Bash(rm -rf /tmp/cstack-*)"));
+  for (const rule of ["Bash(printenv CSTACK_*)", "Bash(command -v *)"]) assert.ok(p.allow.includes(rule), rule);
+  assert.ok(!p.allow.includes("Bash(printenv *)"), "other variables may hold secrets");
   assert.ok(!p.deny.some((r) => r.startsWith("Bash(rm -rf /tmp")));
   for (const c of ["start", "stop", "daemon-run"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/supervise.mjs ${c} *)`), c);
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader node *)"), "verifiers run the suite as the grader");
