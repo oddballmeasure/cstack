@@ -27,7 +27,7 @@ Check the real artifact, not a proxy (Prove It Works). A test that exists is not
 
 ## The verdict
 
-Write exactly one file, the verdict path from the brief, with a single Bash heredoc (`cat > <path> <<'EOF'`). The format is the header of `gates/check-verdict.mjs`:
+Record exactly one verdict through the gate, with the verdict JSON as one single-quoted argument: `node <plugin root>/gates/record-verdict.mjs --store <store> --unit <unit> --sha <sha> --by <your model> --verdict '<json>'`. Do not use a heredoc: the allowlist refuses it, and a refused call saves nothing. Keep apostrophes and backslashes out of the JSON: reword the text instead, because the allowlist may refuse them. You have no Write tool, and a shell redirect is refused, so this gate is the only way your verdict is saved. It writes the verdict path from the brief, adds `by` and `recorded_at`, and refuses a second verdict for the same head. The format is the header of `gates/check-verdict.mjs`:
 
 ```json
 {
@@ -47,7 +47,7 @@ Write exactly one file, the verdict path from the brief, with a single Bash here
 ## Never
 
 - Never edit, create or delete any file other than the verdict file.
-- Use Bash only to run tests, `run-e2e.mjs`, read-only git commands (`diff`, `log`, `show`, `status`, `rev-parse`), and the single verdict write.
+- Use Bash only to run tests, `run-e2e.mjs`, read-only git commands (`diff`, `log`, `show`, `status`, `rev-parse`), and the one `record-verdict.mjs` call.
 - Never commit, checkout, stash, reset, push or merge.
 - Never read, list or search a path in `paths_hidden`.
 
