@@ -222,7 +222,7 @@ if (existsSync(guard)) {
 } else {
   fail("hooks", `guard not found at ${guard}`);
 }
-// Codex runs plugin hooks only once they are trusted, and skips them silently otherwise (ADR-010). The guard
+// Codex runs plugin hooks only once they are trusted, and skips them silently otherwise. The guard
 // leaves a mark for each Codex session it sees in a cstack context, including the call that started this script.
 const codex = process.env.CODEX_SESSION_ID;
 if (codex) {
@@ -247,7 +247,7 @@ if (forge === "github" && which("gh")) {
   else fail("gh features", "this gh lacks `pr checks --json` or the baseRefOid field; install a current gh from https://cli.github.com");
 }
 
-// The local forge keeps its records in the main checkout and runs ci_command itself (ADR-014).
+// The local forge keeps its records in the main checkout and runs ci_command itself.
 if (forge === "local") {
   const store = path.join(path.resolve(dir), ".cstack", "forge");
   try {

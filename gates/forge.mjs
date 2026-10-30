@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One CLI over the forge layer (gates/lib/forge.mjs, ADR-013). Skills use it instead of gh or glab, so every
+// One CLI over the forge layer (gates/lib/forge.mjs). Skills use it instead of gh or glab, so every
 // backend serves the same verbs. Records are forge-neutral; see the header of gates/lib/forge.mjs.
 // Usage: forge.mjs <verb> ... [--json] [--repo-dir <d>] [--repo <owner/name>]
 //   repo                                       the repo: path, default branch, url

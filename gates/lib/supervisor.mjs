@@ -1,4 +1,4 @@
-// Host supervisor: detached sessions that outlive the session that starts them, on any OS (ADR-011).
+// Host supervisor: detached sessions that outlive the session that starts them, on any OS.
 // Backends, picked by CSTACK_SUPERVISOR, else config host.supervisor, else by platform:
 //   systemd        Linux with a user manager. gates/worker.mjs keeps its own systemd-run launch for these.
 //   launchd        macOS. A plist next to the spec, loaded with `launchctl bootstrap gui/<uid>`.

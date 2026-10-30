@@ -11,7 +11,7 @@
 // and exits 3 with:
 //   timeout: <n>s                              --timeout passed with no reason above; run it again
 // With --until it waits for the deadline instead of exiting idle. --once and --timeout serve harnesses
-// without a Monitor tool (Codex, ADR-010): the session runs the watcher in the foreground and re-runs it.
+// without a Monitor tool (Codex): the session runs the watcher in the foreground and re-runs it.
 // While it runs it holds <store>/watchers/<pid>, which tells the pending-work Stop hook that the
 // coordinator is waiting correctly.
 // Usage: inbox-wait.mjs --store <dir> [--interval-ms 15000] [--until <iso>] [--once] [--timeout <s>]

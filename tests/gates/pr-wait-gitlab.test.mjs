@@ -1,5 +1,5 @@
 // Tests for gates/pr-wait.mjs on GitLab (gates/lib/change-watch.mjs). Uses the scenario-driven fake glab, with the
-// response shapes measured in ADR-013.
+// response shapes measured on gitlab.com.
 import { describe, test, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";

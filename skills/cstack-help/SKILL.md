@@ -42,7 +42,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 `/cstack:program <guideline text or path>` runs the pipeline in `skills/program/SKILL.md`: preflight, spec (H1), profile, the hidden e2e suite as PR #0, plan (H2), orchestrated units, post-merge CI, a final e2e proof at the merged SHA by an agent that wrote no code, a council review, and an audited report.
 
-- `--autonomy=send` merges through the merge gate and skips H2. It needs a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send` (ADR-006), else it stays `stop`.
+- `--autonomy=send` merges through the merge gate and skips H2. It needs a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send`, else it stays `stop`.
 - `--autonomy=stop` ends at each merge-ready PR. Merge it, then `/cstack:program --resume <slug>`.
 - `--parallel=N` runs up to N units at once as detached workers.
 - A good guideline states the problem, the users, the goals, the non-goals, and end-to-end requirements with exact outputs. A thin one gets `cstack:sharpen` first. `tests/fixtures/f1-cli-ledger/guideline.md` is a worked example.
@@ -116,7 +116,7 @@ The mode skill (`skills/cstack/SKILL.md`) holds ten non-negotiables and 24 princ
 ## Test cstack itself
 
 - **L0 lint and L1 gates.** `node tests/lint/lint.mjs`, `npm test`, `npm run coverage:gates` (100% line and branch).
-- **L2 evals.** `evals/<case>/` with `claude plugin eval`, as ADR-005 describes. Always pass `--no-publish`.
+- **L2 evals.** `evals/<case>/` with `claude plugin eval`. Always pass `--no-publish`.
 - **L3 scenarios.** `node tests/scenarios/run.mjs <name>` against the private testbed. One at a time. `tests/scenarios/README.md` lists them.
 - **L4 fixtures.** `node tests/fixtures/run-fixture.mjs f1-cli-ledger` runs a whole program on the testbed and grades it with a held-out suite. `tests/fixtures/README.md` has the details.
 

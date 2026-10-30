@@ -1,4 +1,4 @@
-// Permission settings for the headless Claude Code sessions cstack launches (ADR-009).
+// Permission settings for the headless Claude Code sessions cstack launches.
 // No cstack session skips permissions. Each one runs with `--permission-mode dontAsk` and a generated
 // `--settings` file whose permissions.allow names exactly what that role runs. dontAsk denies every
 // other call at once, without a prompt, so a session never hangs on one. The guard hook stays the
@@ -120,7 +120,7 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     const writes = ["change create", "change edit", "change ready", "change comment", "checks rerun", "thread reply", "thread resolve", "issue create", "issue edit", "issue comment", "labels ensure"];
     deny.push(...writes.map((v) => `Bash(node ${plugin}/gates/forge.mjs ${v} *)`));
   }
-  // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor (ADR-011).
+  // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor.
   if (role !== "coordinator") {
     deny.push("Bash(systemd-run *)", ...["start", "stop", "daemon-run"].map((c) => `Bash(node ${plugin}/gates/supervise.mjs ${c} *)`));
   }

@@ -1,6 +1,6 @@
 # Codex notes
 
-cstack skills are written in Claude Code terms. Read this file instead of the Claude Code notes when you run in Codex: your tools include `spawn_agent` and `apply_patch`, and shell commands see `CODEX_THREAD_ID`. Every Claude Code tool a skill names maps to a Codex action in the table below. Do what the right column says wherever a skill names the left one. The rules of the mode skill do not change. Facts marked ADR-010 were measured with Codex CLI 0.165.0 (`docs/adr/ADR-010-codex-spike.md`).
+cstack skills are written in Claude Code terms. Read this file instead of the Claude Code notes when you run in Codex: your tools include `spawn_agent` and `apply_patch`, and shell commands see `CODEX_THREAD_ID`. Every Claude Code tool a skill names maps to a Codex action in the table below. Do what the right column says wherever a skill names the left one. The rules of the mode skill do not change. Most facts here were measured with Codex CLI 0.165.0.
 
 ## Tool map
 
@@ -15,20 +15,20 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 | `Skill` | Run another cstack skill as `$cstack:<name>`, or read its `SKILL.md` from the plugin root and follow it. |
 | `AskUserQuestion` | `request_user_input` exists only in Plan mode. Anywhere else, put one numbered question with its options first in your reply, then end the turn. In `codex exec` nobody answers: take the safe default and record it in the decision log. |
 | `TodoWrite` | `update_plan`. |
-| `Monitor` | Run the watcher in the foreground with `--timeout 1500`, and with `--once` for `inbox-wait`. Shorter timeouts only add turns. Act on each line it prints. Exit 3 means the time ran out with nothing to report, so run it again. A long foreground command is allowed (ADR-010, 400 s measured), and Codex checks on it about once a minute. |
+| `Monitor` | Run the watcher in the foreground with `--timeout 1500`, and with `--once` for `inbox-wait`. Shorter timeouts only add turns. Act on each line it prints. Exit 3 means the time ran out with nothing to report, so run it again. A long foreground command is allowed (400 s measured), and Codex checks on it about once a minute. |
 | `TaskStop` | Stop a background terminal from the session (`/stop` in the CLI), or end the watcher's process. |
 | `Read` | Shell: `sed -n`, `cat` or `rg`. The guard checks these commands as Bash. |
 | `Grep` | `rg` in the shell. |
 | `Glob` | `rg --files -g '<glob>'` in the shell. |
-| `Edit` | `apply_patch`. The guard reads the paths in the patch (ADR-010). |
+| `Edit` | `apply_patch`. The guard reads the paths in the patch. |
 | `Write` | `apply_patch` with `*** Add File:`. Write every file this way, JSON and reports included, never with a shell heredoc, `node -`, `python -` or `> file`. The guard reads the full text of every shell command, so a script whose content merely mentions a hidden path is blocked, while `apply_patch` is checked by its file paths only. |
-| `Bash` | The shell tool. Hooks see it as `Bash`, so every guard rule for Bash applies (ADR-010). |
+| `Bash` | The shell tool. Hooks see it as `Bash`, so every guard rule for Bash applies. |
 
 ## Subagents
 
 - Plugin agents in `agents/*.md` are not loaded by Codex. The role file is the brief, as the map above says.
 - `model`: Codex takes Codex model names (see `codex debug models`). Where a skill says `models.<role>`, read `models_codex.<role>` instead. Its defaults are `gpt-6.1-sol` for `code`, `gpt-6-astra` for `judge` and `review`, and `gpt-6-luna` for `gather` (`gates/lib/harness.mjs`). So a verdict still comes from a model other than the one that wrote the code. `inherit` means omit `model`. Say which model judged in the verdict.
-- Hooks fire inside children too, and the payload carries `agent_id` (ADR-010).
+- Hooks fire inside children too, and the payload carries `agent_id`.
 
 ## Hooks and trust
 
@@ -37,7 +37,7 @@ cstack skills are written in Claude Code terms. Read this file instead of the Cl
 
 ## Headless and detached work
 
-- Detached Level B workers and coordinators run `codex exec` when the harness is Codex: `CSTACK_HARNESS`, then config `harness`, then the harness you run in (ADR-012). `gates/worker.mjs launch` checks `codex login status` first and refuses an API-key login. Codex loads the installed plugin, not a `--plugin-dir`, so `codex plugin add cstack@cstack` must point at the same cstack version.
+- Detached Level B workers and coordinators run `codex exec` when the harness is Codex: `CSTACK_HARNESS`, then config `harness`, then the harness you run in. `gates/worker.mjs launch` checks `codex login status` first and refuses an API-key login. Codex loads the installed plugin, not a `--plugin-dir`, so `codex plugin add cstack@cstack` must point at the same cstack version.
 - Codex has no per-session allowlist. In a session cstack launched, the guard applies the role's Bash deny rules from `gates/lib/permissions.mjs` (`role-deny`): no `sudo`, `ssh`, `curl`, force pushes, `gh pr merge`, other `claude` or `codex` sessions, and so on. Everything else is allowed, which is a weaker guarantee than Claude Code's `dontAsk` allowlist.
 - `codex exec` waits for stdin while stdin is open. Always run it with stdin closed (`</dev/null`).
 - On Ubuntu 24.04 the Codex sandbox fails (`bwrap: loopback: Failed RTM_NEWADDR`) until `bubblewrap` is installed and AppArmor's `bwrap-userns-restrict` profile is loaded.

@@ -17,7 +17,7 @@
 //   usage_limit  the subscription window ran out; the unit goes back to ready with workers/<unit>.not-before
 //   denied       the session was refused tool calls and stopped short; workers/<unit>.denied.txt lists them
 //   crash        anything else
-// Sessions never skip permissions (ADR-009): each runs with --permission-mode dontAsk and the role's
+// Sessions never skip permissions: each runs with --permission-mode dontAsk and the role's
 // generated settings, workers/<id>.settings.json (role worker, or coordinator with --coordinator).
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
@@ -26,7 +26,7 @@
 // The PATH comes from CSTACK_WORKER_PATH, else node's directory, ~/.local/bin and the system dirs.
 // CSTACK_PROGRAM_AUTONOMY passes through only when this process has it set to "send" (a human-launched
 // program session); otherwise the worker gets it empty, so a value in the systemd manager's environment
-// cannot raise a run's autonomy (ADR-006). `next` takes parallel from <store>/run.json, else config.
+// cannot raise a run's autonomy. `next` takes parallel from <store>/run.json, else config.
 // Exit 0 on success, 2 on usage or environment errors.
 import { appendFileSync, mkdirSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import os from "node:os";
@@ -227,7 +227,7 @@ function exit(store, unit) {
   const evs = events(workerFile(store, unit, "jsonl"));
   const init = evs.find((e) => e?.type === "system" && e.subtype === "init");
   const result = evs.findLast((e) => e?.type === "result");
-  // Claude Code ends with a result event; Codex leaves error items, failed turns and agent messages (ADR-012).
+  // Claude Code ends with a result event; Codex leaves error items, failed turns and agent messages.
   const text = `${readText(workerFile(store, unit, "stderr.log"))}\n${result?.result ?? ""}\n${codexText(evs)}`;
   const denied = deniedCalls(evs);
   const deniedFile = workerFile(store, unit, "denied.txt");

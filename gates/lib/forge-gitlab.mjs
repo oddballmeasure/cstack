@@ -1,5 +1,5 @@
 // The gitlab backend of the forge layer (gates/lib/forge.mjs): GitLab's REST API v4 through `glab api`, so auth stays
-// in glab's own config. Measured against gitlab.com in ADR-013. The records are the forge layer's normalised ones.
+// in glab's own config. Measured against gitlab.com. The records are the forge layer's normalised ones.
 // GitLab differences the mapping absorbs:
 //   - a change is a merge request, addressed by its project-scoped iid
 //   - "behind its base" is not a merge state (a merge commit merges it), so it never blocks; diverged commits are
@@ -283,7 +283,7 @@ export function gitlab(repo, cwd, host = null) {
       }
       return { ok: failed.length === 0, done, failed };
     },
-    // GitLab has no server-side list of required jobs on the free tier (ADR-013): every job of the branch's newest
+    // GitLab has no server-side list of required jobs on the free tier: every job of the branch's newest
     // pipeline that may not fail is required.
     requiredChecks(branch) {
       const p = json("GET", `${project}/pipelines?ref=${encodeURIComponent(branch)}&per_page=1`)[0];

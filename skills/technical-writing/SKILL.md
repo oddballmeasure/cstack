@@ -97,7 +97,7 @@ ASD-STE100 (Simplified Technical English) is the controlled-language standard fo
 - PR descriptions and commit messages are writing too. Every layer except Diátaxis applies to them. A PR body is a briefing that a reviewer can read in under a minute. Do not paste run logs, SHA lists, or metric tables. Link them.
 - Product UI strings are not documentation. Use your product's copy guidelines for those.
 - Write real paths. Make every count or tree claim true at the commit that lands it, and include the command that regenerates it.
-- In the cstack repo, skills live in `skills/<name>/SKILL.md`, with optional `references/*.md` and `scripts/*`. ADRs live in `docs/adr/`. The authoring rules live in `docs/conventions.md`. Follow its frontmatter, attribution, and banned-content rules. Never write the em dash character (U+2014) in a skill or agent file.
+- In the cstack repo, skills live in `skills/<name>/SKILL.md`, with optional `references/*.md` and `scripts/*`. The authoring rules live in `docs/conventions.md`. Follow its frontmatter, attribution, and banned-content rules. Never write the em dash character (U+2014) in a skill or agent file.
 - Name another skill as `cstack:<name>`, and only when that skill exists in `skills/`.
 
 ## Worked example

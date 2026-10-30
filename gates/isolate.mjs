@@ -3,7 +3,7 @@
 // Usage: isolate.mjs <repo-dir> <branch> <worktree-dir> [--base <ref>] [--json]
 // The branch is created from --base (default: config base_branch) unless it already exists.
 // The worktree gets a per-worktree sparse checkout that excludes every paths_hidden prefix,
-// so the suite is not on disk for implementers (ADR-001 finding 2). The guard hook is the second layer.
+// so the suite is not on disk for implementers. The guard hook is the second layer.
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { Gate, main, parseArgs, UsageError, loadConfig, git, gitOut, globPrefix } from "./lib/common.mjs";

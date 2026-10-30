@@ -21,9 +21,9 @@ Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=CSTACK_PLUGIN=%h/cstack
 # The daemon is a coordinator. Workers it launches get this unset again by gates/worker.mjs.
 Environment=CSTACK_COORDINATOR=1
-# Subscription billing only, and autonomy from config only (ADR-006).
+# Subscription billing only, and autonomy from config only.
 UnsetEnvironment=ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CSTACK_PROGRAM_AUTONOMY
-# No permission bypass (ADR-009): generate the coordinator allowlist, then run with dontAsk, which refuses
+# No permission bypass: generate the coordinator allowlist, then run with dontAsk, which refuses
 # every call outside it without a prompt. .cstack/* is gitignored, so the settings file stays local.
 ExecStartPre=/usr/bin/env node ${CSTACK_PLUGIN}/gates/run-settings.mjs --permissions coordinator --repo-dir /%I --plugin-dir ${CSTACK_PLUGIN} --out /%I/.cstack/permissions/coordinator.json
 ExecStart=/usr/bin/env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u CSTACK_PROGRAM_AUTONOMY claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${CSTACK_PLUGIN} --permission-mode dontAsk --settings /%I/.cstack/permissions/coordinator.json "/loop 10m /cstack:daemon"

@@ -34,7 +34,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 ## Arguments
 
 - **Guideline.** Everything that is not a flag. A readable file path, or the text itself. `cstack:spec` copies it to `<store>/guideline.md`.
-- **`--autonomy=stop|send`.** Overrides config `autonomy` for this run only. Without the flag, config decides. cstack's default is `send` (ADR-007).
+- **`--autonomy=stop|send`.** Overrides config `autonomy` for this run only. Without the flag, config decides. cstack's default is `send`.
 - **`--parallel=N`.** A positive integer. Overrides config `parallel` for this run only.
 - **`--slug <s>`.** The run slug.
 - **`--resume <slug>`.** Continue an existing run. See **Resume**.
@@ -51,7 +51,7 @@ Write `<store>/run.json` once, at step 0, with the Write tool:
 
 Leave out `autonomy` and `parallel` when their flags are absent. Never rewrite `autonomy` or `parallel` after step 0, also not on resume.
 
-Every skill reads the run's autonomy and parallelism from `<settings>`, not from config. The merge gate (`gates/check-merge.mjs`) and `gates/worker.mjs next` read `run.json` themselves. The rule is ADR-006:
+Every skill reads the run's autonomy and parallelism from `<settings>`, not from config. The merge gate (`gates/check-merge.mjs`) and `gates/worker.mjs next` read `run.json` themselves. The rule:
 
 - `run.json` may always **lower** autonomy (`send` to `stop`).
 - It **raises** `stop` to `send` only when the session that runs the merge gate has `CSTACK_PROGRAM_AUTONOMY=send` in its environment. Only the human sets it, when launching Claude Code (`CSTACK_PROGRAM_AUTONOMY=send claude`), or through a headless coordinator launch. `gates/worker.mjs launch` passes it on to workers. The guard hook blocks every Bash command that sets it.

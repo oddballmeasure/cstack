@@ -29,7 +29,7 @@
 //      BEHIND branch, a non-transient gh error, or GitHub stayed unreachable for 10 polls
 //   2  bad arguments, unknown PR, or another pr-wait already watches this PR
 //   3  --timeout passed before any of the above (last line `#<pr> timeout: <n>s`). Run it again: the state
-//      file keeps what was already reported. For harnesses without a Monitor tool (Codex, ADR-010).
+//      file keeps what was already reported. For harnesses without a Monitor tool (Codex).
 //
 // Events
 //   - a required check failed (name and link)

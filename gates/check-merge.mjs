@@ -6,7 +6,7 @@
 // no change requests; GitHub merge state not DIRTY/BEHIND/BLOCKED/UNKNOWN; base has not moved under the PR's files.
 // --merge merges only when every check passes AND the run's effective autonomy is "send": config autonomy,
 // overridden by <store>/run.json, which may only lower it unless this session has
-// CSTACK_PROGRAM_AUTONOMY=send (gates/lib/run.mjs, ADR-006). It runs
+// CSTACK_PROGRAM_AUTONOMY=send (gates/lib/run.mjs). It runs
 // the forge's merge at exactly that SHA with a merge commit (`gh pr merge --merge --match-head-commit <sha>` on GitHub)
 // as a subprocess (the guard hook blocks the model from doing that). A merge command that reports an error still
 // counts when the forge shows the change merged at the verified head.
@@ -41,7 +41,7 @@ await main(async (argv) => {
   // head and no open blocker or should finding. The files come from cstack:review-loop.
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
   // PR #0 (unit E2E) holds only the hidden suite and the config line that runs it. A reviewer may not
-  // read paths_hidden, so check-e2e, the red check and the mutation spot-check judge it instead (ADR-006).
+  // read paths_hidden, so check-e2e, the red check and the mutation spot-check judge it instead.
   const code = p.files.filter((f) => !isDoc(f));
   const suiteOnly = args.unit === "E2E" && code.every((f) => f === ".cstack/config.json" || matchesAny(f, config.paths_hidden));
   if (!code.length) {

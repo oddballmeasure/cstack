@@ -1,5 +1,5 @@
 // The gitlab forge backend (gates/lib/forge-gitlab.mjs) against the scenario-driven fake glab. The response shapes
-// are the ones measured on gitlab.com in ADR-013.
+// are the ones measured on gitlab.com.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";

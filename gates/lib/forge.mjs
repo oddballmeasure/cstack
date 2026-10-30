@@ -1,8 +1,8 @@
 // The forge layer: every gate reaches the code host (issues, labels, change requests, checks, merges) through
-// one object from openForge(config, {cwd}), never through a forge CLI directly (ADR-013). Backends:
+// one object from openForge(config, {cwd}), never through a forge CLI directly. Backends:
 //   github  the gh CLI; the reference backend, with the exact calls cstack made before the layer existed
-//   gitlab  glab api, in gates/lib/forge-gitlab.mjs; config forge_host for a self-hosted instance (ADR-013)
-//   local   plain git with any remote or none, in gates/lib/forge-local.mjs; records under .cstack/forge/ (ADR-014)
+//   gitlab  glab api, in gates/lib/forge-gitlab.mjs; config forge_host for a self-hosted instance
+//   local   plain git with any remote or none, in gates/lib/forge-local.mjs; records under .cstack/forge/
 // Records are normalised so a gate reads the same fields on every forge:
 //   change  {id, url, state: open|merged|closed, draft, head, base, baseSha, merge: clean|behind|conflict|blocked|unknown,
 //            mergeRaw, review: approved|changes|none, reviewRaw, files: [path], mergeSha, mergedAt}

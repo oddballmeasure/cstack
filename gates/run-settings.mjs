@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The effective autonomy and parallelism for one run: config, overridden by <store>/run.json under the
-// rule in gates/lib/run.mjs (run.json may only lower autonomy unless CSTACK_PROGRAM_AUTONOMY=send; ADR-006).
+// rule in gates/lib/run.mjs (run.json may only lower autonomy unless CSTACK_PROGRAM_AUTONOMY=send).
 // Skills read autonomy here instead of from config, so a per-run --autonomy flag reaches every step.
 // Usage: run-settings.mjs --store <dir> [--repo-dir <dir>] [--json]
 // Prints "autonomy <level> (<source>)", "parallel <n> (<source>)" and, when an override was refused,
@@ -8,9 +8,9 @@
 // Usage: run-settings.mjs --permissions <role> [--repo-dir <dir>] [--worktree <dir>] [--plugin-dir <dir>] [--out <file>]
 // Prints, or writes to --out, the Claude Code settings for a headless session in <role>: worker,
 // coordinator, e2e-author (needs --worktree) or grader. Launch the session with
-// `--permission-mode dontAsk --settings <file>` (ADR-009). The repo is --repo-dir, else the cwd.
+// `--permission-mode dontAsk --settings <file>`. The repo is --repo-dir, else the cwd.
 // Usage: run-settings.mjs --codex-sandbox auto|<mode> --worktree <dir> [--store <dir>] [--repo-dir <dir>]
-// Prints the sandbox flags for a `codex exec` session working in --worktree, shell-quoted on one line (ADR-012).
+// Prints the sandbox flags for a `codex exec` session working in --worktree, shell-quoted on one line.
 // auto is CSTACK_CODEX_SANDBOX, else config codex_sandbox, else workspace-write. --store is also made writable.
 // Exit 0, or 2 on usage errors.
 import { mkdirSync, writeFileSync } from "node:fs";

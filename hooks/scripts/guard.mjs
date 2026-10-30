@@ -9,7 +9,7 @@
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
 //   role-deny         in a Codex session cstack launched, the role's Bash deny rules from gates/lib/permissions.mjs,
-//                     because Codex has no per-session allowlist (ADR-012)
+//                     because Codex has no per-session allowlist
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
 // Every rule applies only in a cstack context: the session's cwd, or a path the tool call targets, is
 // inside a repo whose root has .cstack/config.json, or the session carries a marker that cstack's own
@@ -17,8 +17,8 @@
 // exits 0 at once, so a user-scope install does not change Claude's behaviour in unrelated projects.
 // A marker without a config means Bash rules only (no path rules).
 // Codex sends the same payload. Its shell tool arrives as Bash, and its edits arrive as apply_patch with the
-// patch text in tool_input.command; the guard reads the file paths from the patch headers (ADR-010).
-// This is defence in depth. Hidden suites also need filesystem isolation (ADR-001).
+// patch text in tool_input.command; the guard reads the file paths from the patch headers.
+// This is defence in depth. Hidden suites also need filesystem isolation.
 import { readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir, homedir } from "node:os";
 import path from "node:path";
@@ -112,7 +112,7 @@ function hiddenNeedles(globs) {
 // Whether text names a needle, also when it spells the path with Windows backslashes.
 const names = (text, needle) => fold(text.replaceAll("\\", "/")).includes(fold(needle.replaceAll("\\", "/")));
 
-// Codex skips plugin hooks it has not trusted, without a warning (ADR-010). So in a cstack context the guard
+// Codex skips plugin hooks it has not trusted, without a warning. So in a cstack context the guard
 // leaves <tmpdir>/cstack-hook-seen/<session_id> for each Codex session (a payload with turn_id). doctor checks
 // it under Codex: no file for its own session means the guard is not running there.
 function markSeen(input) {
@@ -144,14 +144,14 @@ function checkBash(cmd) {
   if (/\bgh\s+api\b[^|;&]*\/pulls\/\d+\/merge\b/.test(flat)) {
     block("no-admin-merge", "merging through the API is not allowed. Merge only through the cstack merge gate.");
   }
-  // GitLab (ADR-013): the CLI merge, setting auto-merge on an MR, and the merge endpoint through the API.
+  // GitLab: the CLI merge, setting auto-merge on an MR, and the merge endpoint through the API.
   if (/\bglab\s+mr\s+merge\b/.test(flat) || /\bglab\s+mr\s+(?:update|create)\b[^|;&]*--auto-merge\b/.test(flat)) {
     block("no-admin-merge", "direct `glab mr merge` or auto-merge is not allowed. Merge only through the cstack merge gate.");
   }
   if (/\bglab\s+api\b[^|;&]*merge_requests(?:\/|%2F)\d+(?:\/|%2F)merge\b/i.test(flat)) {
     block("no-admin-merge", "merging through the API is not allowed. Merge only through the cstack merge gate.");
   }
-  // Only the human who launches a run may give it CSTACK_PROGRAM_AUTONOMY=send (ADR-006). Reading it is fine.
+  // Only the human who launches a run may give it CSTACK_PROGRAM_AUTONOMY=send. Reading it is fine.
   if (/\bCSTACK_PROGRAM_AUTONOMY\s*=|\b(export|read|declare|typeset|local|set-environment)\b[^;&|\n]*\bCSTACK_PROGRAM_AUTONOMY\b/.test(flat)) {
     block("no-autonomy-raise", "a session may not set CSTACK_PROGRAM_AUTONOMY. Only the human who launches the run sets it.");
   }
@@ -159,7 +159,7 @@ function checkBash(cmd) {
   if (/\bdeploy\.mjs\b[^;&|\n]*--approved\b/.test(flat)) {
     block("no-deploy-approval", "only a person may approve a deploy. Give them the exact deploy.mjs --approved command to run in their terminal.");
   }
-  // claude plugin eval publishes its HTML report to claude.ai by default (ADR-005). cstack repos are private.
+  // claude plugin eval publishes its HTML report to claude.ai by default. cstack repos are private.
   if (/\bclaude\s+plugins?\s+eval\b/.test(flat) && !/--no-publish\b|--help\b/.test(flat)) {
     block("no-eval-publish", "claude plugin eval must carry --no-publish. Add it and run again.");
   }
@@ -217,7 +217,7 @@ function checkHide(tool, ti, patched, cwd) {
 }
 
 // A push to the base branch, or moving its ref by hand, is a merge that skipped the gate. With the local forge
-// it is the only way to merge, so it must go through gates/check-merge.mjs (ADR-014). Other refs pass.
+// it is the only way to merge, so it must go through gates/check-merge.mjs. Other refs pass.
 function checkBasePush(cmd, base) {
   const b = base.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
   for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
@@ -261,7 +261,7 @@ function main() {
   const offLimits = [...(Array.isArray(cfg.paths_off_limits) ? cfg.paths_off_limits : []), ".git/**", ...VENDOR, ...ALWAYS_OFF];
   const privileged = PRIVILEGED_ROLES.has(process.env.CSTACK_ROLE || "");
 
-  // Path fields per tool. Agent and Skill prompts are free text and are never matched (ADR-001 finding 1).
+  // Path fields per tool. Agent and Skill prompts are free text and are never matched.
   const fields = {
     Read: [ti.file_path],
     Edit: [ti.file_path],

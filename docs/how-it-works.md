@@ -45,7 +45,7 @@ Every failure ends in a named kind (`tests_failed`, `verification`, `ci_failed`,
 ## Two levels of delegation
 
 - **In session.** For small programs, the coordinator runs units itself and uses subagents for implementing, verifying and reviewing. Subagents can nest three levels deep.
-- **Detached workers.** For larger programs, each unit runs as its own headless session (`claude -p`, or `codex exec` under Codex) under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process (ADR-011). It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call ends the unit as `denied` (ADR-009). A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
+- **Detached workers.** For larger programs, each unit runs as its own headless session (`claude -p`, or `codex exec` under Codex) under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process. It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call ends the unit as `denied`. A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
 
 ## Two harnesses
 
@@ -61,8 +61,6 @@ The two harnesses differ in a few places:
 | Permissions | a per-role allowlist in `dontAsk` mode | the role's deny rules, applied by the guard |
 | Models | config `models` | config `models_codex` |
 
-ADR-010 has the measurements, and ADR-012 covers the headless backend.
-
 ## Three forges
 
 Gates reach the code host only through `gates/lib/forge.mjs`, and skills through its CLI, `gates/forge.mjs`. Both give the same verbs and the same normalised records (change, check, thread, issue), so nothing above that layer knows which host it is on. Config `forge` picks the backend. It defaults to `github`, with no detection from the remote.
@@ -75,11 +73,11 @@ Gates reach the code host only through `gates/lib/forge.mjs`, and skills through
 | Required checks | rulesets, branch protection | jobs of the base branch's newest pipeline that may not fail | config `required_checks` |
 | Merge | `--match-head-commit` | merge API with `sha` | `git merge --no-ff`, then `--force-with-lease` or `update-ref` |
 
-An unknown merge state blocks a merge, and a feature a forge lacks is declared unavailable, never skipped. The verdict ledger stays the gate on every forge, whatever approvals the host offers. ADR-013 has the GitLab measurements, and ADR-014 covers plain git and why its CI is a weaker claim.
+An unknown merge state blocks a merge, and a feature a forge lacks is declared unavailable, never skipped. The verdict ledger stays the gate on every forge, whatever approvals the host offers.
 
 ## Autonomy
 
-`autonomy` in `.cstack/config.json` is `send` (the merge gate merges) or `stop` (every PR ends merge-ready for a person). A run can always lower it. Raising a `stop` repo to `send` for one run needs `CSTACK_PROGRAM_AUTONOMY=send` in the environment of the session a person launched, and the guard blocks agents from setting that variable (ADR-006). Either way, only the merge gate merges. The guard blocks every direct merge on any forge, and any session's push to the base branch.
+`autonomy` in `.cstack/config.json` is `send` (the merge gate merges) or `stop` (every PR ends merge-ready for a person). A run can always lower it. Raising a `stop` repo to `send` for one run needs `CSTACK_PROGRAM_AUTONOMY=send` in the environment of the session a person launched, and the guard blocks agents from setting that variable. Either way, only the merge gate merges. The guard blocks every direct merge on any forge, and any session's push to the base branch.
 
 ## Where things live
 
@@ -87,5 +85,4 @@ An unknown merge state blocks a merge, and a feature a forge lacks is declared u
 |---|---|
 | `.cstack/config.json` (target repo, committed) | Test and e2e commands, required checks, hidden and off-limits paths, autonomy, model roles, limits |
 | `.cstack/runs/<slug>/` (target repo, ignored) | Run store: units, verdict ledger, inbox, decision log, spec, plan, intake, feedback |
-| `docs/adr/` | Why each design choice was made, including what live runs forced us to change |
 | `tests/` | Unit tests for every gate and hook, live scenarios (L3) and fixture programs (L4) |

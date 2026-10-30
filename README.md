@@ -89,7 +89,7 @@ In the Codex desktop app, add the `oddballmeasure/cstack` marketplace and instal
 
 Then run `codex`, open `/hooks` and trust the cstack hooks. Do this again after every cstack update: Codex ties hook trust to a fingerprint of the whole plugin, so any change to the plugin revokes it. Codex skips untrusted plugin hooks without a warning, and cstack's guard is one of them. `$cstack:doctor` fails with `FAIL hooks (codex)` until you have done this. cstack never runs with `--dangerously-bypass-hook-trust`.
 
-Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. They run in Codex's `workspace-write` sandbox, with the repo's git dirs, the run store and `~/.local/state/cstack` writable. The coordinator runs outside the sandbox, because a sandboxed session cannot start other sessions. Units it runs in its own session are protected by the guard only (ADR-012). On Ubuntu 24.04 the sandbox needs `bubblewrap` installed. On GitHub, cstack also needs a current `gh`: doctor rejects one without `gh pr checks --json`. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
+Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. They run in Codex's `workspace-write` sandbox, with the repo's git dirs, the run store and `~/.local/state/cstack` writable. The coordinator runs outside the sandbox, because a sandboxed session cannot start other sessions. Units it runs in its own session are protected by the guard only. On Ubuntu 24.04 the sandbox needs `bubblewrap` installed. On GitHub, cstack also needs a current `gh`: doctor rejects one without `gh pr checks --json`. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules.
 
 ### Where it runs
 
@@ -98,7 +98,7 @@ Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Det
 | Claude Code | everything; detached work through systemd | everything; detached work through launchd | everything; detached work through Task Scheduler. The e2e author's own session needs `sh` (Git Bash), or it uses its in-session fallback |
 | Codex CLI and desktop app | everything; detached `codex exec` through systemd | everything; detached `codex exec` through launchd | as for Claude Code on Windows |
 
-On any other host, detached work falls back to a detached process, which does not survive a reboot. `node <plugin>/gates/supervise.mjs backend` prints the backend in use (ADR-011). Live-tested so far: Claude Code and the Codex CLI on Linux. The f1 fixture passed end to end under `codex exec` with the held-out grader at 24/24 (ADR-012). macOS and Windows are covered by unit tests and CI on all three operating systems. The Codex desktop app has not been tested yet.
+On any other host, detached work falls back to a detached process, which does not survive a reboot. `node <plugin>/gates/supervise.mjs backend` prints the backend in use. Live-tested so far: Claude Code and the Codex CLI on Linux. The f1 fixture passed end to end under `codex exec` with the held-out grader at 24/24. macOS and Windows are covered by unit tests and CI on all three operating systems. The Codex desktop app has not been tested yet.
 
 ### Where your code lives
 
@@ -114,7 +114,7 @@ cstack works on GitHub, on GitLab and on plain git with any remote or none. Conf
 | f1 under Claude Code | 24/24, 70 min | 24/24, 73 min | 24/24, 63 min |
 | f1 under Codex | 24/24, 22 min | 24/24, 20 min | not run |
 
-The guarantees are the same on all three: only the merge gate merges, a verdict comes from a non-author and is keyed to the exact SHA, the hidden suite stays hidden, and required CI is green before a merge. The f1 runs are in `tests/fixtures/f1-cli-ledger/results/`. GitLab was run on gitlab.com. Self-hosted GitLab (`forge_host`) and nested groups are covered by tests only. Bitbucket, Gitea and others work today as plain git; ask if you want one as a full forge. See ADR-013 and ADR-014.
+The guarantees are the same on all three: only the merge gate merges, a verdict comes from a non-author and is keyed to the exact SHA, the hidden suite stays hidden, and required CI is green before a merge. The f1 runs are in `tests/fixtures/f1-cli-ledger/results/`. GitLab was run on gitlab.com. Self-hosted GitLab (`forge_host`) and nested groups are covered by tests only. Bitbucket, Gitea and others work today as plain git; ask if you want one as a full forge.
 
 Plain git is the weakest of the three. Green there means `ci_command` passed on this machine, with no server and no second machine behind it, and two machines on one remote do not share issues or change requests.
 
@@ -124,7 +124,7 @@ Any install scope works. cstack's hooks act only inside a cstack context: a repo
 
 - Claude Code or the Codex CLI or desktop app, Node 22 or later, `git` and `jq`.
 - For the forge you choose: on GitHub the `gh` CLI, on GitLab the `glab` CLI, each logged in with access to the repo. Plain git needs neither, but it needs a `ci_command` in the config.
-- For detached work, a host supervisor: a systemd user session on Linux, launchd on macOS or Task Scheduler on Windows. On any other host, cstack falls back to a detached process, which cannot survive a reboot (ADR-011). That covers the e2e author's own session, programs of more than 5 units or with `parallel` above 1, the daemon, and runs that survive the terminal closing. Without it, `/cstack:unit`, the review skills, small programs (run in your session) and the e2e author (as an in-session subagent, with limits; see `skills/e2e-plan/SKILL.md`) still work.
+- For detached work, a host supervisor: a systemd user session on Linux, launchd on macOS or Task Scheduler on Windows. On any other host, cstack falls back to a detached process, which cannot survive a reboot. That covers the e2e author's own session, programs of more than 5 units or with `parallel` above 1, the daemon, and runs that survive the terminal closing. Without it, `/cstack:unit`, the review skills, small programs (run in your session) and the e2e author (as an in-session subagent, with limits; see `skills/e2e-plan/SKILL.md`) still work.
 
 ## Quickstart
 
@@ -135,7 +135,7 @@ Any install scope works. cstack's hooks act only inside a cstack context: a repo
    /cstack:program docs/idea.md
    ```
 
-The default autonomy is `send` (ADR-007): the merge gate merges each PR once CI, the verifier and the review loop pass. To merge everything yourself, set `"autonomy": "stop"` in `.cstack/config.json` or pass `--autonomy=stop`. Each PR then ends merge-ready, and you resume with `/cstack:program --resume <slug>`.
+The default autonomy is `send`: the merge gate merges each PR once CI, the verifier and the review loop pass. To merge everything yourself, set `"autonomy": "stop"` in `.cstack/config.json` or pass `--autonomy=stop`. Each PR then ends merge-ready, and you resume with `/cstack:program --resume <slug>`.
 
 One issue instead of an idea: `/cstack:unit <issue>`. Not sure which skill to use: `/cstack:cstack-help`.
 
@@ -397,6 +397,6 @@ Every adapted file names its source. See [NOTICE.md](NOTICE.md).
 - `node tests/lint/lint.mjs`, `npm test`, and `npm run coverage:gates` (the gates must stay at 100% line and branch coverage).
 - L3 scenarios against a sandbox repo: [tests/scenarios/README.md](tests/scenarios/README.md).
 - L4 fixture programs: [tests/fixtures/README.md](tests/fixtures/README.md).
-- Decisions: [docs/adr/](docs/adr/). Authoring rules: [docs/conventions.md](docs/conventions.md).
+- Authoring rules: [docs/conventions.md](docs/conventions.md).
 
 MIT licensed.
