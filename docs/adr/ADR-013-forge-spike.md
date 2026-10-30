@@ -44,3 +44,12 @@ Evidence: `/tmp/f0/probe.mjs` and its log, a throwaway script run once against t
 - Bot authors: no review bot is installed on the testbed, so `author.bot` was only seen as false.
 - Self-hosted GitLab (`forge_host`).
 - Pipelines on merged results and merge trains (paid tiers).
+
+## F5 proof
+
+f1 end to end, held-out grader, all within the 2 h budget. Results are in `tests/fixtures/f1-cli-ledger/results/`.
+
+| Forge | Harness | Grader | Own e2e | Time |
+|---|---|---|---|---|
+| GitLab | Claude Code | 24/24 | 38/38 | 73 min |
+| GitLab | Codex | 24/24 | 12/12 | 20 min |

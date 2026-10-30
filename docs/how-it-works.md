@@ -27,7 +27,7 @@ cstack is four kinds of parts. **Skills** hold the procedure and the judgement. 
 
 ## One unit, start to finish
 
-`cstack:unit` takes one unit (or one GitHub issue) through 13 stages. The contract is [unit-flow.md](unit-flow.md).
+`cstack:unit` takes one unit (or one issue) through 13 stages. The contract is [unit-flow.md](unit-flow.md).
 
 | Stage | What happens | Who decides |
 |---|---|---|
@@ -63,9 +63,23 @@ The two harnesses differ in a few places:
 
 ADR-010 has the measurements, and ADR-012 covers the headless backend.
 
+## Three forges
+
+Gates reach the code host only through `gates/lib/forge.mjs`, and skills through its CLI, `gates/forge.mjs`. Both give the same verbs and the same normalised records (change, check, thread, issue), so nothing above that layer knows which host it is on. Config `forge` picks the backend. It defaults to `github`, with no detection from the remote.
+
+| | `github` | `gitlab` | `local` (plain git) |
+|---|---|---|---|
+| Backend | `gh`, in `forge.mjs` | `glab api`, in `forge-gitlab.mjs` | `git`, in `forge-local.mjs` |
+| Change | pull request | merge request, `detailed_merge_status` | branch plus a record in `.cstack/forge/`, merge state from `git merge-tree` |
+| CI | check runs | pipeline jobs | `ci_command`, once per SHA in a clean worktree |
+| Required checks | rulesets, branch protection | jobs of the base branch's newest pipeline that may not fail | config `required_checks` |
+| Merge | `--match-head-commit` | merge API with `sha` | `git merge --no-ff`, then `--force-with-lease` or `update-ref` |
+
+An unknown merge state blocks a merge, and a feature a forge lacks is declared unavailable, never skipped. The verdict ledger stays the gate on every forge, whatever approvals the host offers. ADR-013 has the GitLab measurements, and ADR-014 covers plain git and why its CI is a weaker claim.
+
 ## Autonomy
 
-`autonomy` in `.cstack/config.json` is `send` (the merge gate merges) or `stop` (every PR ends merge-ready for a person). A run can always lower it. Raising a `stop` repo to `send` for one run needs `CSTACK_PROGRAM_AUTONOMY=send` in the environment of the session a person launched, and the guard blocks agents from setting that variable (ADR-006). Either way, only the merge gate merges. The guard blocks every direct `gh pr merge`.
+`autonomy` in `.cstack/config.json` is `send` (the merge gate merges) or `stop` (every PR ends merge-ready for a person). A run can always lower it. Raising a `stop` repo to `send` for one run needs `CSTACK_PROGRAM_AUTONOMY=send` in the environment of the session a person launched, and the guard blocks agents from setting that variable (ADR-006). Either way, only the merge gate merges. The guard blocks every direct merge on any forge, and any session's push to the base branch.
 
 ## Where things live
 

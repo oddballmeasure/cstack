@@ -24,3 +24,6 @@
 | 2026-10-28 | f1-cli-ledger (L4, P7 exit) | PASS | 3193 | grader 24/24, own e2e 37/37, 0 questions, 3 PRs merged under send, 1 CI-REPAIR |
 | 2026-10-28 | f2-http-shortener (L4, P8 exit) | PASS | 7049 | grader 30/30, own e2e 44/44, 4 PRs merged under send, parallel 2, 0 questions, 1 CI-REPAIR |
 | 2026-10-28 | f3-web-kanban (L4, P8 exit) | PASS | 12063 | grader 25/25 (Playwright), own e2e 37/37, 4 PRs merged, 0 questions, 2 REPAIR + 1 CI-REPAIR |
+| 2026-10-30 | f1-cli-ledger (L4, F5, plain git, Claude) | PASS | 3787 | grader 24/24, own e2e 51/51, merged by the local forge's gate |
+| 2026-10-30 | f1-cli-ledger (L4, F5, GitLab, Claude) | PASS | 4389 | grader 24/24, own e2e 38/38, merged through the GitLab merge API |
+| 2026-10-30 | f1-cli-ledger (L4, F5, GitLab, Codex) | PASS | 1207 | grader 24/24, own e2e 12/12, MRs !9 and !10 merged, council 8, 9 and 9/10 |

@@ -44,7 +44,7 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A guideline prompt that needs a spec. Use `cstack:spec`. If the guideline is thin, run `cstack:sharpen` on it first.
 - A spec that needs its hidden end-to-end suite. Use `cstack:e2e-plan`. It launches the plugin's `cstack-e2e-author` agent and ships the suite as PR #0.
 - A repo with no scripted way to drive its app as a user does. Use `cstack:create-verification-skill`. To audit an existing `verify-<app>` skill, use `cstack:maintain-verification-skill`.
-- Work one GitHub issue end to end. Use `cstack:unit`. It owns the whole path in `docs/unit-flow.md` (intake, implement, verify, sync, PR, babysit, merge gate, settle).
+- Work one issue end to end. Use `cstack:unit`. It owns the whole path in `docs/unit-flow.md` (intake, implement, verify, sync, PR, babysit, merge gate, settle).
 - A question about how code works, or a walkthrough before a change. Use `cstack:how`.
 - A bug with a cheap local test target, or a request for a failing test first. Use `cstack:tdd`.
 - About to claim a change works. Use `cstack:prove`: the same reproduction before and after.
@@ -62,7 +62,7 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - A request to interrogate, stress-test, or tear apart a change from several angles. Use `cstack:interrogate`. It changes nothing.
 - A small diff you do not trust, or "what could this break". Use `cstack:blast-radius`. Prove the one fact it is safe because of.
 - Comments to cut from a diff: narration, commented-out code, "do not remove" warnings, lint suppressions. Use `cstack:no-comments`.
-- Any GitHub comment or thread reply on the human's behalf. Use `cstack:leaving-pr-comments`.
+- Any PR or MR comment or thread reply on the human's behalf. Use `cstack:leaving-pr-comments`.
 - A broken cstack skill mid-task. File it as a follow-up with the failing input. Do not block. Do not silently work around it.
 - Take over a PR, a branch or another agent's unfinished thread. Use `cstack:takeover`. It keeps the original authors' credit.
 - An old PR to rebase or refresh, or a branch far behind its base. Use `cstack:modernize`. It decides MODERNIZE, REWORK or CLOSE before it pushes.

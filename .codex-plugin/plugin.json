@@ -6,7 +6,7 @@
   "homepage": "https://github.com/oddballmeasure/cstack",
   "repository": "https://github.com/oddballmeasure/cstack",
   "license": "MIT",
-  "keywords": ["agents", "workflow", "code-review", "testing", "github", "pull-requests", "orchestration"],
+  "keywords": ["agents", "workflow", "code-review", "testing", "github", "gitlab", "pull-requests", "orchestration"],
   "skills": "./skills/",
   "hooks": "./hooks/hooks.json",
   "interface": {

@@ -49,7 +49,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 ## Work one issue
 
-`/cstack:unit <issue>` runs one GitHub issue through the 13 stages in `docs/unit-flow.md`: claim, isolate, profile, intake, implement, verify, sync, publish, PR, babysit with review, merge gate, settle.
+`/cstack:unit <issue>` runs one issue through the 13 stages in `docs/unit-flow.md`: claim, isolate, profile, intake, implement, verify, sync, publish, PR, babysit with review, merge gate, settle.
 
 - `/cstack:full-send <issue>` is the same with autonomy `send` for this run. It merges when the gate passes.
 - `/cstack:full-stop <issue>` is the same with autonomy `stop` for this run. It ends with Ready to merge, Waiting for required approval, or Blocked.

@@ -89,7 +89,7 @@ In the Codex desktop app, add the `oddballmeasure/cstack` marketplace and instal
 
 Then run `codex`, open `/hooks` and trust the cstack hooks. Do this again after every cstack update: Codex ties hook trust to a fingerprint of the whole plugin, so any change to the plugin revokes it. Codex skips untrusted plugin hooks without a warning, and cstack's guard is one of them. `$cstack:doctor` fails with `FAIL hooks (codex)` until you have done this. cstack never runs with `--dangerously-bypass-hook-trust`.
 
-Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. They run in Codex's `workspace-write` sandbox, with the repo's git dirs, the run store and `~/.local/state/cstack` writable. The coordinator runs outside the sandbox, because a sandboxed session cannot start other sessions. Units it runs in its own session are protected by the guard only (ADR-012). On Ubuntu 24.04 the sandbox needs `bubblewrap` installed. cstack also needs a current `gh`: doctor rejects one without `gh pr checks --json`. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
+Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Detached workers run `codex exec`, and only with a ChatGPT login: an API-key login is refused. They run in Codex's `workspace-write` sandbox, with the repo's git dirs, the run store and `~/.local/state/cstack` writable. The coordinator runs outside the sandbox, because a sandboxed session cannot start other sessions. Units it runs in its own session are protected by the guard only (ADR-012). On Ubuntu 24.04 the sandbox needs `bubblewrap` installed. On GitHub, cstack also needs a current `gh`: doctor rejects one without `gh pr checks --json`. Model roles come from config `models_codex`. Codex has no per-session allowlist, so in the sessions cstack launches, the guard applies each role's deny rules (ADR-012).
 
 ### Where it runs
 
@@ -100,17 +100,35 @@ Call skills as `$cstack:<name>`, for example `$cstack:program docs/idea.md`. Det
 
 On any other host, detached work falls back to a detached process, which does not survive a reboot. `node <plugin>/gates/supervise.mjs backend` prints the backend in use (ADR-011). Live-tested so far: Claude Code and the Codex CLI on Linux. The f1 fixture passed end to end under `codex exec` with the held-out grader at 24/24 (ADR-012). macOS and Windows are covered by unit tests and CI on all three operating systems. The Codex desktop app has not been tested yet.
 
+### Where your code lives
+
+cstack works on GitHub, on GitLab and on plain git with any remote or none. Config `forge` picks one. It defaults to `github` and is never detected from the remote. `/cstack:setup-cstack --forge gitlab` sets it, and setup asks once if you pass nothing.
+
+| | GitHub | GitLab | Plain git (`local`) |
+|---|---|---|---|
+| CLI and login | `gh` | `glab` | none, only `git` |
+| Issues and changes | issues and pull requests | issues and merge requests | JSON records in `.cstack/forge/`, for this checkout only |
+| CI | check runs | pipeline jobs | `ci_command`, run by the gate in a clean worktree, once per SHA |
+| Merge (only through the merge gate) | `gh pr merge --match-head-commit` | merge API with `sha=<head>` | the gate's own `git merge --no-ff`, then a push with `--force-with-lease` |
+| Review bots | opt-in, `review_bots` | opt-in, `review_bots`; not measured with a real bot | none; the cstack review loop is the review |
+| f1 under Claude Code | 24/24, 70 min | 24/24, 73 min | 24/24, 63 min |
+| f1 under Codex | 24/24, 22 min | 24/24, 20 min | not run |
+
+The guarantees are the same on all three: only the merge gate merges, a verdict comes from a non-author and is keyed to the exact SHA, the hidden suite stays hidden, and required CI is green before a merge. The f1 runs are in `tests/fixtures/f1-cli-ledger/results/`. GitLab was run on gitlab.com. Self-hosted GitLab (`forge_host`) and nested groups are covered by tests only. Bitbucket, Gitea and others work today as plain git; ask if you want one as a full forge. See ADR-013 and ADR-014.
+
+Plain git is the weakest of the three. Green there means `ci_command` passed on this machine, with no server and no second machine behind it, and two machines on one remote do not share issues or change requests.
+
 Any install scope works. cstack's hooks act only inside a cstack context: a repo whose root has `.cstack/config.json` (written by `/cstack:setup-cstack`), or a session that cstack itself launched. In every other project they exit at once and change nothing.
 
 ## Requirements
 
 - Claude Code or the Codex CLI or desktop app, Node 22 or later, `git` and `jq`.
-- The GitHub CLI (`gh`), logged in with access to the repo. cstack works through issues, labels, pull requests and CI checks, so the target repo must be on GitHub.
+- For the forge you choose: on GitHub the `gh` CLI, on GitLab the `glab` CLI, each logged in with access to the repo. Plain git needs neither, but it needs a `ci_command` in the config.
 - For detached work, a host supervisor: a systemd user session on Linux, launchd on macOS or Task Scheduler on Windows. On any other host, cstack falls back to a detached process, which cannot survive a reboot (ADR-011). That covers the e2e author's own session, programs of more than 5 units or with `parallel` above 1, the daemon, and runs that survive the terminal closing. Without it, `/cstack:unit`, the review skills, small programs (run in your session) and the e2e author (as an in-session subagent, with limits; see `skills/e2e-plan/SKILL.md`) still work.
 
 ## Quickstart
 
-1. In the target repo, run `/cstack:setup-cstack`. It writes `.cstack/config.json`, creates the labels, ignores the run store, and ends with `/cstack:doctor`.
+1. In the target repo, run `/cstack:setup-cstack`, with `--forge gitlab` or `--forge local` if you are not on GitHub. It writes `.cstack/config.json`, creates the labels, ignores the run store, and ends with `/cstack:doctor`.
 2. Write a guideline: the problem, who it is for, goals and non-goals, and the end-to-end behaviour you expect (commands or requests with exact results, including failure paths).
 3. Run it:
    ```
@@ -289,8 +307,8 @@ Before reporting done, check:
 
 | You type | What happens |
 |---|---|
-| `/cstack:setup-cstack` | Detects the base branch and test command, writes `.cstack/config.json`, creates the `cstack:*` labels, gitignores the run store, then runs the read-only `/cstack:doctor`. |
-| `/cstack:unit 42` | Takes GitHub issue #42 end to end: claims it, builds it in its own worktree, has a separate verifier and reviewer check it, opens a PR, watches CI, and merges through the merge gate (or leaves it merge-ready under `autonomy: stop`). |
+| `/cstack:setup-cstack` | Chooses the forge, detects the base branch and test command, writes `.cstack/config.json`, creates the `cstack:*` labels (not on plain git), gitignores the run store, then runs the read-only `/cstack:doctor`. |
+| `/cstack:unit 42` | Takes issue #42 end to end: claims it, builds it in its own worktree, has a separate verifier and reviewer check it, opens a PR or MR, watches CI, and merges through the merge gate (or leaves it merge-ready under `autonomy: stop`). |
 | `/cstack:program docs/idea.md` | Turns a written guideline into a spec, a hidden end-to-end suite, a plan of units and a series of merged PRs, then has a fresh agent run the hidden suite on the result. |
 | "What could this rename break?" | `cstack:blast-radius` traces every caller and consumer of the change in the repo before it answers, instead of reading only the diff. |
 | "Tear this branch apart" | `cstack:interrogate` sends the diff to reviewers on different models, then checks each finding against the code before reporting it. |
@@ -306,7 +324,7 @@ Before reporting done, check:
 
 - **Permissions.** No cstack session bypasses permissions. Detached sessions run with `--permission-mode dontAsk` and an allowlist for their role, so anything outside it is refused at once instead of prompting. The allowlist names commands broadly (`git`, `gh`, `node`, your configured test command), and your test command and `node` scripts can still do anything a program can. Run it on repos where that is acceptable. When a worker needs a command its role does not allow, it stops with status `denied` and lists the refused calls, and you add a rule to `permissions_allow` in `.cstack/config.json`.
 - **Usage.** A program runs many agents and subagents. Large runs can use up a Claude subscription's usage window. cstack waits for the reset and resumes, but plan for it.
-- **Branch protection.** Where GitHub does not enforce required checks (for example, private repos on some plans), cstack's merge gate is the only thing enforcing them. Keep `required_checks` in the config current.
+- **Branch protection.** Where the forge does not enforce required checks (for example, private GitHub repos on some plans, or plain git), cstack's merge gate is the only thing enforcing them. Keep `required_checks` in the config current.
 - **Not yet live-tested:** a real scout pass, a daemon tick and a deploy. Unit tests cover them. [docs/cardinal-parity.md](docs/cardinal-parity.md) marks the status of every capability.
 
 ## What cstack runs, sends and stores
@@ -317,6 +335,7 @@ cstack has no server and no telemetry. It sends nothing to its author. Everythin
 
 - **`git`**: branches, commits, worktrees, rebases, and pushes to your repo's `origin` (a force push only with `--force-with-lease`, on the run's own branches).
 - **`gh`**, with your own `gh` login, calling the GitHub API for the repo you point it at: read and create issues, labels, comments, pull requests and reviews; read check runs and CI logs; merge a PR (only through `gates/check-merge.mjs`, and only under `autonomy: send`).
+- **`glab`**, on `forge: gitlab` only, with your own `glab` login: the same work on the GitLab project you point it at, through issues, labels, merge requests, pipelines and job logs. Plain git uses neither CLI, and its merge gate pushes the base branch to `origin` itself when there is a remote.
 - **Headless Claude Code sessions**: `claude -p --permission-mode dontAsk --settings <role allowlist> --strict-mcp-config --plugin-dir <cstack>`, started through the host supervisor (`systemd-run --user`, launchd, Task Scheduler or a detached process). This happens only in these cases:
   - `/cstack:program` (and `/cstack:full-send` on a guideline) launches the e2e author this way by default, because the guard can only grant its suite-writing role to a session started with it;
   - `/cstack:orchestrate` and `/cstack:resume-run` launch one worker per unit when a program has more than 5 units or `parallel` above 1;
@@ -326,12 +345,12 @@ cstack has no server and no telemetry. It sends nothing to its author. Everythin
 
   | Role | Allowed (besides reading the repo, its worktrees, the plugin and `/tmp`) |
   |---|---|
-  | worker | Edits in this repo's worktrees and run store. `git`, `gh`, `node`, `jq`, the configured `setup_command`/`test_command`/`e2e_command` (with `install`, `ci`, `run` and `test` for a JS package manager, plus `npx playwright`), the plugin's own scripts, `mkdir`/`cp`/`mv`/`touch`/`chmod +x`/`rm -f`, read-only `systemctl --user`/`journalctl --user`, and the Agent, Skill and Monitor tools. |
+  | worker | Edits in this repo's worktrees and run store. `git`, `gh`, `glab`, `node`, `jq`, the configured `setup_command`/`test_command`/`e2e_command` (with `install`, `ci`, `run` and `test` for a JS package manager, plus `npx playwright`), the plugin's own scripts, `mkdir`/`cp`/`mv`/`touch`/`chmod +x`/`rm -f`, read-only `systemctl --user`/`journalctl --user`, and the Agent, Skill and Monitor tools. |
   | coordinator | Everything a worker may do, plus starting the e2e author (`systemd-run --user ... --unit=cstack-e2e-*` or `gates/supervise.mjs start`) and stopping `cstack-*` sessions. Other roles may not start or stop sessions. |
   | e2e-author | Edits only inside `paths_hidden` of its worktree and the run store. Otherwise as a worker. |
-  | grader | For a separate headless verification session. Read-only: the gates, the configured commands, and `gh pr`/`issue`/`run` views. Writes only to the run store. cstack's own verifier is a subagent, so it inherits the allowlist of the session that spawns it. |
+  | grader | For a separate headless verification session. Read-only: the gates, the configured commands, and read-only forge views (`gh pr`/`issue`/`run`, `gates/forge.mjs`). Writes only to the run store. cstack's own verifier is a subagent, so it inherits the allowlist of the session that spawns it. |
 
-  Every role denies `sudo`, `su`, `ssh`, `scp`, `rsync`, `curl`, `wget`, `nc`, WebFetch and WebSearch, as well as `gh pr merge`, `gh repo delete`/`edit`, `gh secret`, `gh auth`, `gh release`, `gh api` DELETE calls, force and delete pushes, `npm publish`, `crontab` and `claude`. It also denies reading `~/.ssh`, `~/.aws`, `~/.gnupg`, gh's credentials and Claude's credentials, editing `~/.claude`, `~/.config` and shell profiles, and editing `.cstack/config.json`. All roles except coordinator also deny `systemd-run`. The full lists are in `gates/lib/permissions.mjs`. Bash rules match command text, so they are a guard against mistakes, not a sandbox. cstack's hooks are a second layer and still apply in every session (hidden suite, config lock, no direct merges, no sleep loops, no self-approved deploys).
+  Every role denies `sudo`, `su`, `ssh`, `scp`, `rsync`, `curl`, `wget`, `nc`, WebFetch and WebSearch, as well as `gh pr merge`, `gh repo delete`/`edit`, `gh secret`, `gh auth`, `gh release`, `gh api` DELETE calls, their `glab` counterparts (`glab mr merge`, `repo delete`/`edit`, `auth`, `variable`, `ssh-key`, `release`, DELETE calls), force and delete pushes, `npm publish`, `crontab` and `claude`. It also denies reading `~/.ssh`, `~/.aws`, `~/.gnupg`, gh's and glab's credentials and Claude's credentials, editing `~/.claude`, `~/.config` and shell profiles, and editing `.cstack/config.json`. All roles except coordinator also deny `systemd-run`. The full lists are in `gates/lib/permissions.mjs`. Bash rules match command text, so they are a guard against mistakes, not a sandbox. cstack's hooks are a second layer and still apply in every session (hidden suite, config lock, no direct merges or pushes to the base branch, no sleep loops, no self-approved deploys).
 
   The sessions run with `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset, so they use your Claude subscription login, and with `--strict-mcp-config`, so your MCP servers are not loaded. `/cstack:unit` and the review skills never start one; they use ordinary subagents in your session.
 - **`ssh`**: only `gates/deploy.mjs`, only when `.cstack/config.json` sets `deploy.transport` to `ssh`, and only after a person approves the deploy (unless the config sets `deploy.auto`). Deploys are off when `deploy` is absent. It runs your repo's committed `deploy.sh` and health command, either locally or on the host your `deploy.json` names.
@@ -343,12 +362,13 @@ cstack's own scripts make no other network calls: no HTTP requests, no downloads
 
 **Where data goes**
 
-- **GitHub**: what you would see on the repo anyway (branches, PRs, issues, comments, labels), through your `gh` login.
+- **GitHub or GitLab**, whichever you chose: what you would see on the repo anyway (branches, PRs or MRs, issues, comments, labels), through your `gh` or `glab` login. On plain git, only the commits you push to your own remote.
 - **Anthropic**: the prompts, code and tool output of every Claude Code session and subagent cstack runs, through your own Claude Code login, as in any Claude Code session.
 
 **Files it writes**
 
 - `.cstack/config.json` in your repo (you review and commit it).
+- `.cstack/forge/` in your repo, gitignored, on plain git only: issue, change and CI records.
 - `.cstack/runs/<run>/` in your repo, gitignored: the unit table, plans, briefs, the decision log (`decisions.tsv`), verification records, worker logs and the inbox.
 - Worktrees under `~/.local/state/cstack/worktrees/<owner>-<name>/`, and PR-watcher state under `~/.local/state/cstack/pr-wait/`. cstack does not delete worktrees; remove them with `git worktree remove` when you are done.
 - `.gitignore` entries for the run store, added by `/cstack:setup-cstack`.

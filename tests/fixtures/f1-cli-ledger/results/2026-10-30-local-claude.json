@@ -1,0 +1,73 @@
+{
+  "fixture": "f1-cli-ledger",
+  "harness": "claude",
+  "forge": "local",
+  "date": "2026-10-30",
+  "started_at": "2026-10-30T10:47:21.437Z",
+  "wall_seconds": 3787,
+  "budget": {
+    "hours": 2,
+    "max_unplanned_questions": 0
+  },
+  "within_budget": true,
+  "over_budget": false,
+  "interrupted": null,
+  "billing": "none",
+  "merged_sha": "8fd711315b85fa8ec1b4f60df63dacee4b601957",
+  "grader": {
+    "passed": 24,
+    "total": 24,
+    "rate": 1,
+    "failed": []
+  },
+  "cstack_e2e": {
+    "passed": 51,
+    "total": 51,
+    "rate": 1,
+    "failed": []
+  },
+  "p0_gap": false,
+  "human_questions": {
+    "ask_user_question": 0,
+    "by_file": {
+      "coordinator.jsonl": 0,
+      "testbed/.cstack/runs/f1/e2e-author.jsonl": 0
+    },
+    "gates_open": []
+  },
+  "units": {
+    "merged": 4
+  },
+  "repair_rounds": {
+    "REPAIR": 0,
+    "CI-REPAIR": 0,
+    "SYNC": 0,
+    "total": 0
+  },
+  "decision_rows": 28,
+  "leftover_units": [],
+  "prs": [
+    {
+      "number": 2,
+      "state": "MERGED",
+      "title": "test: add the hidden end-to-end suite that judges the ledger CLI"
+    },
+    {
+      "number": 6,
+      "state": "MERGED",
+      "title": "Record an expense from the terminal with ledger add"
+    },
+    {
+      "number": 7,
+      "state": "MERGED",
+      "title": "See spending per month and category with ledger list and report"
+    },
+    {
+      "number": 8,
+      "state": "MERGED",
+      "title": "Load a bank CSV in one step with ledger import, all or nothing"
+    }
+  ],
+  "final_message": "# Program f1: ledger CLI\n\n**Result: done.** All 51 hidden-suite lanes, covering all 22 E requirements, pass against `bin/ledger.mjs` at the base head, and `npm test` exits 0 (measured). A person tracking expenses can now record, list, total and import them from a plain-text file. The full trace of the 35 requirements to lanes, units and PRs is in `report.md`.\n\nStatus (`orch status`, measured): 4 units, all merged. Ledger 5 approved. Open gates 0.\n\n## Waiting on you\n\nNothing blocks the result. These choices were made without you, and each can be overturned.\n\n1. **Config change, already merged under `send`.** PR #2 set `e2e_command` in `.cstack/config.json` so the suite has a runner. Recommended: keep it. To overturn it, revert that one key.\n2. **Spec approval (H1) and its defaults.** No human could answer, so I approved the spec by default.\n   - R35 is the one most worth your look: `add` and `import` don't check existing lines, and a malformed line counts as an entry when numbering. Recommended: keep it, so a bad line never blocks recording an expense.\n   - The other defaults are R3, R4, R9, R21 and R31 to R34.\n   - I derived E13 to E22 to cover these. They are the only lanes with no source in the guideline.\n3. **Follow-ups labelled `cstack:proposed`.** Recommended: take #10 first, because all three council members raised it.\n   - #9: a disk-full partial write, and a code comment that overstates the guarantee.\n   - #10: a `LEDGER_FILE` whose parent is a regular file reads as an empty ledger.\n   - #11: small polish items.\n\n## Final state\n\n- **Merged base SHA:** `8fd711315b85fa8ec1b4f60df63dacee4b601957`. `ci` shows `pass` on it (measured).\n- **E2E at that SHA:** 51 of 51 `pass`, 0 fail. A fresh `cstack-verifier` on fable ran it. I read the JSON myself, and the lane ids equal the plan's.\n- **Tests:** 81 of 81 pass at that SHA (measured).\n\n| PR | Unit | State | Merge SHA |\n|---|---|---|---|\n| #2 (PR #0) | E2E | merged | 283800321914 |\n| #6 | U1 `add` | merged | 8d4daea4",
+  "pass": true
+}
