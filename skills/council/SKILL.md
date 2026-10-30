@@ -81,8 +81,8 @@ Rounds: 2
 
 - One column per round, one row per member, named by its model.
 - If a member gave no score, write `no score`. Never invent one.
-- If the PR is open, edit the description with `gh pr edit <n> --body-file <file>`. Do not post a comment for this.
-- With no PR, or when you must not touch GitHub, put the same section in the reply only, as rendered Markdown at the top of the reply. Do not wrap it in a code fence.
+- If the PR is open, edit the description with `node <root>/gates/forge.mjs change edit <n> --body-file <file>`. Do not post a comment for this.
+- With no PR, or when you must not touch the forge, put the same section in the reply only, as rendered Markdown at the top of the reply. Do not wrap it in a code fence.
 
 ## Reply
 

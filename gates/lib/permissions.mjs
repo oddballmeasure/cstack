@@ -107,6 +107,11 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     // A session may not start another Claude Code or Codex session, or change its own permissions.
     "Bash(claude *)", "Bash(codex *)", "Bash(systemctl --user enable *)", "Bash(loginctl *)",
   ];
+  // The grader reads the forge but never writes to it: no forge.mjs verb that changes a change, issue or label.
+  if (role === "grader") {
+    const writes = ["change create", "change edit", "change ready", "change comment", "checks rerun", "thread reply", "thread resolve", "issue create", "issue edit", "issue comment", "labels ensure"];
+    deny.push(...writes.map((v) => `Bash(node ${plugin}/gates/forge.mjs ${v} *)`));
+  }
   // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor (ADR-011).
   if (role !== "coordinator") {
     deny.push("Bash(systemd-run *)", ...["start", "stop", "daemon-run"].map((c) => `Bash(node ${plugin}/gates/supervise.mjs ${c} *)`));

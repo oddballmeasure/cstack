@@ -67,7 +67,7 @@ Log the choice.
 
 1. **Tracking issue.** Use `--issue <n>` from the caller if given. Else create one:
    ```sh
-   gh issue create --repo <repo> --title "Add the hidden e2e suite for <spec title>" --body-file <store>/e2e-issue.md
+   node <root>/gates/forge.mjs issue create --title "Add the hidden e2e suite for <spec title>" --body-file <store>/e2e-issue.md
    ```
    Write `<store>/e2e-issue.md` first: the spec path, the E ids, and the line "cstack adds a hidden end-to-end suite. Implementers see lane results only." End it with the footer from `<root>/templates/footer.md`.
 2. **Claim.** `node <root>/gates/settle.mjs <N> --state in-progress --repo-dir <repo>`.

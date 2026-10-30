@@ -51,10 +51,11 @@ pr-wait reports `DIRTY`, `BEHIND`, or base commits that touch this PR's files. S
 Read the new reviews, comments and unresolved threads:
 
 ```bash
-gh api repos/<repo>/pulls/<pr>/reviews
-gh api repos/<repo>/pulls/<pr>/comments
-gh api graphql -f query='query{repository(owner:"<owner>",name:"<name>"){pullRequest(number:<pr>){reviewThreads(first:100){nodes{id isResolved comments(first:20){nodes{author{login} body path line createdAt}}}}}}}'
+node <root>/gates/forge.mjs reviews <pr> --json
+node <root>/gates/forge.mjs threads <pr> --open --json
 ```
+
+`reviews` gives reviews and top-level comments. `threads` gives each unresolved thread with its `id`, `path`, `line` and comments. Every record has `author` and `bot`, so you can tell a review bot from a human.
 
 For each finding:
 
@@ -63,9 +64,9 @@ For each finding:
    - A real bug in the intended case. Run `cstack:repair` with source `verify` and the verified findings as `review: <path:line> <finding>` lines. It returns `retry REPAIR-<n>` (the unit goes back to stage 5, then 6, 7 and 8) or `exhausted verification` (the unit fails). Also cap review rounds at `limits.review_rounds`, counted from this stage's `fix` rows in the decision log. Past that cap, the stage fails with kind `pr_violation`.
    - A false positive. Reply on the thread with a one-line reason that cites the code. Resolve the thread only after the reply posted.
    - Scope creep. Decline it (see **Fight scope**).
-3. **Reply** with `gh api` on the thread or review. Write every reply with `cstack:leaving-pr-comments`: the callout header, the direct style, the secret check, and the footer line from `<root>/templates/footer.md` last.
+3. **Reply** on the thread with `node <root>/gates/forge.mjs thread reply <pr> <thread id> --body-file <file>`, or on the PR with `node <root>/gates/forge.mjs change comment <pr> --body-file <file>`. Resolve a thread with `node <root>/gates/forge.mjs thread resolve <pr> <thread id>`. Write every reply with `cstack:leaving-pr-comments`: the callout header, the direct style, the secret check, and the footer line from `<root>/templates/footer.md` last.
 
-CodeRabbit is advisory. Treat its findings like any other, but never wait for it.
+Review bots such as CodeRabbit are advisory. Treat their findings like any other, but never wait for them.
 
 ### 3. Failed CI
 
@@ -75,7 +76,7 @@ pr-wait reports a failed check and exits 1. Collect the failure:
 node <root>/gates/ci-log.mjs <pr> --repo-dir <worktree>
 ```
 
-- **Infrastructure flake.** The log shows a runner, network or quota error, not a test or build failure in this repo. Re-run the failed jobs once with `gh run rerun <run-id> --failed`. Log the decision. A second flake on the same check counts as a real failure.
+- **Infrastructure flake.** The log shows a runner, network or quota error, not a test or build failure in this repo. Re-run the failed checks once with `node <root>/gates/forge.mjs checks rerun <head sha>`. Log the decision. A second flake on the same check counts as a real failure.
 - **Real failure.** Run `cstack:repair` with source `ci` and the ci-log output verbatim. It counts against `limits.ci_repair_rounds` and returns `retry CI-REPAIR-<n>` (the unit goes back to stage 5) or `exhausted ci_failed` (the unit fails).
 
 After every repair, stages 6, 7 and 8 run again before you arm the Monitor. A new commit voids the old verdict.
@@ -90,14 +91,14 @@ Review loops grow a PR one cheap fix at a time. Keep it at the size the issue ne
 - File each declined extra that has value as a follow-up issue:
 
 ```bash
-gh issue create --repo <repo> --label "<label_prefix>:proposed" --title "<one line>" --body-file <file>
+node <root>/gates/forge.mjs issue create --label "<label_prefix>:proposed" --title "<one line>" --body-file <file>
 ```
 
 The body links the PR and the thread, says why it was left out, and ends with the footer line. Reply on the thread with the new issue's link, per `cstack:leaving-pr-comments`, and resolve it.
 
-## GitHub rate limits
+## Rate limits
 
-`gh pr view` and `gh pr checks` use GraphQL. When GraphQL is exhausted (`gh api rate_limit --jq .resources.graphql`), read through REST: `gh api repos/<repo>/pulls/<pr>` and `gh api repos/<repo>/commits/<sha>/check-runs`. If pr-wait itself stops on rate limits, arm it again once after the `reset` time. Use one background command for that wait, never a loop.
+On GitHub, `change view` falls back to REST by itself when GraphQL is exhausted, and `checks`, `reviews` and `change find` read through REST already. `threads` needs GraphQL. If a forge.mjs call or pr-wait itself stops on rate limits, arm pr-wait again once after the limit resets (GitHub resets it within the hour). Use one background command for that wait, never a loop.
 
 ## Done
 

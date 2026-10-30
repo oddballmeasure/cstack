@@ -160,7 +160,7 @@ Run `cstack:post-merge-ci --run <slug> --wait` under the Monitor tool until no m
 Run this step only when every U unit is merged and step 6 left the base green.
 
 1. **Pin the SHA.** `git -C <repo> fetch -q origin <base>`, then `git -C <repo> rev-parse origin/<base>`. This is `<final>`. Every check below runs at `<final>`.
-2. **CI on `<final>`.** Every config `required_checks` name has a completed, successful check run on `<final>`: `gh api repos/<repo slug>/commits/<final>/check-runs --jq '.check_runs[] | [.name, .status, .conclusion] | @tsv'`. A check still running: wait with `node <root>/gates/pr-wait.mjs` or `cstack:post-merge-ci --wait` under Monitor. Never a sleep loop.
+2. **CI on `<final>`.** Every config `required_checks` name shows `pass` on `<final>` in `node <root>/gates/forge.mjs checks <final>`. A check still `pending`: wait with `node <root>/gates/pr-wait.mjs` or `cstack:post-merge-ci --wait` under Monitor. Never a sleep loop.
 3. **The hidden suite, every lane, by a fresh verifier.** Spawn the plugin's `cstack-verifier` agent with the `Agent` tool, model `models.judge`, fresh. It wrote no code in this run. The brief (GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT) tells it to run exactly
    ```sh
    node <root>/gates/run-e2e.mjs <repo> --sha <final> --json

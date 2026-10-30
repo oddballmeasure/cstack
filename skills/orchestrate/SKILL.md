@@ -105,10 +105,10 @@ Each pass runs Drain, Launch, Wait, in that order. A fresh session starts at Dra
 
 Units land bottom-up. A unit starts only after every unit it depends on has merged (`next` enforces this), so merges arrive in dependency order. For each newly merged unit:
 
-1. Confirm `<orch> unit get <unit>` holds the merge SHA in the `sha` column. If it holds the head SHA, read `gh pr view <pr> --repo <repo> --json mergeCommit` and run `<orch> unit set <unit> --sha <merge sha>`.
+1. Confirm `<orch> unit get <unit>` holds the merge SHA in the `sha` column. If it holds the head SHA, read `mergeSha` from `node <root>/gates/forge.mjs change view <pr> --json` and run `<orch> unit set <unit> --sha <merge sha>`.
 2. Run `cstack:post-merge-ci`. It judges the merge commit's checks and files at most one follow-up issue.
-3. **Sync siblings.** For each `pr-open` unit with no active worker, read `gh pr view <pr> --repo <repo> --json mergeStateStatus`. On `DIRTY` or `BEHIND`, relaunch its worker with `<worker> launch`. It resumes at its merge gate, sees the base moved, and syncs (stage 7). Running workers sync on their own in `cstack:babysit-pr`. This relaunch is not a restart. Log it as `sync <unit>`.
-4. **Unblock dependents.** For each `planned` unit whose dependencies are now all merged, add the ready label to its issue: `gh issue edit <issue> --repo <repo> --add-label <prefix>:ready`. The plan left it unlabelled so no standalone run could start it early.
+3. **Sync siblings.** For each `pr-open` unit with no active worker, read `merge` from `node <root>/gates/forge.mjs change view <pr> --json`. On `conflict` or `behind`, relaunch its worker with `<worker> launch`. It resumes at its merge gate, sees the base moved, and syncs (stage 7). Running workers sync on their own in `cstack:babysit-pr`. This relaunch is not a restart. Log it as `sync <unit>`.
+4. **Unblock dependents.** For each `planned` unit whose dependencies are now all merged, add the ready label to its issue: `node <root>/gates/forge.mjs issue edit <issue> --add-label <prefix>:ready`. The plan left it unlabelled so no standalone run could start it early.
 5. `<orch> frontier set --repo <repo>`.
 
 ### Launch

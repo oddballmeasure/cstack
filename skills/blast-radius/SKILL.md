@@ -8,7 +8,7 @@ argument-hint: "[<pr-number> | <path> | <diff>]"
 
 # Blast radius
 
-Find what a change breaks somewhere else, before it ships.
+Find what a change breaks somewhere else, before it ships. `<root>` is the plugin root, two directories up from this skill's base directory.
 
 Companion to `cstack:how`. `cstack:how` says what the code does. Blast radius says what the change breaks somewhere else.
 
@@ -34,7 +34,7 @@ Level 4 is usually one small script that imports the same library the app ships 
 
 ## Steps
 
-1. **Read the change.** The diff, the symbols it adds, changes and deletes, and what it now does differently, including the part the diff does not spell out. Read the PR and commits for the reason: `gh pr view`, `git log`, `git log -L` on the changed lines.
+1. **Read the change.** The diff, the symbols it adds, changes and deletes, and what it now does differently, including the part the diff does not spell out. Read the PR and commits for the reason: `node <root>/gates/forge.mjs change view <n>`, `git log`, `git log -L` on the changed lines.
 2. **Find the one fact it is safe because of.** Most changes that look risky are safe because of a single fact, like "this call only drops cache entries that are already dead and does nothing else". Find that fact. If it holds, most risky cases clear at once. Spend your time here, not on a long list of maybes.
 3. **Look where grep stops.** Read the source of the library you call. Check its pinned version and any local patch. Work out when things run: microtasks, teardown, retries, process exit. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
 4. **Be honest about each risk.** Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed. List the ones you checked and cleared separately. Cite a real `file:line`. A search that finds nothing is still an answer. Never invent a caller or an API.

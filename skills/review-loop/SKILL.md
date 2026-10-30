@@ -39,7 +39,7 @@ Pick its `model`:
 Name the diff, the author model, the intent, what is out of scope, and the round budget (3, or 5 for security, auth, data loss or concurrency), in 1 to 3 sentences.
 
 - **Inside a unit** (`cstack:unit` stage 10, step 10b). The diff is `git -C <wt> diff <base>...HEAD`, with `<base>` as the unit names it. Each call runs one round on the current head. The ledger in the run store carries the loop across heads, so the round number is the ledger's last round plus 1.
-- **A PR.** `gh pr view <n> --json baseRefName,headRefOid`. Confirm HEAD is the PR head. The base is `git merge-base HEAD origin/<baseRefName>`.
+- **A PR.** `node <root>/gates/forge.mjs change view <n> --json`. Confirm HEAD is the PR's `head`. The base is `git merge-base HEAD origin/<base>`, with `base` from the same record.
 - **A local branch.** Run `git status --short`. Do not stash, discard or include unrelated changes. The base is `git merge-base HEAD origin/<default branch>`.
 - **A pasted diff or a file the human points at.** Review that text as it is. Put it in the brief verbatim.
 
@@ -127,7 +127,7 @@ Only when the loop is approved, add this line to the PR body, directly above the
 Reviewed with review-loop: <N> rounds with <model>. Verdict: approved
 ```
 
-`<N>` is the number of rounds run. `<model>` is the reviewer model. Edit the body with `gh pr edit <n> --body-file <file>`. Do not post a comment for this. Never add the line for a loop that ended any other way.
+`<N>` is the number of rounds run. `<model>` is the reviewer model. Edit the body with `node <root>/gates/forge.mjs change edit <n> --body-file <file>`. Do not post a comment for this. Never add the line for a loop that ended any other way.
 
 ## Report
 

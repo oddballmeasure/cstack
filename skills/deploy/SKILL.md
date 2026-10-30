@@ -18,7 +18,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 |---|---|
 | `<root>` | The plugin root, two directories up from this skill's base directory. |
 | `<repo>` | The target repo root: `git rev-parse --show-toplevel`. |
-| `<sha>` | The merge commit. For a PR number, read `gh pr view <n> --repo <repo slug> --json mergeCommit --jq .mergeCommit.oid`. |
+| `<sha>` | The merge commit. For a PR number, read `mergeSha` from `node <root>/gates/forge.mjs change view <n> --json`. |
 | `<deploy>` | `node <root>/gates/deploy.mjs <sha> --repo-dir <repo>` |
 
 ## What the repo provides

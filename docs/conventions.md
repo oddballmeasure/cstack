@@ -32,6 +32,7 @@ Every skill, agent, hook and script in this repo follows these rules. The L0 lin
 
 - Cursor-only names: `poteto`, `pstack:`, `AskQuestion`, `generalPurpose`, `readonly: true`, `.cursor/`, `cursor-team-kit`, `Bugbot`, `cloud agent`, `/setup-pstack`, `grok`.
 - The em dash character (U+2014) in skills and agents. Use a period or a comma (unslop rule 13).
+- A `gh` or `glab` command in skills and agents. Call `node <root>/gates/forge.mjs <verb>` instead (ADR-013). Exempt: `skills/cstack/references/` and lines that are prohibitions (they contain "Never" or "blocks").
 
 ## Prose
 

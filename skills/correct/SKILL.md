@@ -16,7 +16,7 @@ Assume every contributor is an agent that sees only the files it opened, copies 
 
 ## Find the mistake classes
 
-Read recent commits, reverts, review comments, `CLAUDE.md` (or `AGENTS.md` when no `CLAUDE.md` exists), and comments that explain workarounds. Use `gh` for PR review threads. Group the mistakes into classes. A class counts once it has happened twice.
+Read recent commits, reverts, review comments, `CLAUDE.md` (or `AGENTS.md` when no `CLAUDE.md` exists), and comments that explain workarounds. Use `node <root>/gates/forge.mjs threads <pr>` for PR review threads (`<root>` is the plugin root, two directories up from this skill's base directory). Group the mistakes into classes. A class counts once it has happened twice.
 
 ## Fix each class at the highest level that works
 

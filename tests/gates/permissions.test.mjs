@@ -76,6 +76,9 @@ test("grader reads, runs gates and the suite, and writes only to the store", WIN
   assert.ok(p.allow.includes("Bash(gh pr checks *)"));
   assert.ok(p.allow.includes("Bash(CSTACK_ROLE=grader ./scripts/e2e.sh *)") && p.allow.includes("Bash(CSTACK_ROLE=grader node /opt/cstack/*)"));
   for (const rule of ["Bash(git *)", "Bash(gh *)", "Bash(node *)", "Agent", `Edit(${WT}/**)`]) assert.ok(!p.allow.includes(rule), rule);
+  // It reads the forge through gates/forge.mjs, but its write verbs are denied.
+  for (const v of ["change create", "issue comment", "thread reply", "labels ensure"]) assert.ok(p.deny.includes(`Bash(node /opt/cstack/gates/forge.mjs ${v} *)`), v);
+  assert.ok(!perms("worker").deny.some((r) => r.includes("forge.mjs")));
 });
 
 test("repo commands: setup and e2e commands, other package managers, non-JS tools, and config extras", () => {

@@ -28,7 +28,7 @@ The match is this session. Its subagent transcripts are in `$dir/<session>/subag
 
 ## 2. Spawn three reviewers in parallel
 
-Spawn all three in one message with the `Agent` tool, `subagent_type: "Explore"`. They are read-only. Explore keeps `Bash`, so they can run `gh` to look up the issues and PRs the transcript cites. Each brief says "do not edit files". Run `git status` afterward.
+Spawn all three in one message with the `Agent` tool, `subagent_type: "Explore"`. They are read-only. Explore keeps `Bash`, so they can run `gates/forge.mjs` to look up the issues and PRs the transcript cites. Each brief says "do not edit files". Run `git status` afterward.
 
 | Lens | Config role | Prompt template |
 |---|---|---|

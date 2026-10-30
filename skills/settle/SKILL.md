@@ -17,7 +17,7 @@ node <root>/gates/settle.mjs <N> --state <state> [--comment-file <file>] --repo-
 
 - It sets one state label, `<label_prefix>:<state>`, and removes the other state labels.
 - It posts the comment unless the issue already has a comment with the same first line. So the first line must be stable for one outcome. Rerunning settle is safe.
-- Exit 1 means `gh` failed. That is failure kind `github`.
+- Exit 1 means the forge command failed. That is failure kind `github`.
 
 ## Claim (stage 1)
 

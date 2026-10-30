@@ -105,12 +105,16 @@ for (const file of walk(path.join(ROOT, "agents")).filter((f) => f.endsWith(".md
 
 // Content rules over every markdown file in skills/ and agents/
 const mdFiles = [...walk(skillsDir), ...walk(path.join(ROOT, "agents"))].filter((f) => f.endsWith(".md"));
+// Skills reach the forge through gates/forge.mjs (ADR-013). A forge CLI may appear only in the cstack mode
+// skill's references and in prohibitions.
+const forgeExempt = path.join(skillsDir, "cstack", "references") + path.sep;
 for (const file of mdFiles) {
   const text = readFileSync(file, "utf8");
   const lines = text.split("\n");
   lines.forEach((line, i) => {
     const at = `line ${i + 1}`;
     if (line.includes("—")) report(file, `${at}: em dash (U+2014)`);
+    if (/\b(gh|glab) /.test(line) && !/Never|blocks/.test(line) && !file.startsWith(forgeExempt)) report(file, `${at}: forge CLI command (use node <root>/gates/forge.mjs)`);
     // Attribution comments name their upstream source, which may use banned names.
     if (!line.trimStart().startsWith("<!-- Adapted from")) {
       for (const [re, what] of BANNED) if (re.test(line)) report(file, `${at}: banned term: ${what}`);
