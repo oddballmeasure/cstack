@@ -340,3 +340,13 @@ test("role-deny: an allow rule more specific than a broad deny wins", () => {
   assert.equal(codex("rm -rf /etc", { CSTACK_UNIT: "U1" }).status, 2, "the broad deny still holds elsewhere");
   assert.equal(codex("rm -rf /", { CSTACK_UNIT: "U1" }).status, 2);
 });
+
+test("no-admin-merge covers GitLab: glab mr merge, auto-merge and the merge endpoint", () => {
+  const r = repo();
+  for (const command of ["glab mr merge 3", "glab mr merge 3 --sha abc --auto-merge=false", "glab mr update 3 --auto-merge", "glab mr create --fill --auto-merge", "glab api -X PUT projects/1/merge_requests/3/merge", "glab api -X PUT projects%2Fg%2Fapp%2Fmerge_requests%2F3%2Fmerge"]) {
+    const out = run(r, "Bash", { command });
+    assert.equal(out.code, 2, command);
+    assert.match(out.err, /no-admin-merge/);
+  }
+  for (const command of ["glab mr view 3", "glab mr update 3 --title x", "glab api projects/1/merge_requests/3"]) assert.equal(run(r, "Bash", { command }).code, 0, command);
+});

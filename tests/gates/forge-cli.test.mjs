@@ -313,3 +313,14 @@ test("the grader role may run only read verbs", () => {
   }
   assert.equal(s.run("issue", "view", "3", { env }).code, 0, "reads are fine");
 });
+
+test("--forge and --forge-host choose the backend before setup writes the config", () => {
+  const s = setup([], { config: false });
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-forge-glab-"));
+  const scenario = path.join(dir, "glab.json");
+  writeFileSync(scenario, JSON.stringify({ rules: [{ match: "^api --hostname git\\.example\\.com -X GET projects/grp%2Fapp$", responses: [{ json: { path_with_namespace: "grp/app", default_branch: "main", web_url: "https://git.example.com/grp/app" } }] }] }));
+  const r = s.run("repo", "--json", "--forge", "gitlab", "--forge-host", "git.example.com", "--repo", "grp/app", { env: { FAKE_GLAB_SCENARIO: scenario } });
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.json, { path: "grp/app", defaultBranch: "main", url: "https://git.example.com/grp/app" });
+  assert.equal(s.run("repo", "--forge", "gitea").code, 2);
+});

@@ -38,19 +38,6 @@ const pathNode = which("node") ? run("node", ["-p", "process.versions.node"]).st
 const major = Number((pathNode || process.versions.node).split(".")[0]);
 if (major >= 22) pass("node version", `v${major}`);
 else fail("node version", `v${major} is below 22 (hooks need path.matchesGlob)`);
-if (!offline) {
-  if (!which("gh")) fail("tool gh", "not on PATH");
-  else if (run("gh", ["auth", "status"]).code === 0) pass("gh auth", "logged in");
-  else fail("gh auth", "not logged in (run gh auth login)");
-}
-// pr-wait and the merge gate need `gh pr checks --json` and the baseRefOid field; Ubuntu's gh 2.45 has
-// neither (cstack#32). Ask gh itself, offline, rather than compare version numbers.
-if (which("gh")) {
-  const view = run("gh", ["pr", "view", "--json"]);
-  const checks = run("gh", ["pr", "checks", "--help"]);
-  if (/baseRefOid/.test(view.stdout + view.stderr) && /--json/.test(checks.stdout + checks.stderr)) pass("gh features", "pr checks --json, baseRefOid");
-  else fail("gh features", "this gh lacks `pr checks --json` or the baseRefOid field; install a current gh from https://cli.github.com");
-}
 
 // Repo
 const top = run("git", ["-C", dir, "rev-parse", "--show-toplevel"]);
@@ -93,7 +80,12 @@ function schemaErrors(c) {
   const errs = [];
   const need = (cond, msg) => cond || errs.push(msg);
   need(c.version === 1, "version must be 1");
-  need(type(c.repo) === "string" && /^[^/]+\/[^/]+$/.test(c.repo) && c.repo !== "owner/name", "repo must be owner/name");
+  // GitLab paths may nest groups (group/sub/project); GitHub's are owner/name.
+  const nested = c.forge === "gitlab";
+  need(type(c.repo) === "string" && (nested ? /^[^/]+(\/[^/]+)+$/ : /^[^/]+\/[^/]+$/).test(c.repo) && c.repo !== "owner/name", nested ? "repo must be the project path, group/project" : "repo must be owner/name");
+  need(c.forge == null || ["github", "gitlab", "local"].includes(c.forge), "forge must be github, gitlab or local");
+  need(c.forge_host == null || (type(c.forge_host) === "string" && /^[a-z0-9.-]+(:\d+)?$/i.test(c.forge_host)), "forge_host must be a host name, like gitlab.example.com");
+  need(c.review_bots == null || (Array.isArray(c.review_bots) && c.review_bots.every((b) => type(b) === "string" && b.length > 0)), "review_bots must be an array of bot logins");
   need(type(c.base_branch) === "string" && c.base_branch.length > 0, "base_branch must be a non-empty string");
   need(nonEmptyArray(c.test_command) && c.test_command.every((x) => type(x) === "string"), "test_command must be a non-empty array of strings");
   need(c.setup_command == null || nonEmptyArray(c.setup_command), "setup_command must be null or a non-empty array");
@@ -167,7 +159,7 @@ function schemaErrors(c) {
     errs.push(...unknown(h, ["supervisor"], "host."));
   }
 
-  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host"];
+  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots"];
   errs.push(...unknown(c, known, ""));
   return errs;
 }
@@ -234,15 +226,43 @@ if (codex) {
   else fail("hooks (codex)", "the guard did not run in this Codex session: trust cstack's hooks once in /hooks, then run doctor again");
 }
 
-// GitHub
-if (!offline) {
-  const { repo, base_branch: base, label_prefix: prefix } = isObj(cfg) ? cfg : {};
-  if (run("gh", ["repo", "view", repo, "--json", "name"]).code === 0) pass("github repo", repo);
-  else fail("github repo", `cannot view ${repo}`);
-  if (run("gh", ["api", `repos/${repo}/branches/${base}`]).code === 0) pass("base branch", `${base} exists on ${repo}`);
-  else fail("base branch", `${base} not found on ${repo}`);
-  const list = run("gh", ["label", "list", "--repo", repo, "--limit", "500", "--json", "name", "--jq", ".[].name"]);
-  const labels = new Set(list.code === 0 ? list.stdout.split(/\r?\n/) : []);
+// The forge: GitHub unless config `forge` names another (gates/lib/forge.mjs).
+const forge = isObj(cfg) && typeof cfg.forge === "string" ? cfg.forge : "github";
+const cli = { github: "gh", gitlab: "glab" }[forge] ?? null;
+if (cli && !offline) {
+  if (!which(cli)) fail(`tool ${cli}`, "not on PATH");
+  else if (run(cli, ["auth", "status"]).code === 0) pass(`${cli} auth`, "logged in");
+  else fail(`${cli} auth`, `not logged in (run ${cli} auth login)`);
+}
+// pr-wait and the merge gate need `gh pr checks --json` and the baseRefOid field; Ubuntu's gh 2.45 has
+// neither (cstack#32). Ask gh itself, offline, rather than compare version numbers.
+if (forge === "github" && which("gh")) {
+  const view = run("gh", ["pr", "view", "--json"]);
+  const checks = run("gh", ["pr", "checks", "--help"]);
+  if (/baseRefOid/.test(view.stdout + view.stderr) && /--json/.test(checks.stdout + checks.stderr)) pass("gh features", "pr checks --json, baseRefOid");
+  else fail("gh features", "this gh lacks `pr checks --json` or the baseRefOid field; install a current gh from https://cli.github.com");
+}
+
+if (!offline && cli) {
+  const { repo, base_branch: base, label_prefix: prefix, forge_host: host } = isObj(cfg) ? cfg : {};
+  let labels;
+  if (forge === "github") {
+    if (run("gh", ["repo", "view", repo, "--json", "name"]).code === 0) pass("github repo", repo);
+    else fail("github repo", `cannot view ${repo}`);
+    if (run("gh", ["api", `repos/${repo}/branches/${base}`]).code === 0) pass("base branch", `${base} exists on ${repo}`);
+    else fail("base branch", `${base} not found on ${repo}`);
+    const list = run("gh", ["label", "list", "--repo", repo, "--limit", "500", "--json", "name", "--jq", ".[].name"]);
+    labels = new Set(list.code === 0 ? list.stdout.split(/\r?\n/) : []);
+  } else {
+    const api = (p) => run("glab", ["api", ...(host ? ["--hostname", host] : []), p]);
+    const project = `projects/${encodeURIComponent(String(repo))}`;
+    if (api(project).code === 0) pass("gitlab project", repo);
+    else fail("gitlab project", `cannot view ${repo}`);
+    if (api(`${project}/repository/branches/${encodeURIComponent(String(base))}`).code === 0) pass("base branch", `${base} exists on ${repo}`);
+    else fail("base branch", `${base} not found on ${repo}`);
+    const list = api(`${project}/labels?per_page=100`);
+    labels = new Set(list.code === 0 ? JSON.parse(list.stdout).map((l) => l.name) : []);
+  }
   const missing = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"].map((l) => `${prefix}:${l}`).filter((l) => !labels.has(l));
   if (!missing.length) pass("labels", `all ${prefix}:* labels exist`);
   else fail("labels", `missing: ${missing.join(" ")} (run the setup-cstack skill)`);

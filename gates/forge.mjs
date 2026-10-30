@@ -218,10 +218,13 @@ function verb(forge, a, rest) {
 main(async (argv) => {
   const a = parseArgs(argv, {
     flags: ["json", "open"],
-    options: ["repo-dir", "repo", "head", "base", "state", "title", "body-file", "limit", "label", "search", "in", "add-label", "remove-label", "color", "description"],
+    options: ["repo-dir", "repo", "forge", "forge-host", "head", "base", "state", "title", "body-file", "limit", "label", "search", "in", "add-label", "remove-label", "color", "description"],
   });
   const config = { ...configFrom(a["repo-dir"] ?? process.cwd()) };
   if (a.repo) config.repo = a.repo;
+  // --forge and --forge-host stand in for config before setup has written it (cstack:setup-cstack).
+  if (a.forge) config.forge = a.forge;
+  if (a["forge-host"]) config.forge_host = a["forge-host"];
   const local = ["repo", "user"].includes(a._[0]);
   if (!config.repo && !local) throw new UsageError("no repo: run inside a cstack checkout, or pass --repo-dir or --repo <owner/name>");
   const forge = openForge(config, { cwd: path.resolve(a["repo-dir"] ?? process.cwd()) });

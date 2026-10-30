@@ -197,7 +197,7 @@ export function gitlab(repo, cwd, host = null) {
       const files = json("GET", `${project}/merge_requests/${id}/changes`).changes.map((c) => c.new_path);
       const commits = json("GET", `${project}/merge_requests/${id}/commits?per_page=100`).length;
       const a = json("GET", `${project}/merge_requests/${id}/approvals`);
-      return toDetail(m, files, { commits, reviewRequired: (a.approvals_left ?? 0) > 0, review: a.approved && a.approvals_required > 0 ? "approved" : toChange(m).review });
+      return toDetail(m, files, { commits, reviewRequired: a.approvals_left > 0, review: a.approved && a.approvals_required > 0 ? "approved" : toChange(m).review });
     },
     // MRs by source branch, target branch and state (open|closed|merged|all).
     findChanges({ head = null, base = null, state = "open" } = {}) {
@@ -273,7 +273,11 @@ export function gitlab(repo, cwd, host = null) {
         const fields = { name: n, color: `#${(color ?? "5319e7").replace(/^#/, "")}`, ...(description ? { description } : {}) };
         const r = glab("POST", `${project}/labels`, fields);
         let ok = r.code === 0;
-        if (!ok && /already exists/i.test(r.stderr + r.stdout)) ok = !color || glab("PUT", `${project}/labels/${encodeURIComponent(n)}`, { new_name: n, color: fields.color, ...(description ? { description } : {}) }).code === 0;
+        if (!ok && /already exists/i.test(`${r.stderr}${r.stdout}`)) {
+          // An existing label is ensured; with a colour it is also updated to that colour.
+          if (!color) ok = true;
+          else ok = glab("PUT", `${project}/labels/${encodeURIComponent(n)}`, { new_name: n, color: fields.color, ...(description ? { description } : {}) }).code === 0;
+        }
         if (ok) done.push(n);
         else failed.push({ name: n, error: r.stderr.trim() });
       }

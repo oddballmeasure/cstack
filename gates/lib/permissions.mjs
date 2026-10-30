@@ -59,7 +59,7 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
   const scripts = [`Bash(node ${plugin}/*)`, `Bash(sh ${plugin}/skills/*)`, `Bash(bash ${plugin}/skills/*)`, `Bash(${plugin}/skills/*)`];
   const shell = ["Bash(jq *)", "Bash(column *)", "Bash(sort *)", "Bash(printf *)", "Bash(date *)", "Bash(sleep *)", "Bash(mkdir *)", "Bash(touch *)"];
   const build = [
-    "Bash(git *)", "Bash(gh *)", "Bash(node *)", "Bash(cp *)", "Bash(mv *)", "Bash(chmod +x *)", "Bash(rm -f *)",
+    "Bash(git *)", "Bash(gh *)", "Bash(glab *)", "Bash(node *)", "Bash(cp *)", "Bash(mv *)", "Bash(chmod +x *)", "Bash(rm -f *)",
     "Bash(rm -rf /tmp/cstack-*)", ...repoCommands(config), ...(Array.isArray(config.permissions_allow) ? config.permissions_allow : []),
   ];
 
@@ -92,7 +92,7 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
 
   const deny = [
     // Credentials and the user's own configuration.
-    "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)", "Read(~/.config/gh/**)", "Read(~/.netrc)", "Read(~/.claude/.credentials.json)",
+    "Read(~/.ssh/**)", "Read(~/.aws/**)", "Read(~/.gnupg/**)", "Read(~/.config/gh/**)", "Read(~/.config/glab-cli/**)", "Read(~/.netrc)", "Read(~/.claude/.credentials.json)",
     "Edit(~/.claude/**)", "Edit(~/.config/**)", "Edit(~/.bashrc)", "Edit(~/.zshrc)", "Edit(~/.profile)", "Edit(~/.local/bin/**)",
     // The config decides autonomy and hidden paths; a person edits it (the guard also blocks this).
     `Edit(${abs(repoRoot)}/.cstack/config.json)`,
@@ -102,6 +102,8 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     // Irreversible or account-level GitHub and git actions. Merges go through the merge gate's own process.
     "Bash(gh pr merge *)", "Bash(gh repo delete *)", "Bash(gh repo edit *)", "Bash(gh secret *)", "Bash(gh auth *)",
     "Bash(gh ssh-key *)", "Bash(gh gpg-key *)", "Bash(gh release *)", "Bash(gh api -X DELETE *)", "Bash(gh api --method DELETE *)",
+    "Bash(glab mr merge *)", "Bash(glab repo delete *)", "Bash(glab repo edit *)", "Bash(glab auth *)", "Bash(glab variable *)",
+    "Bash(glab ssh-key *)", "Bash(glab release *)", "Bash(glab api -X DELETE *)", "Bash(glab api --method DELETE *)",
     "Bash(git push --force *)", "Bash(git push -f *)", "Bash(git push --mirror *)", "Bash(git push --delete *)",
     "Bash(npm publish *)", "Bash(rm -rf /)", "Bash(rm -rf /*)", "Bash(rm -rf ~*)", "Bash(crontab *)",
     // A session may not start another Claude Code or Codex session, or change its own permissions.

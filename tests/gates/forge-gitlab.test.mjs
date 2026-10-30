@@ -135,3 +135,81 @@ test("changesOn lists MRs by source or target branch; a self-hosted host is pass
   const r = call(rules, `return [f.kind, f.name, f.repo, f.changesOn("--head", "feat/a"), f.changesOn("--base", "feat/a")];`, { host: "git.example.com" });
   assert.deepEqual(r.out, ["gitlab", "GitLab", "grp/sub/app", [{ pr: 2, state: "MERGED", branch: "feat/a", base: "main" }, { pr: 3, state: "OPEN", branch: "feat/a", base: "main" }, { pr: 4, state: "CLOSED", branch: "feat/a", base: "main" }], []]);
 });
+
+test("skill verbs: repo, user, change detail, find, merged, create, edit, ready, comment", () => {
+  const full = mr({ title: "Fix", source_branch: "feat", author: { username: "dev", bot: false }, description: "Closes #3", merge_when_pipeline_succeeds: true, source_project_id: 1, target_project_id: 1 });
+  const rules = [
+    { match: `^api -X GET ${P}$`, responses: [{ json: { path_with_namespace: "grp/sub/app", default_branch: "main", web_url: "https://gitlab.com/grp/sub/app" } }] },
+    { match: "^api -X GET user$", responses: [{ json: { username: "me", name: "Me", bot: true } }] },
+    { match: `^api -X GET ${P}/merge_requests/7\\?include`, responses: [{ json: full }, { json: { ...full, source_project_id: 2, description: null, author: null, merge_when_pipeline_succeeds: false, auto_merge_enabled: true } }] },
+    { match: `^api -X GET ${P}/merge_requests/7/changes$`, responses: [{ json: { changes: [{ new_path: "a.js" }] } }] },
+    { match: `^api -X GET ${P}/merge_requests/7/commits`, responses: [{ json: [{}, {}] }] },
+    { match: `^api -X GET ${P}/merge_requests/7/approvals$`, responses: [{ json: { approved: false, approvals_required: 1, approvals_left: 1 } }, { json: { approved: true, approvals_required: 1, approvals_left: 0 } }] },
+    { match: `^api -X GET ${P}/merge_requests\\?state=opened&per_page=100&source_branch=feat%2Fa&target_branch=main$`, responses: [{ json: [full] }] },
+    { match: `^api -X GET ${P}/merge_requests\\?state=all&per_page=100$`, responses: [{ json: [] }] },
+    { match: `^api -X GET ${P}/merge_requests\\?state=opened&per_page=100$`, responses: [{ json: [mr()] }] },
+    { match: `^api -X GET ${P}/merge_requests\\?state=merged&order_by=merged_at&sort=desc&per_page=2$`, responses: [{ json: [{ iid: 5, title: "Old", web_url: "u5", merged_at: "t" }] }] },
+    { match: `^api -X POST ${P}/merge_requests -f source_branch=feat -f target_branch=main -f title=Fix -f description=the body\\n$`, responses: [{ json: { iid: 9, web_url: "u9" } }, { stderr: "409 conflict", code: 1 }] },
+    { match: `^api -X PUT ${P}/merge_requests/7 -f title=New -f description=the body\\n$`, responses: [{ json: {} }] },
+    { match: `^api -X PUT ${P}/merge_requests/7 -f title=Ready one$`, responses: [{ json: {} }] },
+    { match: `^api -X PUT ${P}/merge_requests/7$`, responses: [{ stderr: "nothing", code: 1 }] },
+    { match: `^api -X GET ${P}/merge_requests/7$`, responses: [{ json: { title: "Draft: Ready one" } }, { json: { title: "Ready one" } }] },
+    { match: `^api -X POST ${P}/merge_requests/7/notes -f body=the body\\n$`, responses: [{ json: {} }] },
+  ];
+  const r = call(rules, `return [f.repoInfo(), f.currentUser(), f.changeDetail(7), f.changeDetail(7), f.findChanges({ head: "feat/a", base: "main" }), f.findChanges({ state: "all" }), f.findChanges(), f.recentMerged(2), f.createChange({ head: "feat", base: "main", title: "Fix", bodyFile: body }), f.createChange({ head: "feat", base: "main", title: "Fix", bodyFile: body }), f.editChange(7, { title: "New", bodyFile: body }), f.editChange(7), f.markReady(7), f.markReady(7), f.commentChange(7, body)];`);
+  assert.equal(r.code, 0, r.err);
+  const [repo, me, d1, d2, found, all, none, merged, created, createFail, edited, editFail, ready, already, commented] = r.out;
+  assert.deepEqual(repo, { path: "grp/sub/app", defaultBranch: "main", url: "https://gitlab.com/grp/sub/app" });
+  assert.deepEqual(me, { login: "me", name: "Me", bot: true });
+  assert.deepEqual([d1.title, d1.branch, d1.author, d1.bot, d1.body, d1.autoMerge, d1.headRepo, d1.commits, d1.reviewRequired, d1.review, d1.files], ["Fix", "feat", "dev", false, "Closes #3", true, "grp/sub/app", 2, true, "none", ["a.js"]]);
+  assert.deepEqual([d2.headRepo, d2.body, d2.author, d2.reviewRequired, d2.review, d2.autoMerge], [null, "", "ghost", false, "approved", true], "a fork MR, no description, a deleted author, approved, auto-merge");
+  assert.deepEqual([found.length, found[0].commits, all, none.map((c) => c.autoMerge)], [1, null, [], [false]]);
+  assert.deepEqual(merged, [{ id: 5, title: "Old", url: "u5", mergedAt: "t" }]);
+  assert.deepEqual([created, createFail], [{ ok: true, id: 9, url: "u9", via: "rest" }, { ok: false, error: "409 conflict" }]);
+  assert.deepEqual([edited.ok, editFail.ok, ready.ok, already.ok, commented.ok], [true, false, true, true, true]);
+});
+
+test("skill verbs: threads, reviews, replies, resolving, issue detail, labels, required checks", () => {
+  const n = (id, o = {}) => ({ id, body: `b${id}`, author: { username: "u", bot: false }, created_at: `2026-10-30T00:00:0${id}Z`, system: false, resolvable: false, resolved: false, ...o });
+  const rules = [
+    { match: `^api -X GET ${P}/merge_requests/7$`, responses: [{ json: { web_url: "https://g/mr/7" } }] },
+    { match: `^api -X GET ${P}/merge_requests/7/discussions`, responses: [{ json: [
+      { id: "d1", notes: [n(1, { resolvable: true, position: { new_path: "a.js", new_line: 4 }, author: { username: "bot1", bot: true } }), n(2, { resolvable: true, resolved: true }), n(3, { system: true })] },
+      { id: "d2", notes: [n(4, { resolvable: true, resolved: true }), n(5, { resolvable: false })] },
+      { id: "d3", notes: [n(6, { resolvable: true, system: true })] },
+      { id: "d4", notes: [n(7)] },
+      { id: "d5", notes: [] },
+    ] }] },
+    { match: `^api -X GET ${P}/merge_requests/7/approvals$`, responses: [{ json: { approved_by: [{ user: { username: "lead" } }] } }, { json: {} }] },
+    { match: `^api -X POST ${P}/merge_requests/7/discussions/d1/notes -f body=the body\\n$`, responses: [{ json: {} }, { stderr: "403", code: 1 }] },
+    { match: `^api -X PUT ${P}/merge_requests/7/discussions/d1 -f resolved=true$`, responses: [{ json: {} }] },
+    { match: `^api -X GET ${P}/issues/3$`, responses: [{ json: { iid: 3, title: "T", state: "opened", labels: ["x"], web_url: "https://g/i/3", author: { username: "a" }, description: "d", created_at: "t" } }, { json: { iid: 3, title: "T", state: "closed", author: null, created_at: "t" } }] },
+    { match: `^api -X GET ${P}/issues/3/notes`, responses: [{ json: [n(8), n(9, { system: true })] }] },
+    { match: `^api -X GET ${P}/issues\\?state=opened&per_page=100&order_by=created_at&sort=desc&search=CI%20failed&in=title --paginate$`, responses: [{ json: [] }] },
+    { match: `^api -X POST ${P}/labels -f name=new -f color=#5319e7$`, responses: [{ json: {} }] },
+    { match: `^api -X POST ${P}/labels -f name=old -f color=#5319e7$`, responses: [{ stdout: "{\"message\":\"Label already exists\"}", stderr: "409", code: 1 }] },
+    { match: `^api -X POST ${P}/labels -f name=old -f color=#0e8a16 -f description=Ready$`, responses: [{ stderr: "Label already exists", code: 1 }] },
+    { match: `^api -X PUT ${P}/labels/old -f new_name=old -f color=#0e8a16 -f description=Ready$`, responses: [{ json: {} }, { stderr: "500", code: 1 }] },
+    { match: `^api -X POST ${P}/labels -f name=bad`, responses: [{ stderr: "403 Forbidden", code: 1 }] },
+    { match: `^api -X POST ${P}/labels -f name=old -f color=#0e8a16$`, responses: [{ stderr: "Label already exists", code: 1 }] },
+    { match: `^api -X PUT ${P}/labels/old -f new_name=old -f color=#0e8a16$`, responses: [{ json: {} }] },
+    { match: `^api -X GET ${P}/pipelines\\?ref=main&per_page=1$`, responses: [{ json: [{ id: 50 }] }] },
+    { match: `^api -X GET ${P}/pipelines\\?ref=dev&per_page=1$`, responses: [{ json: [] }] },
+    { match: `^api -X GET ${P}/pipelines/50/jobs`, responses: [{ json: [{ name: "test", allow_failure: false }, { name: "lint", allow_failure: true }, { name: "build", allow_failure: false }, { name: "test", allow_failure: false }] }] },
+  ];
+  const r = call(rules, `return [f.threads(7), f.reviews(7), f.reviews(7), f.replyThread(7, "d1", body), f.replyThread(7, "d1", body), f.resolveThread(7, "d1"), f.issueDetail(3), f.issueDetail(3), f.ensureLabels(["new", "old"]), f.ensureLabels(["old"], "0e8a16", "Ready"), f.ensureLabels(["old", "bad"], "#0e8a16", "Ready"), f.requiredChecks("main"), f.requiredChecks("dev"), f.issues({ search: "CI failed", within: "title", want: [] }), f.ensureLabels(["old"], "0e8a16")];`);
+  assert.equal(r.code, 0, r.err);
+  const [threads, reviews, noApprovals, reply, replyFail, resolved, issue, closed, labels, updated, partly, required, noPipeline] = r.out;
+  assert.deepEqual(threads.map((t) => [t.id, t.resolved, t.path, t.line, t.author, t.bot, t.comments.length]), [["d1", false, "a.js", 4, "bot1", true, 2], ["d2", true, null, null, "u", false, 2], ["d3", false, null, null, null, false, 0]]);
+  assert.equal(threads[0].url, "https://g/mr/7#note_1");
+  assert.deepEqual(reviews.map((x) => [x.kind, x.state, x.author]), [["comment", null, "u"], ["review", "approved", "lead"]]);
+  assert.deepEqual(noApprovals.map((x) => x.kind), ["comment"]);
+  assert.deepEqual([reply, replyFail.ok, resolved.ok], [{ ok: true, url: null }, false, true]);
+  assert.deepEqual([issue.number, issue.state, issue.labels, issue.author, issue.body, issue.comments.map((c) => c.body)], [3, "open", ["x"], "a", "d", ["b8"]]);
+  assert.deepEqual([closed.state, closed.labels, closed.author, closed.body, closed.comments[0].url], ["closed", [], "ghost", "", null]);
+  assert.deepEqual(labels, { ok: true, done: ["new", "old"], failed: [] });
+  assert.deepEqual(updated, { ok: true, done: ["old"], failed: [] });
+  assert.deepEqual(partly, { ok: false, done: [], failed: [{ name: "old", error: "Label already exists" }, { name: "bad", error: "403 Forbidden" }] });
+  assert.deepEqual([required, noPipeline], [["build", "test"], []]);
+  assert.deepEqual(r.out.at(-1), { ok: true, done: ["old"], failed: [] }, "a colour without a description updates the colour");
+});

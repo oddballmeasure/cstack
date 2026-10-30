@@ -3,7 +3,7 @@
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
 //   no-sleep-loops    no sleep/poll loops in Bash; wait with Monitor + a watcher script
-//   no-admin-merge    no direct `gh pr merge` or merge API call; only the merge gate merges
+//   no-admin-merge    no direct `gh pr merge`, `glab mr merge`, auto-merge, or merge API call; only the merge gate merges
 //   no-autonomy-raise no Bash command sets CSTACK_PROGRAM_AUTONOMY; only a human launch does
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
@@ -141,6 +141,13 @@ function checkBash(cmd) {
     block("no-admin-merge", "direct `gh pr merge` is not allowed. Merge only through the cstack merge gate.");
   }
   if (/\bgh\s+api\b[^|;&]*\/pulls\/\d+\/merge\b/.test(flat)) {
+    block("no-admin-merge", "merging through the API is not allowed. Merge only through the cstack merge gate.");
+  }
+  // GitLab (ADR-013): the CLI merge, setting auto-merge on an MR, and the merge endpoint through the API.
+  if (/\bglab\s+mr\s+merge\b/.test(flat) || /\bglab\s+mr\s+(?:update|create)\b[^|;&]*--auto-merge\b/.test(flat)) {
+    block("no-admin-merge", "direct `glab mr merge` or auto-merge is not allowed. Merge only through the cstack merge gate.");
+  }
+  if (/\bglab\s+api\b[^|;&]*merge_requests(?:\/|%2F)\d+(?:\/|%2F)merge\b/i.test(flat)) {
     block("no-admin-merge", "merging through the API is not allowed. Merge only through the cstack merge gate.");
   }
   // Only the human who launches a run may give it CSTACK_PROGRAM_AUTONOMY=send (ADR-006). Reading it is fine.
