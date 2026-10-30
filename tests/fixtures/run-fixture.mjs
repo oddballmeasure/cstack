@@ -484,7 +484,9 @@ if (FORGE === "local") {
   const origin = path.join(outDir, "origin.git");
   sh("git", ["init", "-q", "--bare", "-b", "main", origin]);
   sh("git", ["clone", "-q", origin, clone]);
-  sh("git", ["-C", clone, "-c", "user.name=cstack-fixture", "-c", "user.email=cstack@localhost", "commit", "-q", "--allow-empty", "-m", "Empty"]);
+  writeFileSync(path.join(clone, "README.md"), "Replaced by the fixture scaffold.\n");
+  git("add", "-A");
+  sh("git", ["-C", clone, "-c", "user.name=cstack-fixture", "-c", "user.email=cstack@localhost", "commit", "-q", "-m", "Start"]);
   git("push", "-q", "origin", "HEAD:refs/heads/main");
 }
 git("config", "user.name", "cstack-fixture");
@@ -554,7 +556,7 @@ try {
   if (!keep) {
     try {
       teardown(startedIso);
-      log("teardown done: PRs and issues closed, testbed main restored to baseline-p3");
+      log(`teardown done: PRs and issues closed${FORGE === "local" ? "" : ", testbed main restored to its baseline"}`);
       // The clone holds the built app and its own tests. Leaving it inside the cstack repo let a broad
       // test glob run those tests, some of which run `npm test` from the cwd: a recursive suite (2026-10-29).
       rmSync(clone, { recursive: true, force: true });
