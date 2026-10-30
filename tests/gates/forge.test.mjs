@@ -29,5 +29,6 @@ test("openForge returns the github or gitlab backend and refuses backends not bu
   assert.equal(f.repo, "o/r");
   const g = openForge({ repo: "grp/app", forge: "gitlab", forge_host: "git.example.com" });
   assert.deepEqual([g.kind, g.name, g.repo], ["gitlab", "GitLab", "grp/app"]);
+  assert.equal(openForge({ repo: "grp/app", forge: "gitlab" }).kind, "gitlab", "gitlab.com when no host is set");
   assert.throws(() => openForge({ forge: "local" }), /forge 'local' is not implemented yet/);
 });
