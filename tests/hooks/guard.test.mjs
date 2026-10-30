@@ -61,6 +61,28 @@ test("hidden-paths blocks Bash commands that name the hidden area", () => {
   assert.match(out.err, /hidden-paths/);
 });
 
+test("hidden-paths refuses git listings that would print hidden names", () => {
+  const r = repo();
+  for (const command of ["git ls-files", "git ls-files -z", "git ls-files 2>/dev/null", "git ls-files | wc -l", "git -C /x ls-files", "cd src && git ls-files .", "git ls-files ./", "git ls-files ..", "git ls-files tests", "git ls-files tests/", "git ls-files 'tests'", "git ls-files '*.js'", "git ls-tree -r HEAD", "git ls-tree HEAD tests", "git ls-files src; git ls-files"]) {
+    const out = run(r, "Bash", { command });
+    assert.equal(out.code, 2, command);
+    assert.match(out.err, /hidden-paths.*would list hidden file names/, command);
+  }
+});
+
+test("hidden-paths allows git listings that stay outside the hidden area", () => {
+  const r = repo();
+  for (const command of ["git ls-files src", "git ls-files ./src/ docs", "git ls-files -- src", "git ls-files src > /tmp/list", "git ls-files src 2>/dev/null", "git ls-tree -r HEAD src", "git ls-files tests/unit", "git log --oneline"]) {
+    assert.equal(run(r, "Bash", { command }).code, 0, command);
+  }
+});
+
+test("git listings are unrestricted for privileged roles and without hidden paths", () => {
+  const r = repo();
+  assert.equal(run(r, "Bash", { command: "git ls-files" }, { CSTACK_ROLE: "grader" }).code, 0);
+  assert.equal(run(repo({ paths_hidden: [], paths_off_limits: [] }), "Bash", { command: "git ls-files" }).code, 0);
+});
+
 test("hidden-paths never matches Agent or Skill prompt text", () => {
   const r = repo();
   assert.equal(run(r, "Agent", { prompt: "do not read tests/acceptance" }).code, 0);
