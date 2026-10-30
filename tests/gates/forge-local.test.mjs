@@ -135,6 +135,17 @@ test("merge: only at the exact head, as a merge commit pushed to origin; then me
   assert.equal(f.repoInfo().url, git(r.root, "remote", "get-url", "origin"));
 });
 
+test("merging closes the issues the change names, as a server forge does", () => {
+  const r = withRemote();
+  const f = r.forge;
+  f.createIssue({ title: "One", bodyFile: body(r.base, "x") });
+  f.createIssue({ title: "Two", bodyFile: body(r.base, "x") });
+  f.createIssue({ title: "Three", bodyFile: body(r.base, "x") });
+  f.createChange({ head: "feat", base: "main", title: "Feature", bodyFile: body(r.base, "Closes #1 and fixes #2. See #3. Resolves #99.\n") });
+  assert.equal(f.merge(4, r.head).ok, true);
+  assert.deepEqual([1, 2, 3].map((n) => f.issue(n, []).state), ["closed", "closed", "open"]);
+});
+
 test("merge refusals: a base that does not exist, and a push origin rejects", () => {
   const r = withRemote();
   const f = r.forge;

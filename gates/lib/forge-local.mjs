@@ -137,6 +137,10 @@ export function local(config, cwd) {
         const push = hasRemote() ? w(["push", "--quiet", `--force-with-lease=${c.base}:${base}`, "origin", `HEAD:refs/heads/${c.base}`]) : g(["update-ref", `refs/heads/${c.base}`, merged, base]);
         if (push.code !== 0) return { ok: false, error: `could not move ${c.base} to the merge (did the base move?): ${push.stderr.trim()}` };
         write("changes", id, { ...c, state: "merged", mergeSha: merged, mergedAt: now(), mergedHead: sha, mergedBase: base });
+        // As a server forge does: "Closes #N" in the change closes that issue when it merges.
+        for (const m of String(c.body).matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi)) {
+          if (existsSync(file("issues", m[1]))) write("issues", m[1], { ...read("issues", m[1]), state: "closed" });
+        }
         return ok;
       } finally {
         g(["worktree", "remove", "--force", wt]);

@@ -22,7 +22,7 @@ Never read or edit the hidden suites in config `paths_hidden`. Your test goes in
 3. **Write the failing test first.** Add the smallest focused test that would have caught the bug. It encodes intended behaviour. It does not mirror the current implementation. For a cstack ticket, test at the application's boundary (HTTP, CLI, or browser) when the ticket asks for it.
 4. **Run the new test before the fix.** Confirm it fails for the intended reason. If it passes, or fails for an unrelated reason, correct the test or the reproduction before you edit the implementation.
 5. **Make the change.** Make the smallest product change that gives the intended behaviour and keeps nearby contracts.
-6. **Run the test again.** Confirm it passes. Then run config `test_command` so nothing nearby broke.
+6. **Run the test again.** Confirm it passes. Then run config `test_command` so nothing nearby broke, with `node <root>/gates/run-tests.mjs <worktree>`. Arguments after `--` go to the test command, for one test file.
 
 ## If a failing test is impractical
 
