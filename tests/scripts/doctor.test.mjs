@@ -219,6 +219,13 @@ test("forge keys are validated; a nested path is GitLab-only; local needs no for
   assert.equal(bad.code, 1);
   for (const msg of ["forge must be github, gitlab or local", "forge_host must be a host name", "review_bots must be an array of bot logins", "repo must be owner/name"]) assert.ok(bad.out.includes(`FAIL config schema: ${msg}`), msg);
   assert.match(doctor(target({ forge: "gitlab", repo: "solo" }), ["--offline"]).out, /repo must be the project path, group\/project/);
-  const local = doctor(target({ forge: "local", review_bots: ["greptile-apps"] }), []);
+  const local = doctor(target({ forge: "local", review_bots: ["greptile-apps"], ci_command: ["./scripts/test.sh"], required_checks: ["ci"] }), []);
+  assert.equal(local.code, 0, local.out);
   assert.doesNotMatch(local.out, /tool gh|tool glab|github repo|gitlab project/);
+  assert.match(local.out, /PASS local forge: records in \.cstack\/forge\/; CI is ci_command/);
+  assert.match(local.out, /PASS ci_command/);
+  const noCi = doctor(target({ forge: "local" }), ["--offline"]);
+  assert.match(noCi.out, /FAIL config schema: forge local needs ci_command/);
+  assert.match(noCi.out, /WARN required checks: add "ci" to required_checks/);
+  assert.match(doctor(target({ ci_command: [] }), ["--offline"]).out, /ci_command must be a non-empty array of strings/);
 });

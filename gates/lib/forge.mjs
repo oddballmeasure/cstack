@@ -2,7 +2,7 @@
 // one object from openForge(config, {cwd}), never through a forge CLI directly (ADR-013). Backends:
 //   github  the gh CLI; the reference backend, with the exact calls cstack made before the layer existed
 //   gitlab  glab api, in gates/lib/forge-gitlab.mjs; config forge_host for a self-hosted instance (ADR-013)
-//   local   plain git with any remote or none (phase F4)
+//   local   plain git with any remote or none, in gates/lib/forge-local.mjs; records under .cstack/forge/ (ADR-014)
 // Records are normalised so a gate reads the same fields on every forge:
 //   change  {id, url, state: open|merged|closed, draft, head, base, baseSha, merge: clean|behind|conflict|blocked|unknown,
 //            mergeRaw, review: approved|changes|none, reviewRaw, files: [path], mergeSha, mergedAt}
@@ -16,6 +16,7 @@
 // UsageError naming the forge command, as the gates did before.
 import { UsageError, run } from "./common.mjs";
 import { gitlab } from "./forge-gitlab.mjs";
+import { local } from "./forge-local.mjs";
 
 export const FORGES = ["github", "gitlab", "local"];
 
@@ -35,7 +36,7 @@ export function openForge(config, { cwd } = {}) {
   const kind = forgeKind(config);
   if (kind === "github") return github(config.repo, cwd);
   if (kind === "gitlab") return gitlab(config.repo, cwd, config.forge_host ?? null);
-  throw new UsageError(`forge '${kind}' is not implemented yet`);
+  return local(config, cwd ?? process.cwd());
 }
 
 // A re-run adds a newer check run with the same name. Prefer the higher id; without ids, the later start.
