@@ -22,10 +22,12 @@ test("forgeKind: CSTACK_FORGE, then config forge, else github", () => {
   }
 });
 
-test("openForge returns the github backend and refuses backends not built yet", () => {
+test("openForge returns the github or gitlab backend and refuses backends not built yet", () => {
   const f = openForge({ repo: "o/r", forge: "github" });
   assert.equal(f.kind, "github");
   assert.equal(f.name, "GitHub");
   assert.equal(f.repo, "o/r");
-  assert.throws(() => openForge({ forge: "gitlab" }), /forge 'gitlab' is not implemented yet/);
+  const g = openForge({ repo: "grp/app", forge: "gitlab", forge_host: "git.example.com" });
+  assert.deepEqual([g.kind, g.name, g.repo], ["gitlab", "GitLab", "grp/app"]);
+  assert.throws(() => openForge({ forge: "local" }), /forge 'local' is not implemented yet/);
 });

@@ -64,6 +64,39 @@ export function gitlab(repo, cwd, host = null) {
     createdAt: i.created_at,
   });
 
+  const user = (u) => ({ author: u?.username ?? "ghost", bot: u?.bot === true });
+  const toChange = (m, files = []) => ({
+    id: m.iid,
+    url: m.web_url,
+    state: STATE[m.state] ?? m.state,
+    draft: Boolean(m.draft),
+    head: m.sha,
+    base: m.target_branch,
+    baseSha: m.diff_refs?.base_sha ?? null,
+    merge: MERGE[m.detailed_merge_status] ?? "blocked",
+    mergeRaw: m.detailed_merge_status,
+    behind: m.diverged_commits_count ?? 0,
+    review: m.detailed_merge_status === "requested_changes" ? "changes" : "none",
+    reviewRaw: m.detailed_merge_status === "requested_changes" ? "REQUESTED_CHANGES" : "",
+    files,
+    mergeSha: m.merge_commit_sha ?? null,
+    mergedAt: m.merged_at ?? null,
+  });
+  // A list row or a full MR, with the fields skills read beyond the gates' change record.
+  const toDetail = (m, files = [], extra = {}) => ({
+    ...toChange(m, files),
+    title: m.title,
+    branch: m.source_branch,
+    ...user(m.author),
+    body: m.description ?? "",
+    autoMerge: Boolean(m.merge_when_pipeline_succeeds || m.auto_merge_enabled),
+    headRepo: m.source_project_id === m.target_project_id ? repo : null,
+    commits: null,
+    reviewRequired: false,
+    ...extra,
+  });
+  const note = (n, url) => ({ ...user(n.author), body: n.body, url: url ? `${url}#note_${n.id}` : null, createdAt: n.created_at });
+
   return {
     kind: "gitlab",
     name: "GitLab",
@@ -72,23 +105,7 @@ export function gitlab(repo, cwd, host = null) {
     change(id, want = ["files"]) {
       const m = json("GET", `${project}/merge_requests/${id}?include_diverged_commits_count=true`);
       const files = want.includes("files") ? json("GET", `${project}/merge_requests/${id}/changes`).changes.map((c) => c.new_path) : [];
-      return {
-        id: m.iid,
-        url: m.web_url,
-        state: STATE[m.state] ?? m.state,
-        draft: Boolean(m.draft),
-        head: m.sha,
-        base: m.target_branch,
-        baseSha: m.diff_refs?.base_sha ?? null,
-        merge: MERGE[m.detailed_merge_status] ?? "blocked",
-        mergeRaw: m.detailed_merge_status,
-        behind: m.diverged_commits_count ?? 0,
-        review: m.detailed_merge_status === "requested_changes" ? "changes" : "none",
-        reviewRaw: m.detailed_merge_status === "requested_changes" ? "REQUESTED_CHANGES" : "",
-        files,
-        mergeSha: m.merge_commit_sha ?? null,
-        mergedAt: m.merged_at ?? null,
-      };
+      return toChange(m, files);
     },
     // A merge commit at exactly `sha`. GitLab refuses a moved head with HTTP 409.
     merge(id, sha) {
@@ -145,10 +162,10 @@ export function gitlab(repo, cwd, host = null) {
     comment(id, bodyFile) {
       return result(glab("POST", `${project}/issues/${id}/notes`, { body: readFileSync(bodyFile, "utf8") }));
     },
-    issues({ state = "open", label = null, search = null, limit = 200 }) {
+    issues({ state = "open", label = null, search = null, within = "body", limit = 200 }) {
       const q = [`state=${state === "open" ? "opened" : "all"}`, "per_page=100", "order_by=created_at", "sort=desc"];
       if (label) q.push(`labels=${encodeURIComponent(label)}`);
-      if (search) q.push(`search=${encodeURIComponent(search)}`, "in=description");
+      if (search) q.push(`search=${encodeURIComponent(search)}`, `in=${within === "title" ? "title" : "description"}`);
       return json("GET", `${project}/issues?${q.join("&")}`, {}, ["--paginate"]).slice(0, limit).map((i) => toIssue(i));
     },
     createIssue({ title, bodyFile, label }) {
@@ -162,6 +179,112 @@ export function gitlab(repo, cwd, host = null) {
       const key = filter === "--head" ? "source_branch" : "target_branch";
       const rows = json("GET", `${project}/merge_requests?${key}=${encodeURIComponent(branch)}&state=all&per_page=100`);
       return rows.map((m) => ({ pr: m.iid, state: (STATE[m.state] ?? "closed").toUpperCase(), branch: m.source_branch, base: m.target_branch }));
+    },
+
+    // ---- Verbs for skills (gates/forge.mjs). ----
+
+    repoInfo() {
+      const p = json("GET", project);
+      return { path: p.path_with_namespace, defaultBranch: p.default_branch, url: p.web_url };
+    },
+    currentUser() {
+      const u = json("GET", "user");
+      return { login: u.username, name: u.name, bot: u.bot === true };
+    },
+    // One MR in full: its files, its commit count, and whether approvals are still required.
+    changeDetail(id) {
+      const m = json("GET", `${project}/merge_requests/${id}?include_diverged_commits_count=true`);
+      const files = json("GET", `${project}/merge_requests/${id}/changes`).changes.map((c) => c.new_path);
+      const commits = json("GET", `${project}/merge_requests/${id}/commits?per_page=100`).length;
+      const a = json("GET", `${project}/merge_requests/${id}/approvals`);
+      return toDetail(m, files, { commits, reviewRequired: (a.approvals_left ?? 0) > 0, review: a.approved && a.approvals_required > 0 ? "approved" : toChange(m).review });
+    },
+    // MRs by source branch, target branch and state (open|closed|merged|all).
+    findChanges({ head = null, base = null, state = "open" } = {}) {
+      const q = [`state=${state === "open" ? "opened" : state}`, "per_page=100"];
+      if (head) q.push(`source_branch=${encodeURIComponent(head)}`);
+      if (base) q.push(`target_branch=${encodeURIComponent(base)}`);
+      return json("GET", `${project}/merge_requests?${q.join("&")}`).map((m) => toDetail(m));
+    },
+    recentMerged(limit = 10) {
+      return json("GET", `${project}/merge_requests?state=merged&order_by=merged_at&sort=desc&per_page=${limit}`).map((m) => ({ id: m.iid, title: m.title, url: m.web_url, mergedAt: m.merged_at }));
+    },
+    // Open a real MR, never a draft. GitLab has one REST API, so there is no fallback to report.
+    createChange({ head, base, title, bodyFile }) {
+      const r = glab("POST", `${project}/merge_requests`, { source_branch: head, target_branch: base, title, description: readFileSync(bodyFile, "utf8") });
+      if (r.code !== 0) return { ok: false, error: r.stderr.trim() };
+      const m = JSON.parse(r.stdout);
+      return { ok: true, id: m.iid, url: m.web_url, via: "rest" };
+    },
+    editChange(id, { bodyFile = null, title = null } = {}) {
+      const fields = {};
+      if (title) fields.title = title;
+      if (bodyFile) fields.description = readFileSync(bodyFile, "utf8");
+      return result(glab("PUT", `${project}/merge_requests/${id}`, fields));
+    },
+    // GitLab marks a draft by a title prefix; ready means the prefix is gone.
+    markReady(id) {
+      const m = json("GET", `${project}/merge_requests/${id}`);
+      const title = m.title.replace(/^\s*(?:draft:|\[draft\]|\(draft\))\s*/i, "");
+      return title === m.title ? { ok: true, error: "" } : result(glab("PUT", `${project}/merge_requests/${id}`, { title }));
+    },
+    commentChange(id, bodyFile) {
+      return result(glab("POST", `${project}/merge_requests/${id}/notes`, { body: readFileSync(bodyFile, "utf8") }));
+    },
+    // Resolvable discussions only: those are GitLab's review threads. Discussion ids belong to one MR.
+    threads(id) {
+      const url = json("GET", `${project}/merge_requests/${id}`).web_url;
+      return json("GET", `${project}/merge_requests/${id}/discussions?per_page=100`)
+        .filter((d) => d.notes?.[0]?.resolvable)
+        .map((d) => {
+          const comments = d.notes.filter((n) => !n.system).map((n) => note(n, url));
+          const first = comments[0] ?? { author: null, bot: false, body: "", url: null };
+          const pos = d.notes[0].position ?? {};
+          return { id: d.id, resolved: d.notes.every((n) => !n.resolvable || n.resolved), path: pos.new_path ?? null, line: pos.new_line ?? null, author: first.author, bot: first.bot, body: first.body, url: first.url, comments };
+        });
+    },
+    // Approvals and top-level comments, oldest first. GitLab has no review objects: an approval is the review.
+    reviews(id) {
+      const url = json("GET", `${project}/merge_requests/${id}`).web_url;
+      const approvals = (json("GET", `${project}/merge_requests/${id}/approvals`).approved_by ?? []).map((a, i) => ({ id: `approval-${i}`, kind: "review", state: "approved", ...user(a.user), body: "", commit: null, url, createdAt: null }));
+      const comments = json("GET", `${project}/merge_requests/${id}/discussions?per_page=100`)
+        .filter((d) => !d.notes?.[0]?.resolvable)
+        .flatMap((d) => d.notes.filter((n) => !n.system))
+        .map((n) => ({ id: n.id, kind: "comment", state: null, ...note(n, url), commit: null }));
+      return [...approvals, ...comments].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+    },
+    replyThread(id, threadId, bodyFile) {
+      const r = glab("POST", `${project}/merge_requests/${id}/discussions/${threadId}/notes`, { body: readFileSync(bodyFile, "utf8") });
+      return r.code === 0 ? { ok: true, url: null } : { ok: false, error: r.stderr.trim() };
+    },
+    resolveThread(id, threadId) {
+      return result(glab("PUT", `${project}/merge_requests/${id}/discussions/${threadId}`, { resolved: "true" }));
+    },
+    issueDetail(id) {
+      const i = json("GET", `${project}/issues/${id}`);
+      const notes = json("GET", `${project}/issues/${id}/notes?sort=asc&per_page=100`).filter((n) => !n.system);
+      return { number: i.iid, title: i.title, state: i.state === "opened" ? "open" : "closed", labels: i.labels ?? [], url: i.web_url, ...user(i.author), body: i.description ?? "", createdAt: i.created_at, comments: notes.map((n) => note(n, i.web_url)) };
+    },
+    // Create each label, or update an existing one when a colour is given. GitLab requires a colour on create.
+    ensureLabels(names, color = null, description = null) {
+      const done = [];
+      const failed = [];
+      for (const n of names) {
+        const fields = { name: n, color: `#${(color ?? "5319e7").replace(/^#/, "")}`, ...(description ? { description } : {}) };
+        const r = glab("POST", `${project}/labels`, fields);
+        let ok = r.code === 0;
+        if (!ok && /already exists/i.test(r.stderr + r.stdout)) ok = !color || glab("PUT", `${project}/labels/${encodeURIComponent(n)}`, { new_name: n, color: fields.color, ...(description ? { description } : {}) }).code === 0;
+        if (ok) done.push(n);
+        else failed.push({ name: n, error: r.stderr.trim() });
+      }
+      return { ok: failed.length === 0, done, failed };
+    },
+    // GitLab has no server-side list of required jobs on the free tier (ADR-013): every job of the branch's newest
+    // pipeline that may not fail is required.
+    requiredChecks(branch) {
+      const p = json("GET", `${project}/pipelines?ref=${encodeURIComponent(branch)}&per_page=1`)[0];
+      if (!p) return [];
+      return [...new Set(json("GET", `${project}/pipelines/${p.id}/jobs?per_page=100`).filter((j) => !j.allow_failure).map((j) => j.name))].sort();
     },
   };
 }
