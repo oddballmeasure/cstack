@@ -21,7 +21,7 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 | Config | `.cstack/config.json` is missing, does not parse, or breaks the schema in `templates/config.json`. Unknown keys fail. |
 | Commands | `test_command[0]` or `e2e_command[0]` does not resolve. A command with a `/` must be an executable file under the repo root. |
 | Run store | `.cstack/runs/` is not writable. A missing `.gitignore` entry is a WARN. |
-| Hooks | The cstack guard does not block a direct `gh pr merge` in a self-test. |
+| Hooks | A self-test shows the cstack guard no longer blocks a direct `gh pr merge`. |
 | GitHub | The repo or base branch cannot be read, or any `<prefix>:` state label is missing. No required checks is a WARN. |
 
 ## Report

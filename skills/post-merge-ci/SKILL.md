@@ -23,13 +23,13 @@ It reads every unit in state `merged` or `done` with a PR, takes the merge commi
 | State | Meaning |
 |---|---|
 | `waiting` | Checks still run, a re-run has not replaced its failed check yet, or no check is listed yet (first 10 minutes). |
-| `rerun` | Failed Actions runs were re-run once with `gh run rerun <id> --failed`. Waiting for the result. |
+| `rerun` | Failed CI runs were re-run once. Waiting for the result. |
 | `passed` | Every check concluded success, skipped or neutral. |
 | `no_checks` | No check was listed 10 minutes after the merge. |
 | `filed` | Failed again after the re-run (or could not be re-run): one issue `CI failed on <base> after #<pr>: <checks>` with each check's log tail. |
 | `expired` | No verdict 6 hours after the merge. |
 | `filing` | A crash hit between the `filing` row and the issue. The gate never files it again. |
-| `file-error` | `gh issue create` failed. The next run tries again without re-running CI. |
+| `file-error` | Filing the issue failed. The next run tries again without re-running CI. |
 
 The follow-up is labelled `<prefix>:ready`, so the next program pass or a standalone `cstack:unit` picks it up. When the merged unit's issue was itself such a follow-up, the label is `<prefix>:needs-human`, so cstack never chases its own tail.
 
@@ -44,7 +44,7 @@ Exit 0: nothing red. Exit 1: a merge is `filed`, `filing`, `expired` or `file-er
    It judges again every minute and prints its report when nothing waits. Under `cstack:orchestrate` mid-run, do not block the program on it. Run the gate once per drain instead, and use `--wait` only at Close.
 3. For each red merge, log one row with `cstack:show-me-your-work`: the PR, the merge SHA, the state, the follow-up issue.
    - `filed`: report the issue and its label.
-   - `filing`: search the repo for an issue with the title from the row (`gh issue list --repo <repo> --search "<title> in:title" --state all`). Report what you find. Do not file one by hand without the human.
+   - `filing`: search the repo for an issue with the title from the row (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state all`). Report what you find. Do not file one by hand without the human.
    - `expired`: report the merge. Its checks never finished.
    - `file-error`: run the gate again once. If it fails again, report the error.
 

@@ -18,7 +18,7 @@ If the work is a cstack run whose coordinator died or paused, this is the wrong 
 
 Read the source in full:
 
-- **A PR.** `gh pr view <n> --json url,state,author,baseRefName,headRefName,headRefOid,headRepository,commits,body,reviews,statusCheckRollup`, the review threads, and the full diff.
+- **A PR.** `node <root>/gates/forge.mjs change view <n> --json` (url, state, author, base, branch, head, headRepo, commits, body), its reviews (`node <root>/gates/forge.mjs reviews <n> --json`), its review threads (`node <root>/gates/forge.mjs threads <n> --json`), the checks on its head (`node <root>/gates/forge.mjs checks <head>`), and the full diff.
 - **A branch.** `git log` and the diff against its merge base with the base branch.
 - **An agent thread.** Its transcript under `~/.claude/projects/<slug>/`, or its run store under `.cstack/runs/<slug>/`. Read the human's later corrections too.
 
@@ -37,7 +37,7 @@ node <root>/gates/isolate.mjs <repo> <branch> <worktree> --base origin/takeover-
 
 Name the branch `cstack/<N>-<slug>` when an issue `N` exists (`docs/unit-flow.md`), else `cstack/takeover-<n>`. The branch starts at the original head, so it keeps the original commits, authors and `Co-authored-by` trailers. Add your fixes as separate commits on top.
 
-Credit the original contributors in the PR body and link the original PR. Use identities you verified from `git log --format='%an <%ae>'` or the GitHub API. Do not guess an email. If the repo squash-merges, check that the squash message keeps a `Co-authored-by:` line for each human contributor. A model attribution line does not replace contributor credit.
+Credit the original contributors in the PR body and link the original PR. Use identities you verified from `git log --format='%an <%ae>'` or the forge's change record. Do not guess an email. If the repo squash-merges, check that the squash message keeps a `Co-authored-by:` line for each human contributor. A model attribution line does not replace contributor credit.
 
 ## 3. Modernize and finish
 

@@ -10,7 +10,7 @@ argument-hint: "<pr-number | pr-url>"
 
 Modernize the idea, not just the branch. A clean rebase does not prove that the PR still belongs in the product.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. Read `repo` and `base_branch` from `.cstack/config.json` with `jq` when it exists.
+Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read `repo` and `base_branch` from `.cstack/config.json` with `jq` when it exists.
 
 ## Guardrails
 
@@ -24,16 +24,17 @@ Read the [cstack mode skill](../cstack/SKILL.md) first. Read `repo` and `base_br
 ## Establish the PR's intent
 
 ```bash
-gh pr view <n> --json url,state,baseRefName,headRefName,headRefOid,headRepository,headRepositoryOwner,author,statusCheckRollup,reviewDecision,title,body,commits
+node <root>/gates/forge.mjs change view <n> --json
+node <root>/gates/forge.mjs checks <head> --json
 ```
 
-Record the URL, state, base, head repository and branch, head SHA, author, checks and review state. Read the title, body, linked issues, commits, review threads and the full diff. State the smallest coherent goal the PR was trying to reach before you judge its code.
+Record the URL, state, base, head repository (`headRepo`) and branch, head SHA, author, checks and review state. Read the title, body, linked issues, commits, review threads and the full diff. State the smallest coherent goal the PR was trying to reach before you judge its code.
 
 Fetch the base and the PR head. Use the PR's real base branch. Do not assume the local copy is current. Record the merge base, so you can compare the PR's own changes and the base's later changes separately.
 
 ## Check what changed around it
 
-Read the commits and diffs that landed on the base since the PR diverged. Search merged and open PRs (`gh pr list --search`) when titles, paths or behaviour suggest a replacement or a competing change.
+Read the commits and diffs that landed on the base since the PR diverged. Scan open PRs (`node <root>/gates/forge.mjs change find --state open`) and recent merged ones (`node <root>/gates/forge.mjs changes merged --limit 50`). Read those whose titles, paths or behaviour suggest a replacement or a competing change.
 
 Look beyond the overlapping lines:
 

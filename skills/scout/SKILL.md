@@ -42,7 +42,7 @@ Every brief names `<wt>` (or the repro worktree) as the only place to read, list
 ## Procedure
 
 1. **Preflight.** Run `node <root>/skills/doctor/scripts/doctor.mjs <repo>`. On a FAIL, stop. Then `git -C <repo> fetch -q origin`.
-2. **Outcomes.** Run `<gate> record --repo-dir <repo> --json`. It reads every issue the scout filed in the last 60 days and gives each category's track record and gate. For each issue in `rejected`, read its last comment (`gh issue view <n> --repo <repo slug> --json comments --jq '.comments[-1].body'`). Write `<pass dir>/rejections.json` as `[{"number", "title", "reason"}]`. Write `<pass dir>/issues.json` from `gh issue list --repo <repo slug> --state all --limit 300 --json number,title,state`.
+2. **Outcomes.** Run `<gate> record --repo-dir <repo> --json`. It reads every issue the scout filed in the last 60 days and gives each category's track record and gate. For each issue in `rejected`, read its last comment (`node <root>/gates/forge.mjs issue view <n> --json`, the last entry of `comments`). Write `<pass dir>/rejections.json` as `[{"number", "title", "reason"}]`. Write `<pass dir>/issues.json` from `node <root>/gates/forge.mjs issue list --state all --limit 300 --json`.
 3. **Isolate.** `node <root>/gates/isolate.mjs <repo> cstack/scout-<pass> <wt> --base origin/<base_branch>`. Every agent reads only `<wt>`, where the hidden suite is not on disk.
 4. **Held proposals first.** For each `<store>/held/*.json`, run step 9 on it. They count toward this pass's cap.
 5. **Plan.** Launch the planner. It writes `<pass dir>/plan.json`. Gate: `<check> plan <pass dir>/plan.json --repo-dir <wt>`. On a rejection, send the FAIL lines back once, in a fresh planner brief. A second rejection ends the pass with failure `invalid_output`.

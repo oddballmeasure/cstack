@@ -23,7 +23,7 @@ The actual comment starts here.
 ```
 
 - `<model>` is the verified public name of the model that wrote the comment, for example `Claude Opus 5.5`. If the session does not expose a model name, use `Claude Code`. Do not guess.
-- `<user>` is the human's name or GitHub login. Online, read the login with `gh api user --jq .login`. Otherwise use the name the human gave. Never invent one.
+- `<user>` is the human's name or GitHub login. Online, read the login with `node <root>/gates/forge.mjs user`. Otherwise use the name the human gave. Never invent one.
 - Keep the attribution inside the note and the reply outside it. The context line starts with the robot emoji. Leave one blank line after the callout.
 - The last line is the footer line from `<root>/templates/footer.md`, copied exactly, after one blank line.
 - Add no horizontal rule, Setext underline, heading, signature, or second attribution.
@@ -50,6 +50,6 @@ Do not apply it to PR descriptions, commit messages, issue bodies, or text the h
 
 ## Posting
 
-- Post with `gh api` or `gh pr comment --body-file <file>`. Write the body to a file first, so quoting survives.
-- After posting, confirm GitHub returned the comment or review URL.
-- Resolve a review thread only after its reply posted successfully.
+- Post with `node <root>/gates/forge.mjs change comment <pr> --body-file <file>`, or on a review thread with `node <root>/gates/forge.mjs thread reply <pr> <thread id> --body-file <file>`. Write the body to a file first, so quoting survives.
+- After posting, confirm the forge returned the comment or review URL.
+- Resolve a review thread (`node <root>/gates/forge.mjs thread resolve <pr> <thread id>`) only after its reply posted successfully.

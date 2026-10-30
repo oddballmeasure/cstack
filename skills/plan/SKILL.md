@@ -109,11 +109,11 @@ Brief: <store>/units/U<n>.md
 Then:
 
 ```sh
-gh issue create --repo <repo> --title "<unit title>" --body-file <store>/issue-U<n>.md $LABEL
-<orch> unit set U<n> --issue <number from the URL> --state ready
+node <root>/gates/forge.mjs issue create --title "<unit title>" --body-file <store>/issue-U<n>.md $LABEL
+<orch> unit set U<n> --issue <number it prints> --state ready
 ```
 
-Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`gh issue list --repo <repo> --search "<title> in:title" --state open --json number,title`). Reuse it when it exists, so a resumed plan never files twice.
+Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state open`). Reuse it when it exists, so a resumed plan never files twice.
 
 ### 8. Log
 

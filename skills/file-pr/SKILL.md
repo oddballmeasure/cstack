@@ -22,11 +22,13 @@ This is stage 9 of the unit flow (`docs/unit-flow.md`). `cstack:unit` calls it a
 Look for an open PR from this branch into the base before you write anything:
 
 ```bash
-gh pr list --repo <repo> --head <branch> --base <base_branch> --state open --json number,url,headRefOid,isDraft,body
+node <root>/gates/forge.mjs change find --head <branch> --base <base_branch> --state open --json
 ```
 
-- One PR found. Reuse it. Do not open a second one. If its body does not start `Closes #N`, rewrite the body (step 3) and update it with `gh pr edit <n> --repo <repo> --body-file <file>`.
-- The reused PR is a draft. Mark it ready with `gh pr ready <n> --repo <repo>`. cstack never leaves a PR in draft, because review bots skip drafts.
+Each PR record has `id`, `url`, `head` (the head SHA), `draft` and `body`.
+
+- One PR found. Reuse it. Do not open a second one. If its body does not start `Closes #N`, rewrite the body (step 3) and update it with `node <root>/gates/forge.mjs change edit <n> --body-file <file>`.
+- The reused PR is a draft (`draft` is true). Mark it ready with `node <root>/gates/forge.mjs change ready <n>`. cstack never leaves a PR in draft, because review bots skip drafts. On a forge without drafts, `draft` is always false.
 - A PR from the same branch into another base is not this unit's PR. Do not reuse it and do not touch it.
 
 ## 2. Check the diff
@@ -35,7 +37,7 @@ Read `git -C <worktree> diff origin/<base_branch>...HEAD --stat` and the full di
 
 ## 3. Write the title and body
 
-**Title.** PR titles usually become merge commit messages. Follow the repo's conventions. Read recent merged titles with `gh pr list --repo <repo> --state merged --limit 10 --json title`. Say why the change matters, not how it works.
+**Title.** PR titles usually become merge commit messages. Follow the repo's conventions. Read recent merged titles with `node <root>/gates/forge.mjs changes merged --limit 10`. Say why the change matters, not how it works.
 
 - Bad: `perf(server): negotiate permessage-deflate on the websocket`
 - Good: `perf(server): cut websocket frame size by 70%+ with gzipping`
@@ -72,36 +74,29 @@ Created with <model> in cstack.
 
 ## 4. Open the PR
 
-Open a real PR. Never pass `--draft`.
+Open a real PR. `change create` never opens a draft.
 
 ```bash
-gh pr create --repo <repo> --head <branch> --base <base_branch> --title "<title>" --body-file <store>/pr-body-<unit>.md
+node <root>/gates/forge.mjs change create --head <branch> --base <base_branch> --title "<title>" --body-file <store>/pr-body-<unit>.md --json
 ```
 
-`gh pr create` uses GraphQL. When it fails on the GraphQL rate limit (check with `gh api rate_limit --jq .resources.graphql`), use REST, which has its own limit:
-
-```bash
-gh api repos/<repo>/pulls -f title="<title>" -f head=<branch> -f base=<base_branch> -F body=@<store>/pr-body-<unit>.md
-```
-
-Do not retry `gh pr create` in a loop. One REST attempt follows one GraphQL failure.
+It prints `{ok, id, url, via}`. On GitHub it uses GraphQL first. When GraphQL is rate limited, it makes one REST attempt itself, which has its own limit, and `via` says `rest`. Do not retry `change create` in a loop.
 
 ## 5. Gate
 
-Confirm the result through REST, so the check works when GraphQL is exhausted:
+Confirm the result. `change find` reads through REST on GitHub, so the check works when GraphQL is exhausted:
 
 ```bash
-gh api "repos/<repo>/pulls?head=<owner>:<branch>&base=<base_branch>&state=open" \
-  --jq '.[] | {number, html_url, draft, sha: .head.sha, closes: (.body | startswith("Closes #<N>"))}'
+node <root>/gates/forge.mjs change find --head <branch> --base <base_branch> --state open --json
 ```
 
-Pass only when exactly one PR comes back, `draft` is false, `sha` equals the verified SHA, and `closes` is true. Then record it:
+Pass only when exactly one PR comes back, `draft` is false, `head` equals the verified SHA, and `body` starts with `Closes #<N>`. Then record it:
 
 ```bash
 node <root>/gates/orch.mjs --store <store> unit set <unit> --pr <number> --state pr-open
 ```
 
-On any other result, the stage fails with kind `github`. Return to `cstack:unit` with the gh output.
+On any other result, the stage fails with kind `github`. Return to `cstack:unit` with the forge.mjs output.
 
 ## Rules
 

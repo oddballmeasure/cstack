@@ -42,6 +42,8 @@ test("each rule fails on a violation", () => {
     [{ a: ok("a", "[x](references/nope.md)") }, /broken link/],
     [{ a: ok("a", "one — two") }, /em dash/],
     [{ a: ok("a", "Ask with AskQuestion.") }, /banned term/],
+    [{ a: ok("a", "Run `gh pr view 5`.") }, /forge CLI command/],
+    [{ a: ok("a", "Run `glab mr view 5`.") }, /forge CLI command/],
   ];
   for (const [skills, re] of cases) {
     const r = lint(fixture(skills));
@@ -98,4 +100,12 @@ test("a shipped shell script must be executable, except on Windows, which has no
   const r = lint(root);
   if (process.platform === "win32") assert.equal(r.status, 0, r.stdout);
   else assert.match(r.stdout, /run\.sh: script is not executable/);
+});
+
+test("forge CLI commands are allowed in prohibitions and the cstack references only", () => {
+  const root = fixture({ cstack: ok("cstack", "Never run `gh pr merge`. The guard blocks `glab mr merge`."), b: ok("b", "Run `node <root>/gates/forge.mjs change view 5`. A high bar.") });
+  mkdirSync(path.join(root, "skills/cstack/references"));
+  writeFileSync(path.join(root, "skills/cstack/references/notes.md"), "Codex denies `gh pr merge` too, via role rules.\n");
+  const r = lint(root);
+  assert.equal(r.status, 0, r.stdout);
 });

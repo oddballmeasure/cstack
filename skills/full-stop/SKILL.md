@@ -21,7 +21,7 @@ In full-send step 2, record `"autonomy": "stop"` in `<store>/run.json`. For a pr
 
 You may commit, push, sync, fix conflicts, and use `--force-with-lease` on this run's branches. Never merge, enable auto-merge, enter a merge queue, push to the base branch, bypass branch protection, or delegate those actions.
 
-Check `gh pr view <pr> --repo <repo> --json autoMergeRequest` before work begins and again before each push. The guard hook blocks `gh pr merge --disable-auto`, so turning auto-merge off is the human's action. If auto-merge is on, report that first, before you continue.
+Check `autoMerge` in `node <root>/gates/forge.mjs change view <pr> --json` before work begins and again before each push. It is true when the forge will merge the PR by itself once its checks pass. The guard hook blocks `gh pr merge --disable-auto`, so turning auto-merge off is the human's action. If auto-merge is on, report that first, before you continue.
 
 ## Stop at the gate
 

@@ -45,11 +45,11 @@ Read these once. Do not narrate them back.
 
 For each U unit, in id order. Each step writes only when the store disagrees with GitHub, so a second run changes nothing.
 
-1. **Find the PR.** If `pr` is empty and `branch` is set, run `gh pr list --repo <repo> --head <branch> --state all --json number`. Record a hit with `<orch> unit set <unit> --pr <n>`.
-2. **Read the PR state** with `gh pr view <pr> --repo <repo> --json state,headRefOid,mergeCommit`.
-   - `MERGED`, unit not `merged` or `done`: the worker merged and died before it settled. Run `<orch> unit set <unit> --state merged --sha <merge sha>`, then settle the issue as merged through `cstack:settle` (its comments are idempotent), then run `cstack:post-merge-ci`.
-   - `CLOSED`, not merged: someone closed it. Settle as needs a decision, with the question "PR #<pr> was closed unmerged. Reopen it or drop the unit?" Set the unit `needs-human`.
-   - `OPEN`: keep the unit's state.
+1. **Find the PR.** If `pr` is empty and `branch` is set, run `node <root>/gates/forge.mjs change find --head <branch> --state all --json`. Record a hit (its `id`) with `<orch> unit set <unit> --pr <n>`.
+2. **Read the PR state** with `node <root>/gates/forge.mjs change view <pr> --json`: `state`, `head` and `mergeSha`.
+   - `merged`, unit not `merged` or `done`: the worker merged and died before it settled. Run `<orch> unit set <unit> --state merged --sha <merge sha>`, then settle the issue as merged through `cstack:settle` (its comments are idempotent), then run `cstack:post-merge-ci`.
+   - `closed`, not merged: someone closed it. Settle as needs a decision, with the question "PR #<pr> was closed unmerged. Reopen it or drop the unit?" Set the unit `needs-human`.
+   - `open`: keep the unit's state.
 3. **Read progress from trailers** for a unit with a branch: `git -C <repo> fetch -q origin <branch>` then `git -C <repo> log origin/<base>..origin/<branch> --format='%(trailers:key=Cstack-Ticket,valueonly)'`. This is for your report. `cstack:unit` decides which tickets are done when it resumes.
 
 ### 4. Find orphans

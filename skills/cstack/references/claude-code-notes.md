@@ -58,4 +58,4 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 
 ## No built-in PR tool
 
-Use `gh` for pull requests, checks, and review threads.
+Use `node <plugin root>/gates/forge.mjs` for pull requests, checks, review threads and issues. It works on every forge cstack supports.

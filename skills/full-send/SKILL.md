@@ -55,7 +55,7 @@ When you cannot prove a change, you do not have full confidence. Ask the user.
 
 ## Merge gate
 
-Full confidence means `gates/check-merge.mjs` passes on the latest commit. It checks the ledger approval at the exact head, the review-loop approval, required checks, change requests, merge state and base drift. Never use `--admin`, auto-merge, a merge queue, a push to the base branch, or any other bypass. The guard hook blocks `gh pr merge`.
+Full confidence means `gates/check-merge.mjs` passes on the latest commit. It checks the ledger approval at the exact head, the review-loop approval, required checks, change requests, merge state and base drift. Never use `--admin`, auto-merge, a merge queue, a push to the base branch, or any other bypass. The guard hook blocks `gh pr merge`. Never run it, or any forge's merge command.
 
 ## Asking the user
 

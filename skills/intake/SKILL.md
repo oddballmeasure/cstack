@@ -21,12 +21,12 @@ Intake is read-only for the repo. It writes only into the run store.
 1. Read the [cstack mode skill](../cstack/SKILL.md). Read config `paths_hidden` and `label_prefix` with `jq`.
 2. Fetch the issue and save it:
    ```sh
-   gh issue view <N> --json number,title,body,labels,comments >"<store>/issue.json"
+   node <root>/gates/forge.mjs issue view <N> --json >"<store>/issue.json"
    ```
 3. Find a human answer. It is every comment after the latest cstack question comment, minus cstack's own comments:
    ```sh
    jq '(.comments | map(.body | startswith("cstack needs a decision before continuing") or startswith("cstack is not taking this issue:")) | rindex(true)) as $i
-     | if $i == null then [] else .comments[$i+1:] | map(select(.body | contains("Made with [cstack]") | not)) | map({author: .author.login, body}) end' "<store>/issue.json"
+     | if $i == null then [] else .comments[$i+1:] | map(select(.body | contains("Made with [cstack]") | not)) | map({author, body}) end' "<store>/issue.json"
    ```
    A non-empty result is the human answer. It resolves the question cstack asked. Plan with it. Do not ask the same question again. If the answer is still not enough, ask a narrower question.
 4. Make sure the profile is current. Run `node <root>/gates/profile-diff.mjs <repo> --json`. If `approved` is false, run `cstack:profile-repo` first. Then read `<repo>/.cstack/profile.json`.

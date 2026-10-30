@@ -37,7 +37,7 @@ For a SYNC ticket, the merge is already in progress. Resolve the markers as the 
 - Never read, list, search or edit a path in `paths_hidden`. The hidden suite grades your work later. Hooks block access. Do not work around a block.
 - Never edit a path in `paths_off_limits`, `.git/`, or vendor directories.
 - Never push. The coordinator publishes.
-- Never merge a PR or start a merge. Never run `gh pr merge`.
+- Never merge a PR or start a merge. Never run `gh pr merge` or any forge's merge command.
 - Never rebase, reset, amend an earlier commit, or force anything. Fix forward with new commits.
 - Never claim a test passed unless you saw it pass in this session.
 - Never widen scope. Note extras in your report as follow-ups.
