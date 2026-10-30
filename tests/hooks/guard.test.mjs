@@ -372,3 +372,12 @@ test("role-deny under Codex: rm -rf anywhere under / stays refused, except the r
   for (const command of ["rm -rf /*", "rm -rf /tmp/other", "rm -rf /data"]) assert.equal(codex(command).status, 2, command);
   assert.equal(codex("rm -rf /tmp/cstack-x").status, 0);
 });
+
+test("role-deny: a Codex coordinator may check the login, and start no session", () => {
+  const r = repo();
+  const codex = (command, env) => spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd4-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_COORDINATOR: "", CSTACK_UNIT: "", ...env } });
+  assert.equal(codex("codex login status", { CSTACK_COORDINATOR: "1" }).status, 0);
+  assert.equal(codex("codex exec hi", { CSTACK_COORDINATOR: "1" }).status, 2);
+  assert.equal(codex("codex login", { CSTACK_COORDINATOR: "1" }).status, 2);
+  assert.equal(codex("codex login status", { CSTACK_UNIT: "U1" }).status, 2, "a worker has no need of it");
+});
