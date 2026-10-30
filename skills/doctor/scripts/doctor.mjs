@@ -85,6 +85,9 @@ function schemaErrors(c) {
   need(type(c.repo) === "string" && (nested ? /^[^/]+(\/[^/]+)+$/ : /^[^/]+\/[^/]+$/).test(c.repo) && c.repo !== "owner/name", nested ? "repo must be the project path, group/project" : "repo must be owner/name");
   need(c.forge == null || ["github", "gitlab", "local"].includes(c.forge), "forge must be github, gitlab or local");
   need(c.forge_host == null || (type(c.forge_host) === "string" && /^[a-z0-9.-]+(:\d+)?$/i.test(c.forge_host)), "forge_host must be a host name, like gitlab.example.com");
+  const ciOk = c.ci_command == null || (Array.isArray(c.ci_command) && c.ci_command.length > 0 && c.ci_command.every((x) => type(x) === "string" && x.length > 0));
+  need(ciOk, "ci_command must be a non-empty array of strings");
+  need(c.forge !== "local" || (Array.isArray(c.ci_command) && c.ci_command.length > 0), "forge local needs ci_command: the command the merge gate runs as CI on each head");
   need(c.review_bots == null || (Array.isArray(c.review_bots) && c.review_bots.every((b) => type(b) === "string" && b.length > 0)), "review_bots must be an array of bot logins");
   need(type(c.base_branch) === "string" && c.base_branch.length > 0, "base_branch must be a non-empty string");
   need(nonEmptyArray(c.test_command) && c.test_command.every((x) => type(x) === "string"), "test_command must be a non-empty array of strings");
@@ -159,7 +162,7 @@ function schemaErrors(c) {
     errs.push(...unknown(h, ["supervisor"], "host."));
   }
 
-  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots"];
+  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots", "ci_command"];
   errs.push(...unknown(c, known, ""));
   return errs;
 }
@@ -190,6 +193,7 @@ if (isObj(cfg)) {
   checkCmd("test_command", cfg.test_command);
   checkCmd("setup_command", cfg.setup_command);
   checkCmd("e2e_command", cfg.e2e_command);
+  checkCmd("ci_command", cfg.ci_command);
 }
 
 // Run store
@@ -243,6 +247,17 @@ if (forge === "github" && which("gh")) {
   else fail("gh features", "this gh lacks `pr checks --json` or the baseRefOid field; install a current gh from https://cli.github.com");
 }
 
+// The local forge keeps its records in the main checkout and runs ci_command itself (ADR-014).
+if (forge === "local") {
+  const store = path.join(path.resolve(dir), ".cstack", "forge");
+  try {
+    mkdirSync(store, { recursive: true });
+    pass("local forge", "records in .cstack/forge/; CI is ci_command");
+  } catch (err) {
+    fail("local forge", `cannot create ${store}: ${err.message}`);
+  }
+  if (!(isObj(cfg) && (cfg.required_checks ?? []).includes("ci"))) warn("required checks", "add \"ci\" to required_checks so the merge gate waits for ci_command");
+}
 if (!offline && cli) {
   const { repo, base_branch: base, label_prefix: prefix, forge_host: host } = isObj(cfg) ? cfg : {};
   let labels;

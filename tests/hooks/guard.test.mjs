@@ -350,3 +350,18 @@ test("no-admin-merge covers GitLab: glab mr merge, auto-merge and the merge endp
   }
   for (const command of ["glab mr view 3", "glab mr update 3 --title x", "glab api projects/1/merge_requests/3"]) assert.equal(run(r, "Bash", { command }).code, 0, command);
 });
+
+test("no-admin-merge: a push or ref update of the base branch is a merge that skipped the gate", () => {
+  const r = repo({ paths_hidden: [], base_branch: "main" });
+  for (const command of ["git push origin main", "git push origin HEAD:main", "git push origin HEAD:refs/heads/main", "git -C /x push --force-with-lease origin feat:main", "cd /x && git push origin main", "git update-ref refs/heads/main abc"]) {
+    const out = run(r, "Bash", { command });
+    assert.equal(out.code, 2, command);
+    assert.match(out.err, /moves the base branch main/);
+  }
+  for (const command of ["git push origin cstack/u1", "git push -u origin feat", "git push origin main-backup", "git update-ref refs/heads/feat abc", "git log main"]) assert.equal(run(r, "Bash", { command }).code, 0, command);
+  const trunk = repo({ paths_hidden: [], base_branch: "trunk" });
+  assert.equal(run(trunk, "Bash", { command: "git push origin trunk" }).code, 2);
+  assert.equal(run(trunk, "Bash", { command: "git push origin main" }).code, 0);
+  const plain = repo({ paths_hidden: [] });
+  assert.equal(run(plain, "Bash", { command: "git push origin main" }).code, 2, "base_branch defaults to main");
+});

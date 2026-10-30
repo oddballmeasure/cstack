@@ -3,7 +3,8 @@
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
 //   no-sleep-loops    no sleep/poll loops in Bash; wait with Monitor + a watcher script
-//   no-admin-merge    no direct `gh pr merge`, `glab mr merge`, auto-merge, or merge API call; only the merge gate merges
+//   no-admin-merge    no direct `gh pr merge`, `glab mr merge`, auto-merge, merge API call, or push or ref update of the
+//                     base branch; only the merge gate merges
 //   no-autonomy-raise no Bash command sets CSTACK_PROGRAM_AUTONOMY; only a human launch does
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
@@ -214,6 +215,18 @@ function checkHide(tool, ti, patched, cwd) {
   }
 }
 
+// A push to the base branch, or moving its ref by hand, is a merge that skipped the gate. With the local forge
+// it is the only way to merge, so it must go through gates/check-merge.mjs (ADR-014). Other refs pass.
+function checkBasePush(cmd, base) {
+  const b = base.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
+    const p = part.trim();
+    const push = /^(?:\w+=\S*\s+)*git\s+(?:-C\s+\S+\s+)?push\b/.test(p) && new RegExp(`(?:^|\\s|:)(?:refs/heads/)?${b}(?:\\s|$)`).test(p.replace(/^.*?\bpush\b/, ""));
+    const ref = /^(?:\w+=\S*\s+)*git\s+(?:-C\s+\S+\s+)?update-ref\b/.test(p) && new RegExp(`\\brefs/heads/${b}\\b`).test(p);
+    if (push || ref) block("no-admin-merge", `\`${p}\` moves the base branch ${base}. Merge only through the cstack merge gate.`);
+  }
+}
+
 function main() {
   let input;
   try {
@@ -237,6 +250,7 @@ function main() {
   checkHide(tool, ti, patched, cwd);
 
   const cfg = loadConfig(root);
+  if (bash && cfg && !cfg._error) checkBasePush(ti.command, cfg.base_branch || "main");
   const role = sessionRole();
   if (bash && role && typeof input.turn_id === "string" && !cfg?._error) checkRoleDeny(ti.command, role, root, cwd, cfg);
   if (!cfg) process.exit(0);

@@ -361,8 +361,8 @@ describe("pr-wait on GitLab", { concurrency: true }, () => {
       [["0"], {}, /'0' is not a valid change number/],
       [["7", "--repo", "nope"], {}, /'nope' is not group\/project/],
       [["7"], { config: null, env: { CSTACK_FORGE: "gitlab" } }, /no --repo given and no repo/],
-      [["7"], { env: { CSTACK_FORGE: "local" } }, /forge 'local' is not implemented yet/],
       [["7"], { env: { CSTACK_FORGE: "bogus" } }, /unknown forge 'bogus'/],
+      [["7"], { env: { CSTACK_FORGE: "local" } }, /git rev-parse .* failed/],
       [["7"], {}, /cannot read grp\/app#7: glab api GET \S+ failed: glab: 404 Not Found/],
     ];
     const results = await Promise.all(cases.map(([args, opts], i) => watch(d, missing, args, { ...opts, name: `bad${i}` })));
