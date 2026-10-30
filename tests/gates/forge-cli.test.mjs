@@ -12,7 +12,11 @@ function setup(rules, { config = true } = {}) {
   const scenario = path.join(dir, "gh.json");
   const log = path.join(dir, "gh.log");
   writeFileSync(scenario, JSON.stringify({ rules: rules.map(([match, ...responses]) => ({ match, responses })) }));
-  const run = (...args) => gate("forge.mjs", args, { cwd: dir, env: { FAKE_GH_SCENARIO: scenario, FAKE_GH_LOG: log } });
+  // A trailing { env } object adds environment variables for that call.
+  const run = (...args) => {
+    const extra = typeof args.at(-1) === "object" ? args.pop()["env"] : {};
+    return gate("forge.mjs", args, { cwd: dir, env: { FAKE_GH_SCENARIO: scenario, FAKE_GH_LOG: log, ...extra } });
+  };
   const calls = () => readFileSync(log, "utf8").trim().split("\n");
   return { dir, run, calls };
 }
@@ -202,7 +206,7 @@ test("checks and checks rerun", () => {
 test("threads, reviews, reply and resolve", () => {
   const node = (id, resolved, author, line = 4) => ({ id, isResolved: resolved, path: "src/f.js", line, comments: { nodes: [{ author, body: "first\nmore", url: `u/${id}`, createdAt: "t1" }, { author: { login: "dev", __typename: "User" }, body: "reply", url: "u2", createdAt: "t2" }] } });
   const s = setup([
-    ["^api graphql -f query=query.* -f owner=o -f name=r -F number=5$", { json: { data: { repository: { pullRequest: { reviewThreads: { nodes: [node("T1", false, { login: "coderabbitai", __typename: "Bot" }), node("T2", true, null, null)] } } } } } }],
+    ["^api graphql -f query=query.* -f owner=o -f name=r -F number=5$", { json: { data: { repository: { pullRequest: { reviewThreads: { nodes: [node("T1", false, { login: "coderabbitai", __typename: "Bot" }), node("T2", true, null, null), { id: "T3", isResolved: true, path: "x", line: 1, comments: { nodes: [] } }] } } } } } }],
     ["^api graphql -f query=query.* -F number=6$", { json: { data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } } }],
     ["^api repos/o/r/pulls/5/reviews\\?per_page=100$", { json: [{ id: 1, state: "CHANGES_REQUESTED", user: { login: "bot", type: "Bot" }, body: "fix", commit_id: "abc", html_url: "r1", submitted_at: "2026-10-30T02:00:00Z" }, { id: 2, state: "APPROVED", user: null, body: "", commit_id: "abc", html_url: "r2", submitted_at: "2026-10-30T03:00:00Z" }] }],
     ["^api repos/o/r/issues/5/comments\\?per_page=100$", { json: [{ id: 3, user: { login: "dev", type: "User" }, body: "hello", html_url: "c1", created_at: "2026-10-30T01:00:00Z" }] }],
@@ -215,6 +219,7 @@ test("threads, reviews, reply and resolve", () => {
   const ts = s.run("threads", "5", "--json").json;
   assert.deepEqual(ts[0], { id: "T1", resolved: false, path: "src/f.js", line: 4, author: "coderabbitai", bot: true, body: "first\nmore", url: "u/T1", comments: [{ author: "coderabbitai", bot: true, body: "first\nmore", url: "u/T1", createdAt: "t1" }, { author: "dev", bot: false, body: "reply", url: "u2", createdAt: "t2" }] });
   assert.equal(ts[1].author, "ghost");
+  assert.deepEqual([ts[2].author, ts[2].bot, ts[2].body, ts[2].comments], [null, false, "", []], "a thread with no comments does not crash");
   assert.equal(s.run("threads", "5", "--open").out, "open T1 src/f.js:4 coderabbitai (bot): first\n");
   assert.equal(s.run("threads", "5").out.split("\n")[1], "resolved T2 src/f.js:null ghost: first");
   assert.equal(s.run("threads", "6").out, "no threads\n");
@@ -262,13 +267,14 @@ test("issue verbs", () => {
 test("labels ensure and required-checks", () => {
   const s = setup([
     ["^label create cstack:ready --repo o/r --force --color 0e8a16 --description Ready$", {}],
-    ["^label create cstack:done --repo o/r --force$", {}],
-    ["^label create bad --repo o/r --force$", fail("HTTP 403")],
+    ["^label create cstack:done --repo o/r$", fail("label with name \"cstack:done\" already exists; use `--force` to update its color and description")],
+    ["^label create bad --repo o/r$", fail("HTTP 403")],
     ["^api repos/o/r/rules/branches/main ", { stdout: "ci\nlint\n" }],
     ["^api repos/o/r/branches/main/protection/", { stdout: "ci\n\n" }],
     ["^api repos/o/r/rules/branches/dev ", fail("gh: Not Found (HTTP 404)")],
     ["^api repos/o/r/branches/dev/protection/", fail("gh: Upgrade to GitHub Pro (HTTP 403)")],
     ["^api repos/o/r/rules/branches/err ", fail("HTTP 500: boom")],
+    ["^api repos/o/r/rules/branches/limited ", fail("gh: API rate limit exceeded for user (HTTP 403)")],
   ]);
   assert.equal(s.run("labels", "ensure", "cstack:ready", "--color", "0e8a16", "--description", "Ready").out, "ensured cstack:ready\n");
   assert.deepEqual(s.run("labels", "ensure", "cstack:done", "--json").json, { ok: true, done: ["cstack:done"], failed: [] });
@@ -282,6 +288,9 @@ test("labels ensure and required-checks", () => {
   const e = s.run("required-checks", "err");
   assert.equal(e.code, 1);
   assert.match(e.err, /HTTP 500/);
+  const limited = s.run("required-checks", "limited");
+  assert.equal(limited.code, 1, "a rate-limit 403 is not 'no required checks'");
+  assert.match(limited.err, /API rate limit exceeded/);
   assert.equal(s.run("required-checks").code, 2);
 });
 
@@ -292,4 +301,15 @@ test("usage errors exit 2", () => {
     assert.equal(r.code, 2, args.join(" "));
   }
   assert.match(s.run("pr", "merge").err, /usage: forge.mjs repo\|user/);
+});
+
+test("the grader role may run only read verbs", () => {
+  const s = setup([["^issue view 3 ", { json: { number: 3, title: "T", state: "OPEN", labels: [], comments: [], body: "", createdAt: "2026-10-30T00:00:00Z" } }]]);
+  const env = { CSTACK_ROLE: "grader" };
+  for (const args of [["issue", "comment", "3", "--body-file", "c.md"], ["--json", "issue", "comment", "3", "--body-file", "c.md"], ["change", "create", "--head", "b"], ["labels", "ensure", "x"], ["thread", "resolve", "5", "t"], ["checks", "rerun", "abc"]]) {
+    const r = s.run(...args, { env });
+    assert.equal(r.code, 2, args.join(" "));
+    assert.match(r.err, /the grader role reads only/);
+  }
+  assert.equal(s.run("issue", "view", "3", { env }).code, 0, "reads are fine");
 });

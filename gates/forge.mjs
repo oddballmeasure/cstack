@@ -68,6 +68,9 @@ const oneOf = (v, list, flag) => {
 };
 const changeLine = (c) => `#${c.id} ${c.state}${c.draft ? " draft" : ""} ${c.branch} -> ${c.base} head ${short(c.head)} merge ${c.merge} ${c.url}`;
 
+// Verbs that only read; everything else writes to the forge.
+const READ_ONLY = new Set(["repo", "user", "change view", "change find", "changes merged", "checks", "threads", "reviews", "issue view", "issue list", "required-checks"]);
+
 // Each verb returns [record, lines]. Arguments are checked before the forge is called.
 function verb(forge, a, rest) {
   const [w1, w2, w3, w4] = rest;
@@ -233,6 +236,11 @@ main(async (argv) => {
       }
     },
   });
+  // The grader role reads only. Permission rules match the command text, which a moved flag can dodge, so the
+  // CLI itself refuses every write verb under CSTACK_ROLE=grader.
+  const w = a._.slice(0, 2).join(" ");
+  const reads = READ_ONLY.has(w) || (READ_ONLY.has(a._[0]) && !(a._[0] === "checks" && a._[1] === "rerun"));
+  if (process.env.CSTACK_ROLE === "grader" && !reads) throw new UsageError(`the grader role reads only; ${w} is not allowed`);
   let record, lines;
   try {
     [record, lines] = verb(guarded, a, a._);

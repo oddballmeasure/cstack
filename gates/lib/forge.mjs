@@ -293,7 +293,7 @@ function github(repo, cwd) {
       const out = JSON.parse(must(["api", "graphql", "-f", `query=${THREADS_QUERY}`, "-f", `owner=${owner}`, "-f", `name=${name}`, "-F", `number=${id}`]));
       return out.data.repository.pullRequest.reviewThreads.nodes.map((t) => {
         const comments = t.comments.nodes.map((c) => ({ ...actor(c.author), body: c.body, url: c.url, createdAt: c.createdAt }));
-        const first = comments[0];
+        const first = comments[0] ?? { author: null, bot: false, body: "", url: null };
         return { id: t.id, resolved: t.isResolved, path: t.path, line: t.line, author: first.author, bot: first.bot, body: first.body, url: first.url, comments };
       });
     },
@@ -341,17 +341,20 @@ function github(repo, cwd) {
       const done = [];
       const failed = [];
       for (const n of names) {
-        const args = ["label", "create", n, "--repo", repo, "--force"];
-        if (color) args.push("--color", color);
+        // --force updates an existing label, so pass it only with a colour: without one gh picks a random colour
+        // and --force would repaint the label on every call. Then an existing label is already ensured.
+        const args = ["label", "create", n, "--repo", repo, ...(color ? ["--force", "--color", color] : [])];
         if (description) args.push("--description", description);
         const r = gh(args);
-        if (r.code === 0) done.push(n);
+        if (r.code === 0 || (!color && /already exists/i.test(r.stderr))) done.push(n);
         else failed.push({ name: n, error: r.stderr.trim() });
       }
       return { ok: failed.length === 0, done, failed };
     },
-    // Required check names on a branch, from rulesets and classic protection. 404 means no protection and
-    // 403 means the plan or token cannot read it (private repos on free plans): both mean none.
+    // Required check names on a branch, from rulesets and classic protection. 404 means no protection, and the
+    // plan's 403 ("Upgrade to GitHub Pro or make this repository public") means a free private repo has none.
+    // Any other 403 (a rate limit, SSO, a token without access) is an error: reading it as "none" would let the
+    // merge gate stop waiting for CI.
     requiredChecks(branch) {
       const sources = [
         [`repos/${repo}/rules/branches/${branch}`, '.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[].context'],
@@ -361,7 +364,7 @@ function github(repo, cwd) {
       for (const [p, jq] of sources) {
         const r = gh(["api", p, "--jq", jq]);
         if (r.code === 0) for (const n of r.stdout.split("\n").map((l) => l.trim()).filter(Boolean)) names.add(n);
-        else if (!/HTTP 40[34]/.test(r.stderr)) throw new UsageError(`gh api ${p} failed: ${r.stderr.trim()}`);
+        else if (!/HTTP 404/.test(r.stderr) && !/Upgrade to GitHub Pro|make this repository public/i.test(r.stderr)) throw new UsageError(`gh api ${p} failed: ${r.stderr.trim()}`);
       }
       return [...names].sort();
     },
