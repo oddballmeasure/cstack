@@ -7,11 +7,22 @@
 //   workers/<unit>.not-before   ISO time before which the unit must not be relaunched (usage limit)
 //   watchers/<pid>              one file per live watcher (inbox-wait, pr-wait, post-merge --wait): <kind> <iso ts>
 import { existsSync, readFileSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { envPath } from "./common.mjs";
 import { sessionState } from "./supervisor.mjs";
 
 export const TERMINAL_STATES = ["merged", "done", "error", "needs-human"];
 export const IN_FLIGHT_STATES = ["in-progress", "verifying", "pr-open"];
+
+// The PATH a detached session gets: CSTACK_WORKER_PATH, else node's directory, ~/.local/bin, the Homebrew
+// directories and the system directories. A supervisor does not give a session the login PATH.
+// Windows has no fixed system bin dirs, so a Windows session keeps this process's PATH behind node's dir.
+export function workerPath({ env = process.env, platform = process.platform, home = os.homedir(), nodeDir = path.dirname(process.execPath) } = {}) {
+  if (env.CSTACK_WORKER_PATH) return env.CSTACK_WORKER_PATH;
+  if (platform === "win32") return [nodeDir, envPath(env)].join(";");
+  return [nodeDir, `${home}/.local/bin`, "/opt/homebrew/bin", "/opt/homebrew/sbin", "/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+}
 
 const clean = (s) => String(s).replace(/[^A-Za-z0-9_.-]/g, "-");
 

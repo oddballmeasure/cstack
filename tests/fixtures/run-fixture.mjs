@@ -22,6 +22,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { workerPath } from "../../gates/lib/workers.mjs";
 import { fileURLToPath } from "node:url";
 import { UNATTENDED } from "../scenarios/lib.mjs";
 import { COORDINATOR_SANDBOX, codexSandboxArgs } from "../../gates/lib/harness.mjs";
@@ -286,7 +287,7 @@ function launch() {
   // The coordinator runs under its role's allowlist with dontAsk, never a permission bypass.
   const settings = path.join(outDir, "coordinator.settings.json");
   sh(process.execPath, [path.join(plugin, "gates/run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", clone, "--plugin-dir", plugin, "--out", settings]);
-  const PATH = [path.dirname(process.execPath), `${process.env.HOME}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"].join(":");
+  const PATH = workerPath();
   const script = path.join(outDir, "session.sh");
   // Every fixture's held-out grader, hidden by the guard from the run and every session it launches.
   const installed = harness === "codex" ? codexPluginRoot() : null;

@@ -18,6 +18,7 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 | Check | FAIL when |
 |---|---|
 | Tools | `git`, `jq`, `node` (22 or later) or `gh` is missing, or `gh` is not logged in. |
+| Worker PATH | A tool this session finds is not on the PATH a detached worker gets: `git`, `jq`, `node`, the harness and forge CLIs, or the first word of a configured command. |
 | Config | `.cstack/config.json` is missing, does not parse, or breaks the schema in `templates/config.json`. Unknown keys fail. |
 | Commands | `test_command[0]` or `e2e_command[0]` does not resolve. A command with a `/` must be an executable file under the repo root. |
 | Run store | `.cstack/runs/` is not writable. A missing `.gitignore` entry is a WARN. |

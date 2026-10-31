@@ -9,6 +9,7 @@
 //   worker.mjs launch --store <dir> --coordinator [--resume] [--plugin-dir <root>] [--wait] [--dry-run]
 //   worker.mjs exit   --store <dir> --unit <id>        (ExecStopPost or the runner's onExit; also safe by hand)
 //   worker.mjs next   --store <dir> [--json]           units to launch now, and units deferred by a usage limit
+//   worker.mjs path                                    the PATH a detached session gets
 // launch is idempotent: a live worker is left alone. It marks the unit in-progress, records the launch
 // in workers/<unit>.launches, and arranges for `exit` to run when the session ends for any reason,
 // SIGKILL included. `exit` classifies the end and pushes one inbox entry (agent `worker`):
@@ -23,7 +24,7 @@
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
 // pending-work Stop hook applies to it. It has no exit hook and no unit row. When <store>/run.json has
 // "entry": "program", the coordinator runs `/cstack:program --resume <slug>` instead.
-// The PATH comes from CSTACK_WORKER_PATH, else node's directory, ~/.local/bin and the system dirs.
+// The PATH comes from workerPath (gates/lib/workers.mjs).
 // CSTACK_PROGRAM_AUTONOMY passes through only when this process has it set to "send" (a human-launched
 // program session); otherwise the worker gets it empty, so a value in the systemd manager's environment
 // cannot raise a run's autonomy. `next` takes parallel from <store>/run.json, else config.
@@ -49,12 +50,13 @@ import {
   readText,
   workerFile,
   workerName,
+  workerPath,
   workerState,
 } from "./lib/workers.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
 const PLUGIN_ROOT = path.resolve(path.dirname(SELF), "..");
-const USAGE = "usage: worker.mjs launch|exit|next --store <dir> [--unit <id> | --coordinator [--resume]] [--plugin-dir <root>] [--wait] [--dry-run] [--json]";
+const USAGE = "usage: worker.mjs launch|exit|next --store <dir> [--unit <id> | --coordinator [--resume]] [--plugin-dir <root>] [--wait] [--dry-run] [--json], or worker.mjs path";
 const SETTLED = [...TERMINAL_STATES, "pr-open"];
 
 // systemd command-line quoting for ExecStopPost: double quotes, C escapes, and doubled $ and %.
@@ -87,11 +89,7 @@ function launch(store, unit, args) {
   const billing = harness === "codex" && !args["dry-run"] ? codexBillingProblem() : null;
   if (billing) throw new UsageError(billing);
   const home = os.homedir();
-  // Windows has no fixed system bin dirs, so a Windows worker keeps this process's PATH behind node's dir.
-  /* node:coverage disable */
-  const hostPath = process.platform === "win32" ? [process.env.PATH] : [`${home}/.local/bin`, "/usr/local/bin", "/usr/bin", "/bin"];
-  /* node:coverage enable */
-  const PATH = process.env.CSTACK_WORKER_PATH || [path.dirname(process.execPath), ...hostPath].join(path.delimiter);
+  const PATH = workerPath();
   // A store that cstack:program started resumes the whole program, not just its execute step.
   const program = readRun(store).run?.entry === "program";
   const prompt = coordinator
@@ -300,6 +298,10 @@ function next(store, json) {
 main((argv) => {
   const args = parseArgs(argv, { flags: ["json", "wait", "dry-run", "coordinator", "resume"], options: ["store", "unit", "plugin-dir"] });
   const [command] = args._;
+  if (command === "path" && args._.length === 1) {
+    process.stdout.write(`${workerPath()}\n`);
+    return 0;
+  }
   if (args._.length !== 1 || !args.store || !["launch", "exit", "next"].includes(command)) throw new UsageError(USAGE);
   if (args.coordinator && command !== "launch") throw new UsageError("--coordinator goes with launch only");
   if (command !== "next" && !args.unit && !args.coordinator) throw new UsageError(`${command} needs --unit`);
