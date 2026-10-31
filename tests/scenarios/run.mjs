@@ -13,6 +13,7 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
+import { workerPath } from "../../gates/lib/workers.mjs";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -65,7 +66,7 @@ writeFileSync(
   script,
   `#!/bin/sh
 cd ${JSON.stringify(TESTBED)}
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN ${extra}PATH=${JSON.stringify(path.dirname(process.execPath) + ":" + process.env.HOME + "/.local/bin:/usr/local/bin:/usr/bin:/bin")} \\
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN ${extra}PATH=${JSON.stringify(workerPath())} \\
   claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${JSON.stringify(CSTACK)} --permission-mode dontAsk --settings ${JSON.stringify(settings)} \\
   "$(cat ${JSON.stringify(path.join(outDir, "prompt.txt"))})" > ${JSON.stringify(path.join(outDir, "session.jsonl"))} 2> ${JSON.stringify(path.join(outDir, "stderr.log"))}
 `,

@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, which } from "../../../gates/lib/common.mjs";
+import { workerPath } from "../../../gates/lib/workers.mjs";
 
 const argv = process.argv.slice(2);
 const offline = argv[0] === "--offline";
@@ -233,6 +234,16 @@ if (codex) {
 // The forge: GitHub unless config `forge` names another (gates/lib/forge.mjs).
 const forge = isObj(cfg) && typeof cfg.forge === "string" ? cfg.forge : "github";
 const cli = { github: "gh", gitlab: "glab" }[forge] ?? null;
+// A worker runs with its own PATH, not this session's. Compare only tools this session can find: the
+// checks above and below report a tool that is missing from both.
+const harnessCli = process.env.CSTACK_HARNESS === "codex" || cfg?.harness === "codex" || process.env.CODEX_THREAD_ID ? "codex" : "claude";
+const configured = isObj(cfg) ? [cfg.test_command, cfg.setup_command, cfg.e2e_command, cfg.ci_command] : [];
+const commands = configured.map((c) => (Array.isArray(c) && typeof c[0] === "string" ? c[0] : "")).filter((c) => c && !/[\\/]/.test(c));
+const workerEnv = { ...process.env, PATH: workerPath() };
+const needed = [...new Set(["git", "jq", "node", harnessCli, ...(cli ? [cli] : []), ...commands])];
+const unreachable = needed.filter((t) => which(t) && !which(t, workerEnv));
+if (unreachable.length) fail("worker PATH", `${unreachable.join(", ")} on this session's PATH but not on a worker's. Add the directory: start the session with CSTACK_WORKER_PATH="$PATH"`);
+else pass("worker PATH", "workers can find the tools this session finds");
 if (cli && !offline) {
   if (!which(cli)) fail(`tool ${cli}`, "not on PATH");
   else if (run(cli, ["auth", "status"]).code === 0) pass(`${cli} auth`, "logged in");

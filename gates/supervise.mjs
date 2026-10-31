@@ -21,6 +21,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { resolveCommand } from "./runner.mjs";
+import { workerPath } from "./lib/workers.mjs";
 import { clearEntry, cmdQuote, launchdLabel, listSessions, pickBackend, plist, sessionState, startRunner, stopSession } from "./lib/supervisor.mjs";
 
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -93,6 +94,10 @@ function daemonRun(args) {
   const settings = spawnSync(process.execPath, [path.join(plugin, "gates", "run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", repo, "--plugin-dir", plugin, "--out", path.join(repo, ".cstack", "permissions", "coordinator.json")], { stdio: "inherit" });
   if (settings.status !== 0) return 2;
   const env = { ...process.env, CSTACK_COORDINATOR: "1" };
+  // launchd gives a job a minimal PATH. Windows already has the full one, under its own key.
+  /* node:coverage disable */
+  if (process.platform !== "win32") env.PATH = `${process.env.PATH}:${workerPath()}`;
+  /* node:coverage enable */
   for (const k of ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CSTACK_PROGRAM_AUTONOMY"]) delete env[k];
   const cmd = resolveCommand(daemonClaude(repo, plugin), env);
   const r = spawnSync(cmd.file, cmd.args, { cwd: repo, env, stdio: "inherit", windowsVerbatimArguments: cmd.verbatim });

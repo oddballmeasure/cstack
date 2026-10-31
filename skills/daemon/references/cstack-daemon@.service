@@ -16,7 +16,7 @@ Type=simple
 # /%I is the unescaped repo path. The daemon works in the repo's main checkout.
 WorkingDirectory=/%I
 # systemd does not inherit the login PATH. Put node, claude, gh, git and jq on it.
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=%h/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
 # Edit: the cstack plugin checkout.
 Environment=CSTACK_PLUGIN=%h/cstack
 # The daemon is a coordinator. Workers it launches get this unset again by gates/worker.mjs.

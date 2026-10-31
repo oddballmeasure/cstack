@@ -30,7 +30,7 @@ function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", wri
 function doctor(root, args = [], env = {}) {
   const r = spawnSync(process.execPath, [DOCTOR, ...args, root], {
     encoding: "utf8",
-    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
+    env: { ...process.env, PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, CSTACK_WORKER_PATH: `${FAKE_BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_LABELS: LABELS, ...env },
   });
   return { code: r.status, out: r.stdout + r.stderr };
 }
@@ -42,6 +42,19 @@ test("a correct repo passes, including a repo-relative test command", () => {
   assert.match(r.out, /PASS hooks: guard self-test/);
   assert.match(r.out, /WARN required checks/);
   assert.match(r.out, /doctor: ok/);
+});
+
+test("a tool the session finds but a worker does not fails, and names the tool", { skip: process.platform === "win32" && "the fake tool is a shell script" }, () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-brew-"));
+  writeFileSync(path.join(dir, "brew-tool"), "#!/bin/sh\nexit 0\n");
+  chmodSync(path.join(dir, "brew-tool"), 0o755);
+  const session = `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}`;
+  const cfg = { test_command: ["brew-tool", "run", "pytest"] };
+  const missing = doctor(target(cfg), ["--offline"], { PATH: session, CSTACK_WORKER_PATH: "/usr/bin:/bin" });
+  assert.equal(missing.code, 1, missing.out);
+  assert.match(missing.out, /FAIL worker PATH: .*\bbrew-tool\b.*CSTACK_WORKER_PATH/);
+  const found = doctor(target(cfg), ["--offline"], { PATH: session, CSTACK_WORKER_PATH: session });
+  assert.match(found.out, /PASS worker PATH/);
 });
 
 test("missing config fails and names setup-cstack", () => {

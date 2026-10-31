@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync, mkdirSync, realpathSync } from "node:fs";
 import { makeRepo, gate, path, FAKE_BIN } from "./helpers.mjs";
-import { parseReset, notBefore, workerName, workerState, launchCount, readText } from "../../gates/lib/workers.mjs";
+import { parseReset, notBefore, workerName, workerPath, workerState, launchCount, readText } from "../../gates/lib/workers.mjs";
 
 function program(cfg = {}) {
   const r = makeRepo(cfg);
@@ -59,7 +59,23 @@ test("launch --dry-run builds the systemd-run command with PATH, prompt and exit
   assert.ok(JSON.parse(readFileSync(p.files("U2.settings.json"), "utf8")).permissions.allow.includes("Read(//opt/cstack/**)"), "settings follow --plugin-dir");
   assert.equal(two.at(-1), "/cstack:unit --run prog --unit U2");
   assert.ok(two.includes("/opt/cstack"));
-  assert.ok(two.some((a) => a.startsWith("--setenv=PATH=") && a.includes("/.local/bin:/usr/local/bin:/usr/bin:/bin")));
+  assert.ok(two.some((a) => a.startsWith("--setenv=PATH=") && a.includes("/.local/bin:/opt/homebrew/bin:")));
+});
+
+test("workerPath covers Homebrew, honours the override, and keeps the session PATH on Windows", () => {
+  const dirs = workerPath({ env: {}, platform: "darwin", home: "/Users/me", nodeDir: "/opt/node/bin" }).split(":");
+  assert.deepEqual(dirs.slice(0, 3), ["/opt/node/bin", "/Users/me/.local/bin", "/opt/homebrew/bin"]);
+  for (const d of ["/opt/homebrew/sbin", "/home/linuxbrew/.linuxbrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]) assert.ok(dirs.includes(d), d);
+  assert.equal(workerPath({ env: { CSTACK_WORKER_PATH: "/only/here" }, platform: "darwin" }), "/only/here");
+  assert.equal(workerPath({ env: { Path: "C:\\tools" }, platform: "win32", nodeDir: "C:\\node" }), "C:\\node;C:\\tools");
+});
+
+test("worker.mjs path prints the PATH a session gets", () => {
+  const p = program();
+  const res = p.worker(["path"], { CSTACK_WORKER_PATH: "/fake/bin:/usr/bin" });
+  assert.equal(res.code, 0, res.err);
+  assert.equal(res.out.trim(), "/fake/bin:/usr/bin");
+  assert.equal(p.worker(["path", "extra"]).code, 2);
 });
 
 test("launch marks the unit in-progress, records the launch, and leaves a live worker alone", () => {
