@@ -32,9 +32,9 @@ await main(async (argv) => {
   const commits = gitOut(wt, ["rev-list", "--no-merges", `${args.base}..HEAD`]).split("\n").filter(Boolean);
   const missing = [];
   for (const c of commits) {
-    // Parse trailers the way git does (last paragraph only), because resume reads them the same way.
-    const trailers = gitOut(wt, ["show", "-s", "--format=%(trailers:only,unfold)", c]);
-    const has = (k, v) => trailers.split("\n").some((l) => l.trim() === `${k}: ${v}`);
+    // The whole message, not git's last-paragraph trailers: a blank line there cannot be fixed by a new commit.
+    const message = gitOut(wt, ["show", "-s", "--format=%B", c]);
+    const has = (k, v) => message.split("\n").some((l) => l.trim() === `${k}: ${v}`);
     if (!has("Cstack-Unit", args.unit)) missing.push(`${c.slice(0, 12)} lacks Cstack-Unit: ${args.unit}`);
     if (args.issue && !has("Refs", `#${args.issue}`)) missing.push(`${c.slice(0, 12)} lacks Refs: #${args.issue}`);
   }
@@ -42,7 +42,7 @@ await main(async (argv) => {
     !missing.length,
     "trailers",
     `${commits.length} commits carry the unit trailer`,
-    `${missing.join("; ")}. Put every trailer (Cstack-Unit, Cstack-Ticket, Refs, Co-Authored-By) in ONE final paragraph with no blank line between them; git ignores trailers above a blank line.`,
+    `${missing.join("; ")}. Every commit needs these lines exactly, in its message.`,
   );
 
   const bad = pathViolations(files, config);

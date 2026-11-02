@@ -30,7 +30,7 @@ The unit coordinator runs this skill. The coordinator never edits product code. 
 Progress lives in git. List the ticket trailers on the branch:
 
 ```sh
-git -C <worktree> log --format='%(trailers:key=Cstack-Ticket,valueonly)' origin/<base>..HEAD
+git -C <worktree> log --format=%B origin/<base>..HEAD | grep '^Cstack-Ticket:'
 ```
 
 If the ticket id is in the list, run the gate in step 4. If the gate passes, the ticket is done. Return PASS without spawning a worker. If the gate fails, the last attempt failed before a crash. Continue at step 5 with those findings.
