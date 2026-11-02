@@ -69,9 +69,9 @@ A human answer can turn a `needs_human` into a workable kind. It cannot remove a
 
 Do this once per distinct behaviour. It replaces Cardinal's `find_repo_context` tool.
 
-1. Search the profile. This lists up to 5 non-legacy files that match the query words, best first:
+1. Search the profile. This lists up to 5 non-legacy files that match the query words, best first. Use only letters, digits and spaces in the words. A headless worker is refused jq's value flags, so they go in the filter:
    ```sh
-   jq -r --arg q "<behaviour words>" '($q | ascii_downcase | [scan("[a-z0-9]+")]) as $w | .files | to_entries
+   jq -r '("<behaviour words>" | ascii_downcase | [scan("[a-z0-9]+")]) as $w | .files | to_entries
      | map(select(.value.status != "legacy"))
      | map((.key + " " + .value.summary + " " + (.value.capabilities | join(" ")) | ascii_downcase) as $t
        | {path: .key, score: ([$w[] | select(. as $x | $t | contains($x))] | length)})
