@@ -107,6 +107,36 @@ function seedExit(p, unit, { jsonl, stderr } = {}) {
 }
 const inbox = (p) => p.orch("inbox", "drain").split("\n").map((l) => l.split("\t"));
 
+test("exit treats any wording of a spent usage window as a usage limit, not as its refused calls", () => {
+  const p = program();
+  for (const id of ["U1", "U2", "U3"]) {
+    p.orch("unit", "add", id, "--track", "core", "--state", "ready");
+    p.orch("unit", "set", id, "--state", "in-progress");
+  }
+  const refused = { type: "result", permission_denials: [{ tool_name: "Bash", tool_input: { command: "cd x; cat y" } }] };
+  const limit = (status, resetsAt) => ({ type: "rate_limit_event", rate_limit_info: { status, resetsAt, rateLimitType: "five_hour" } });
+  const lines = (...evs) => `${evs.map((e) => JSON.stringify(e)).join("\n")}\n`;
+
+  seedExit(p, "U1", {
+    jsonl: lines(limit("allowed_warning", 1), limit("rejected", 1793646000), {
+      ...refused,
+      subtype: "success",
+      is_error: true,
+      api_error_status: 429,
+      result: "You've hit your 5-hour limit · resets 2pm (America/New_York)",
+    }),
+  });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U1"]).out, /U1\tusage_limit\tresets_at=/);
+  assert.equal(p.unit("U1")[2], "ready");
+  assert.equal(readFileSync(p.files("U1.not-before"), "utf8").trim(), new Date(1793646000 * 1000).toISOString(), "the event's reset wins");
+
+  seedExit(p, "U2", { jsonl: lines({ ...refused, is_error: true, result: "You've hit your weekly limit · resets 3pm" }) });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tusage_limit/);
+
+  seedExit(p, "U3", { jsonl: lines(limit("rejected", 1793646000), { ...refused, is_error: false, result: "all done" }) });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U3"]).out, /U3\tdenied/, "a session that went on to finish did not stop on the limit");
+});
+
 test("exit classifies billing, settled units, usage limits and crashes, and pushes one inbox entry", () => {
   const p = program();
   for (const id of ["U1", "U2", "U3", "U4", "U5", "U6"]) p.orch("unit", "add", id, "--track", "core", "--state", "ready");

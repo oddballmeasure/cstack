@@ -8,7 +8,7 @@
 //   daemon-tick.mjs scan    [--repo-dir <d>] [--json]   every issue-<N> store: unit state, worker, inbox,
 //                                                       orphan (in flight, launched here, worker dead) and
 //                                                       judge (merged with a PR and no verdict yet: post-merge CI to run)
-//   daemon-tick.mjs select  [--repo-dir <d>] [--json]   open issues labelled <prefix>:ready, oldest first,
+//   daemon-tick.mjs select  [--repo-dir <d>] [--json]   open issues labelled <prefix>:ready, plus in-progress ones whose U1 was re-queued, oldest first,
 //                                                       without a live worker and not deferred by a usage
 //                                                       limit, up to config parallel minus the live workers
 //   daemon-tick.mjs prepare <N> [--repo-dir <d>] [--json]   create issue-<N> with U1 ready, or set an
@@ -82,9 +82,12 @@ function scanCommand(gate, ctx) {
 }
 
 function select(gate, ctx) {
-  const ready = ctx.forge.issues({ state: "open", label: `${ctx.prefix}:ready`, want: ["number", "title", "createdAt"] });
-  ready.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.number - b.number);
+  const want = ["number", "title", "createdAt"];
   const rows = new Map(scan(ctx).map((r) => [r.issue, r]));
+  // A usage-limited run is back to ready in its store, but its issue still says in-progress.
+  const requeued = ctx.forge.issues({ state: "open", label: `${ctx.prefix}:in-progress`, want }).filter((i) => rows.get(i.number)?.state === "ready");
+  const ready = [...ctx.forge.issues({ state: "open", label: `${ctx.prefix}:ready`, want }), ...requeued];
+  ready.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.number - b.number);
   const parallel = Number.isInteger(ctx.config.parallel) && ctx.config.parallel > 0 ? ctx.config.parallel : 1;
   const busy = [...rows.values()].filter((r) => r.alive).length;
   const now = new Date();

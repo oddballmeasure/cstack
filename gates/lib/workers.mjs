@@ -88,7 +88,7 @@ export function parseReset(text, now = new Date()) {
 }
 
 // A worker session that stopped on the subscription usage window.
-export const USAGE_LIMIT = /usage limit|limit reached|hit your limit|out of (?:extra )?usage/i;
+export const USAGE_LIMIT = /usage limit|limit reached|hit your (?:[\w-]+ )?limit|out of (?:extra )?usage/i;
 
 // Mark this process as a live watcher for a run store, so the pending-work Stop hook knows the coordinator
 // will be woken. The mark is removed on exit; a mark whose pid is dead is ignored by the hook.

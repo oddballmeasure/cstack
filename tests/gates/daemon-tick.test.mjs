@@ -102,6 +102,38 @@ test("scan: orphans are launched here, in flight and dead; merged units with a P
   assert.equal(send.tick(["scan"]).json.stores[0].orphan, true, "pr-open under send still merges, so a dead worker is an orphan");
 });
 
+test("select picks up a usage-limited run, whose issue still carries the in-progress label", () => {
+  const d = daemon({ parallel: 3 });
+  d.unit(37, "ready");
+  write(d.store(37), "workers/U1.not-before", `${new Date(Date.now() - 1000).toISOString()}\n`);
+  d.unit(38, "ready");
+  write(d.store(38), "workers/U1.not-before", `${new Date(Date.now() + DAY).toISOString()}\n`);
+  d.unit(39, "in-progress", { launched: true, worker: "active" });
+  d.unit(40, "in-progress", { launched: true, worker: "failed" });
+  const at = (days) => new Date(Date.now() - days * DAY).toISOString();
+  const rules = [
+    { match: "^issue list --repo o/r --state open --label cstack:ready", responses: [{ json: [{ number: 41, title: "queued", createdAt: at(1) }] }] },
+    {
+      match: "^issue list --repo o/r --state open --label cstack:in-progress",
+      responses: [
+        {
+          json: [
+            { number: 37, title: "limited", createdAt: at(5) },
+            { number: 38, title: "still limited", createdAt: at(4) },
+            { number: 39, title: "running", createdAt: at(3) },
+            { number: 40, title: "orphan", createdAt: at(2) },
+            { number: 42, title: "started by hand", createdAt: at(2) },
+          ],
+        },
+      ],
+    },
+  ];
+  const res = d.tick(["select"], { rules });
+  assert.equal(res.code, 0, res.out + res.err);
+  assert.deepEqual(res.json.launch.map((l) => l.number), [37, 41]);
+  assert.deepEqual(res.json.skipped.map((s) => [s.number, s.why.split(" ")[0]]), [[38, "deferred"]]);
+});
+
 test("select: oldest ready issues first, skipping live workers and usage-limit deferrals, within parallel", () => {
   const d = daemon({ parallel: 2 });
   d.unit(4, "in-progress", { launched: true, worker: "active" });
@@ -118,7 +150,10 @@ test("select: oldest ready issues first, skipping live workers and usage-limit d
     { number: 3, title: "tie a", createdAt: at(5) },
     { number: 14, title: "old deferral", createdAt: at(2) },
   ];
-  const rules = [{ match: "^issue list --repo o/r --state open --label cstack:ready", responses: [{ json: ready }] }];
+  const rules = [
+    { match: "^issue list --repo o/r --state open --label cstack:ready", responses: [{ json: ready }] },
+    { match: "^issue list --repo o/r --state open --label cstack:in-progress", responses: [{ json: [] }] },
+  ];
   const res = d.tick(["select"], { rules });
   assert.equal(res.code, 0, res.out + res.err);
   assert.deepEqual(res.json.launch.map((l) => l.number), [3]);
