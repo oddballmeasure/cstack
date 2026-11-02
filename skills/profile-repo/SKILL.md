@@ -42,11 +42,14 @@ Profilable files are the tracked files (`git ls-files`), minus vendor directorie
 3. Take the stale list: `new` plus `changed`, in that order. Split it into batches of 5 paths. Do nothing yet about `removed`. Step 6 drops those entries.
 4. Spawn one explorer per batch. Use the plugin agent `cstack-explorer` (with the plugin prefix, see the Claude Code notes in the mode skill) when the `Agent` tool lists it. Else use `Explore`. Set `model` to `models.gather` (omit it for `inherit`). Send up to 8 spawns in one message. Build each brief from [the profiler prompt](references/profiler-prompt.md).
 5. Check each reply. It must be a JSON array with exactly one entry per listed path, no other paths, a non-empty `summary`, a `capabilities` array, and a valid `status`. On a bad reply, send that batch once more to a fresh explorer. Add the rejected reply's problem paths and the reason to its brief. A second bad reply for the same batch is failure `invalid_output`.
-6. Merge the entries into the profile **without** a `sha256` key. Replace each whole entry, so an old hash cannot survive. For example, with the replies in `/tmp/chunk.json` as one array:
+6. Merge the entries into the profile **without** a `sha256` key. Replace each whole entry, so an old hash cannot survive. Write the replies to `/tmp/cstack-profile-<slug>/chunk.json` as one array, where `<slug>` is the run slug. Use literal absolute paths and one command per call. A headless worker is refused jq's file-reading flags, so pass both files as arguments with `-s`. If the profile does not exist yet, create it first:
    ```sh
-   p=<repo>/.cstack/profile.json
-   [ -f "$p" ] || echo '{"version":1,"files":{}}' >"$p"
-   jq --slurpfile c /tmp/chunk.json '.files += ($c[0] | map({key: .path, value: (del(.path, .sha256))}) | from_entries)' "$p" >"$p.tmp" && mv "$p.tmp" "$p"
+   printf '{"version":1,"files":{}}' > <repo>/.cstack/profile.json
+   ```
+   Then merge:
+   ```sh
+   jq -s '.[0].files += (.[1] | map({key: .path, value: (del(.path, .sha256))}) | from_entries) | .[0]' <repo>/.cstack/profile.json /tmp/cstack-profile-<slug>/chunk.json > /tmp/cstack-profile-<slug>/profile.tmp
+   mv /tmp/cstack-profile-<slug>/profile.tmp <repo>/.cstack/profile.json
    ```
 7. Run `node <root>/gates/profile-diff.mjs <repo> --write-hashes --json`. It drops removed entries and hashes the entries you just wrote. Hashes already present stay as they are, so a changed file you skipped stays `changed`.
 8. Read `approved`. True means the stage-2 gate passed. If it is false, a file changed while you profiled it, or a batch was lost. Repeat from step 2 once for the remaining stale files. A second false is failure `setup`.

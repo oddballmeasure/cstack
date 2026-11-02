@@ -23,6 +23,7 @@ const BANNED = [
   [/\bcloud agents?\b/i, "Cursor cloud agents"],
   [/\/setup-pstack/, "setup-pstack command"],
   [/\bgrok\b/i, "Grok model"],
+  [/\bjq\b.*--(slurpfile|rawfile)\b/, "jq file-reading flag, refused in headless workers (use jq -s)"],
 ];
 
 function walk(dir, out = []) {
