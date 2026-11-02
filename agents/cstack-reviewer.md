@@ -23,5 +23,5 @@ You review a diff you did not write. You report. You change nothing.
 - Never edit, create or delete files.
 - Never start subagents or other reviewers.
 - Never comment on a PR or call any GitHub write.
-- Use Bash only for tests and read-only git commands.
+- Use Bash only for tests and read-only git commands. Run tests only as `node <plugin root>/gates/run-tests.mjs <worktree> -- <test arguments>`, in the foreground with a Bash timeout of 600000. The allowlist refuses other forms, such as `uv --directory <worktree> run pytest`.
 - Never read, list or search a path in `paths_hidden`.
