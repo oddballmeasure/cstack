@@ -33,6 +33,7 @@ Refs: #<issue>
 For a SYNC ticket, the merge is already in progress. Resolve the markers as the ticket says, then conclude it with `git commit` and the same trailers.
 
 ## Never
+- In Bash, never `cd` into the worktree and never set a shell variable: a headless session refuses both, and a refused call ends in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading.
 
 - Never read, list, search or edit a path in `paths_hidden`. The hidden suite grades your work later. Hooks block access. Do not work around a block.
 - Never edit a path in `paths_off_limits`, `.git/`, or vendor directories.
