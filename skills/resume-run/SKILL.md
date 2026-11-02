@@ -50,7 +50,7 @@ For each U unit, in id order. Each step writes only when the store disagrees wit
    - `merged`, unit not `merged` or `done`: the worker merged and died before it settled. Run `<orch> unit set <unit> --state merged --sha <merge sha>`, then settle the issue as merged through `cstack:settle` (its comments are idempotent), then run `cstack:post-merge-ci`.
    - `closed`, not merged: someone closed it. Settle as needs a decision, with the question "PR #<pr> was closed unmerged. Reopen it or drop the unit?" Set the unit `needs-human`.
    - `open`: keep the unit's state.
-3. **Read progress from trailers** for a unit with a branch: `git -C <repo> fetch -q origin <branch>` then `git -C <repo> log origin/<base>..origin/<branch> --format='%(trailers:key=Cstack-Ticket,valueonly)'`. This is for your report. `cstack:unit` decides which tickets are done when it resumes.
+3. **Read progress from trailers** for a unit with a branch: `git -C <repo> fetch -q origin <branch>` then `git -C <repo> log origin/<base>..origin/<branch> --format=%B | grep '^Cstack-Ticket:'`. This is for your report. `cstack:unit` decides which tickets are done when it resumes.
 
 ### 4. Find orphans
 

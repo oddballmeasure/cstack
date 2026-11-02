@@ -77,12 +77,20 @@ test("check-commit rejects each failure mode", () => {
   assert.match(res.json.findings.find((f) => f.check === "trailers").detail, /Refs: #7/);
 });
 
-test("check-commit explains trailers split by a blank line", () => {
+test("check-commit accepts trailers split by a blank line, so a fix-forward can pass", () => {
   const { wt } = isolated();
   commit(wt, { "src/f.js": "1\n" }, "Add f\n\nCstack-Unit: U1\nCstack-Ticket: T1\nRefs: #7\n\nCo-Authored-By: X <x@y>");
   const res = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--issue", "7"]);
+  assert.equal(res.code, 0, res.out);
+});
+
+test("check-commit still wants the exact unit and issue, on a line of their own", () => {
+  const { wt } = isolated();
+  commit(wt, { "src/f.js": "1\n" }, "Add f\n\nThis is not Cstack-Unit: U1\n\nCstack-Unit: U2\nRefs: #8");
+  const res = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--issue", "7"]);
   assert.equal(res.code, 1);
-  assert.match(res.out, /ONE final paragraph/);
+  assert.match(res.out, /lacks Cstack-Unit: U1/);
+  assert.match(res.out, /lacks Refs: #7/);
 });
 
 test("check-commit flags a change to the cstack config", () => {

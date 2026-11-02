@@ -79,7 +79,7 @@ If the log already has rows from another run, write a `start` row first, as `cst
 Before stage 0, check whether this unit already ran. It ran if `<store>/units.tsv` lists `<unit>`, or `<branch>` exists locally or on origin.
 
 1. Read `<orch> unit get <unit>`, `<orch> ledger summary`, and the last rows of `<store>/decisions.tsv`.
-2. Read the tickets done on the branch: `git -C <wt> log <base>..HEAD --format='%(trailers:key=Cstack-Ticket,valueonly)'`. A ticket whose `Cstack-Ticket` trailer is on the branch is done. Skip it.
+2. Read the tickets done on the branch: `git -C <wt> log <base>..HEAD --format=%B | grep '^Cstack-Ticket:'`. A ticket whose `Cstack-Ticket` trailer is on the branch is done. Skip it.
 3. Never redo a passed gate unless HEAD changed since it passed:
    - Stage 6 passed if `<orch> ledger check <unit> $(git -C <wt> rev-parse HEAD)` exits 0.
    - Stage 8 passed if `git -C <wt> ls-remote origin refs/heads/<branch>` shows HEAD.
