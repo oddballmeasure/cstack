@@ -227,6 +227,8 @@ function exit(store, unit) {
   const result = evs.findLast((e) => e?.type === "result");
   // Claude Code ends with a result event; Codex leaves error items, failed turns and agent messages.
   const text = `${readText(workerFile(store, unit, "stderr.log"))}\n${result?.result ?? ""}\n${codexText(evs)}`;
+  // The stream names the spent window and its reset exactly, whatever the wording of the message.
+  const rejected = result?.is_error ? evs.findLast((e) => e?.type === "rate_limit_event" && e.rate_limit_info?.status === "rejected") : null;
   const denied = deniedCalls(evs);
   const deniedFile = workerFile(store, unit, "denied.txt");
   let status;
@@ -237,8 +239,8 @@ function exit(store, unit) {
   } else if (SETTLED.includes(row.state)) {
     status = row.state;
     detail = `unit ${row.state}`;
-  } else if (USAGE_LIMIT.test(text)) {
-    const until = parseReset(text).toISOString();
+  } else if (rejected || USAGE_LIMIT.test(text)) {
+    const until = (rejected?.rate_limit_info.resetsAt ? new Date(rejected.rate_limit_info.resetsAt * 1000) : parseReset(text)).toISOString();
     mkdirSync(path.join(store, "workers"), { recursive: true });
     writeFileSync(workerFile(store, unit, "not-before"), `${until}\n`);
     withStore(store, (s) => s.units.set({ id: unit, state: "ready" }));
