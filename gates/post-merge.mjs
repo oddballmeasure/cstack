@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { openStore } from "./lib/store.mjs";
 import { openForge } from "./lib/forge.mjs";
+import { readPostMergeRows } from "./lib/run.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const GIVE_UP_MS = 6 * 3600 * 1000;
@@ -33,18 +34,6 @@ const LISTING_GRACE_MS = 10 * 60 * 1000;
 const PASSED = new Set(["success", "skipped", "neutral"]);
 const TERMINAL = new Set(["passed", "no_checks", "expired", "filing", "filed"]);
 const HEADER = "ts\tunit\tpr\tmerge_sha\tstate\tdetail";
-
-function readRows(file) {
-  if (!existsSync(file)) return [];
-  return readFileSync(file, "utf8")
-    .split("\n")
-    .slice(1)
-    .filter(Boolean)
-    .map((l) => {
-      const [ts, unit, pr, merge_sha, state, detail] = l.split("\t");
-      return { ts, unit, pr, merge_sha, state, detail };
-    });
-}
 
 function appendRow(file, row) {
   if (!existsSync(file)) writeFileSync(file, `${HEADER}\n`);
@@ -152,7 +141,7 @@ function round(ctx, json) {
   const gate = new Gate("post-merge", { json });
   const merges = [];
   for (const unit of units) {
-    const r = judge(ctx, unit, readRows(ctx.file));
+    const r = judge(ctx, unit, readPostMergeRows(ctx.file));
     merges.push({ unit: unit.id, pr: Number(unit.pr), merge_sha: r.sha, state: r.state, detail: r.detail });
     const line = `${r.state} (${r.detail})${r.cached ? ", recorded earlier" : ""}`;
     if (r.state === "filing") gate.fail(`#${unit.pr}`, `${line}: interrupted while filing; look for that issue before filing by hand`);
