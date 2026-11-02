@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cstack PreToolUse guard. One entry point, seven rules:
+// cstack PreToolUse guard. One entry point, eight rules:
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
 //                     and no Bash command may list the tree without naming directories outside them
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
@@ -9,6 +9,7 @@
 //   no-autonomy-raise no Bash command sets CSTACK_PROGRAM_AUTONOMY; only a human launch does
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
+//   no-subagent-background a subagent may not run Bash in the background; the command dies with the session
 //   role-deny         in a Codex session cstack launched, the role's Bash deny rules from gates/lib/permissions.mjs,
 //                     because Codex has no per-session allowlist
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
@@ -263,6 +264,9 @@ function main() {
   if (!root && !marked) process.exit(0); // not a cstack context: change nothing
   markSeen(input);
 
+  if (bash && input.agent_id && ti.run_in_background === true) {
+    block("no-subagent-background", "a subagent's background command is killed when the session ends, and its result never reaches it. Run it in the foreground, with a Bash timeout of up to 600000 ms.");
+  }
   if (bash) checkBash(ti.command);
   checkHide(tool, ti, patched, cwd);
 
