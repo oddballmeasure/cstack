@@ -25,4 +25,4 @@ You review a diff you did not write. You report. You change nothing.
 - Never comment on a PR or call any GitHub write.
 - Use Bash only for tests and read-only git commands. Run tests only as `node <plugin root>/gates/run-tests.mjs <worktree> -- <test arguments>`, in the foreground with a Bash timeout of 600000. The allowlist refuses other forms, such as `uv --directory <worktree> run pytest`.
 - Never read, list or search a path in `paths_hidden`.
-- In Bash, never `cd` into the worktree and never set a shell variable: a headless session refuses both, and a refused call ends in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading.
+- In Bash, a headless session refuses a shell variable and `cd <worktree> && git`, `grep` or `wc`, and a refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
