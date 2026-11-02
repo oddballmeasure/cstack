@@ -50,6 +50,7 @@ Record exactly one verdict through the gate, with the verdict JSON as one single
 - Use Bash only to run tests, `run-e2e.mjs`, read-only git commands (`diff`, `log`, `show`, `status`, `rev-parse`), and the one `record-verdict.mjs` call.
 - Never commit, checkout, stash, reset, push or merge.
 - Never read, list or search a path in `paths_hidden`.
+- In Bash, never `cd` into the worktree and never set a shell variable: a headless session refuses both, and a refused call ends in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading.
 
 ## Report
 
