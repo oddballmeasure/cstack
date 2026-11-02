@@ -271,7 +271,11 @@ function main() {
   const role = sessionRole();
   if (bash && role && typeof input.turn_id === "string" && !cfg?._error) checkRoleDeny(ti.command, role, root, cwd, cfg);
   if (!cfg) process.exit(0);
-  if (cfg._error) block("config", `.cstack/config.json does not parse: ${cfg._error}`);
+  if (cfg._error) {
+    // Without a config the hidden paths are unknown, so everything else stays shut.
+    if (tool === "Read" && relTo(root, cwd, ti.file_path) === ".cstack/config.json") process.exit(0);
+    block("config", `.cstack/config.json does not parse: ${cfg._error}. A person must fix it. An agent may open it with Read to find the error.`);
+  }
 
   const hidden = Array.isArray(cfg.paths_hidden) ? cfg.paths_hidden : [];
   const offLimits = [...(Array.isArray(cfg.paths_off_limits) ? cfg.paths_off_limits : []), ".git/**", ...VENDOR, ...ALWAYS_OFF];
