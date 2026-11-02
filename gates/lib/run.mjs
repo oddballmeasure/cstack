@@ -45,3 +45,24 @@ export function effectiveParallel(config, store) {
   if (ok(config.parallel)) return { value: config.parallel, source: "config" };
   return { value: 1, source: "default" };
 }
+
+// The rows of <store>/post-merge.tsv, oldest first. The latest row for a PR is its current verdict.
+export function readPostMergeRows(file) {
+  if (!existsSync(file)) return [];
+  return readFileSync(file, "utf8")
+    .split("\n")
+    .slice(1)
+    .filter(Boolean)
+    .map((l) => {
+      const [ts, unit, pr, merge_sha, state, detail] = l.split("\t");
+      return { ts, unit, pr, merge_sha, state, detail };
+    });
+}
+
+// `filing` stays unjudged: it means a filing was interrupted, and the gate must keep reporting it to a person.
+const JUDGED = new Set(["passed", "no_checks", "expired", "filed"]);
+
+export function mergeJudged(store, pr) {
+  const last = readPostMergeRows(path.join(store, "post-merge.tsv")).findLast((r) => r.pr === String(pr));
+  return Boolean(last) && JUDGED.has(last.state);
+}

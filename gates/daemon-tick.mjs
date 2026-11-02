@@ -7,7 +7,7 @@
 // Usage:
 //   daemon-tick.mjs scan    [--repo-dir <d>] [--json]   every issue-<N> store: unit state, worker, inbox,
 //                                                       orphan (in flight, launched here, worker dead) and
-//                                                       judge (merged with a PR: post-merge CI to run)
+//                                                       judge (merged with a PR and no verdict yet: post-merge CI to run)
 //   daemon-tick.mjs select  [--repo-dir <d>] [--json]   open issues labelled <prefix>:ready, oldest first,
 //                                                       without a live worker and not deferred by a usage
 //                                                       limit, up to config parallel minus the live workers
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, run } from "./lib/common.mjs";
 import { openForge } from "./lib/forge.mjs";
 import { openStore } from "./lib/store.mjs";
-import { effectiveAutonomy } from "./lib/run.mjs";
+import { effectiveAutonomy, mergeJudged } from "./lib/run.mjs";
 import { notBefore, workerFile, workerName, workerState } from "./lib/workers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -66,7 +66,7 @@ function scan(ctx) {
       alive: worker.alive,
       inbox,
       orphan: launched && inFlight && !worker.alive,
-      judge: ["merged", "done"].includes(unit.state) && unit.pr !== "",
+      judge: ["merged", "done"].includes(unit.state) && unit.pr !== "" && !mergeJudged(store, unit.pr),
     });
   }
   return rows;

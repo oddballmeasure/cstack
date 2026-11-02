@@ -49,6 +49,25 @@ test("daemon-tick usage errors exit 2", () => {
   assert.equal(d.tick(["prepare", "0"]).code, 2);
 });
 
+
+test("scan stops asking for a merge to be judged once it has a verdict", () => {
+  const d = daemon();
+  const header = "ts\tunit\tpr\tmerge_sha\tstate\tdetail\n";
+  const cases = { 20: "passed", 21: "no_checks", 22: "expired", 23: "filed", 24: "rerun", 25: "filing" };
+  for (const [issue, state] of Object.entries(cases)) {
+    d.unit(Number(issue), "merged", { pr: 9 });
+    writeFileSync(path.join(d.runs, `issue-${issue}`, "post-merge.tsv"), `${header}t\tU1\t9\tabc\t${state}\tx\n`);
+  }
+  d.unit(26, "merged", { pr: 9 });
+  writeFileSync(path.join(d.runs, "issue-26", "post-merge.tsv"), `${header}t\tU1\t8\tabc\tpassed\tx\n`);
+  d.unit(27, "merged", { pr: 9 });
+  writeFileSync(path.join(d.runs, "issue-27", "post-merge.tsv"), `${header}t\tU1\t9\tabc\trerun\tx\nt\tU1\t9\tabc\tpassed\tx\n`);
+  d.unit(28, "merged", { pr: 9 });
+
+  const by = Object.fromEntries(d.tick(["scan"]).json.stores.map((s) => [s.issue, s.judge]));
+  assert.deepEqual(by, { 20: false, 21: false, 22: false, 23: false, 24: true, 25: true, 26: true, 27: false, 28: true });
+});
+
 test("scan: orphans are launched here, in flight and dead; merged units with a PR need judging", () => {
   const empty = daemon();
   const none = empty.tick(["scan"], { cwd: empty.root });
