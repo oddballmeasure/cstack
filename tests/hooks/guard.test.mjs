@@ -271,6 +271,30 @@ test("an agent is told a person must fix a config that does not parse", () => {
   assert.match(out.err, /Read/);
 });
 
+function runAs(root, agent_id, tool_input) {
+  const r = spawnSync(process.execPath, [GUARD], {
+    input: JSON.stringify({ tool_name: "Bash", tool_input, cwd: root, ...(agent_id ? { agent_id } : {}) }),
+    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "" },
+    encoding: "utf8",
+  });
+  return { code: r.status, err: r.stderr };
+}
+
+test("a subagent may not start a background command, because it dies when the subagent finishes", () => {
+  const r = repo();
+  const out = runAs(r, "a1", { command: "node gates/run-tests.mjs .", run_in_background: true });
+  assert.equal(out.code, 2);
+  assert.match(out.err, /no-subagent-background/);
+  assert.match(out.err, /foreground/);
+});
+
+test("a subagent may run in the foreground, and the main session may run in the background", () => {
+  const r = repo();
+  assert.equal(runAs(r, "a1", { command: "node gates/run-tests.mjs ." }).code, 0);
+  assert.equal(runAs(r, "a1", { command: "node gates/run-tests.mjs .", run_in_background: false }).code, 0);
+  assert.equal(runAs(r, null, { command: "node gates/run-tests.mjs .", run_in_background: true }).code, 0);
+});
+
 test("malformed hook input never blocks", () => {
   const r = spawnSync(process.execPath, [GUARD], { input: "not json", encoding: "utf8" });
   assert.equal(r.status, 0);

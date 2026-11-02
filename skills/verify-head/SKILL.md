@@ -84,6 +84,7 @@ After it finishes:
 
 - HEAD still equals `sha`. If not, the run is broken. Discard the verdict and start this skill again from step 1.
 - `git -C <worktree> status --porcelain` prints nothing. If it prints anything, the verifier edited files. Discard the verdict, record `verifier-failed`, and spawn a fresh verifier once.
+- A verifier that has finished is not waiting on anything, whatever its report says. If it left no verdict, go to step 5, whose gate reports the missing file.
 - The verdict file exists and carries `by`, which `record-verdict.mjs` adds. Never write, copy or edit a verdict file yourself, even to save a verdict the verifier reported in its reply: a verdict on disk must come from the verifier through the gate (cstack#41). With no recorded verdict, spawn a fresh verifier once. A second miss is failure `verification`.
 
 ### 5. Gate the verdict
