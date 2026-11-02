@@ -246,6 +246,31 @@ test("a config that does not parse blocks with a clear message", () => {
   assert.match(out.err, /config/);
 });
 
+test("a config that does not parse can still be read, and nothing else opens up", () => {
+  const r = repo("{not json");
+  for (const file_path of [".cstack/config.json", path.join(r, ".cstack/config.json"), "src/../.cstack/config.json"]) {
+    assert.equal(run(r, "Read", { file_path }).code, 0, file_path);
+  }
+  for (const [tool, input] of [
+    ["Edit", { file_path: ".cstack/config.json" }],
+    ["Write", { file_path: ".cstack/config.json" }],
+    ["Read", { file_path: "tests/acceptance/e1.test.js" }],
+    ["Read", { file_path: ".cstack/config.json.bak" }],
+    ["Grep", { pattern: "x", path: ".cstack/config.json" }],
+    ["Bash", { command: "ls" }],
+  ]) {
+    const out = run(r, tool, input);
+    assert.equal(out.code, 2, `${tool} ${JSON.stringify(input)}`);
+    assert.match(out.err, /does not parse/);
+  }
+});
+
+test("an agent is told a person must fix a config that does not parse", () => {
+  const out = run(repo("{not json"), "Bash", { command: "ls" });
+  assert.match(out.err, /a person must fix/i);
+  assert.match(out.err, /Read/);
+});
+
 test("malformed hook input never blocks", () => {
   const r = spawnSync(process.execPath, [GUARD], { input: "not json", encoding: "utf8" });
   assert.equal(r.status, 0);
