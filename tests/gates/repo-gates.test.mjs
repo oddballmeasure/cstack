@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { makeRepo, commit, gate, git, write, failChecks, existsSync, path } from "./helpers.mjs";
+import { isTest } from "../../gates/lib/repo.mjs";
 
 const trailers = (unit, issue) => `\n\nCstack-Unit: ${unit}${issue ? `\nRefs: #${issue}` : ""}`;
 
@@ -42,6 +43,11 @@ test("isolate refuses bad input", () => {
 });
 
 // check-commit
+
+test("check-verdict counts a browser spec as a test, so a fix to one alone can pass", () => {
+  for (const f of ["frontend/e2e/quiz.e2e.js", "e2e/helpers.js", "src/app.e2e.ts"]) assert.equal(isTest(f), true, f);
+  for (const f of ["frontend/src/e2e.js", "src/e2e-utils/x.js", "src/foo.e2e"]) assert.equal(isTest(f), false, f);
+});
 
 test("check-commit approves a clean, tested, trailered commit", () => {
   const { wt } = isolated();
