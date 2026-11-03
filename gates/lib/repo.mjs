@@ -8,7 +8,7 @@ export function changedFiles(wt, base) {
   return out ? out.split("\n") : [];
 }
 
-const TEST_RE = [/(^|\/)(tests?|__tests__|spec|specs)\//, /\.(test|spec)\.[^/]+$/, /_test\.[^/]+$/, /(^|\/)test_[^/]+\.py$/];
+const TEST_RE = [/(^|\/)(tests?|__tests__|spec|specs|e2e)\//, /\.(test|spec|e2e)\.[^/]+$/, /_test\.[^/]+$/, /(^|\/)test_[^/]+\.py$/];
 const DOC_RE = [/\.(md|mdx|txt|rst|adoc)$/i, /^docs\//, /(^|\/)(LICENSE|NOTICE|CHANGELOG)[^/]*$/];
 
 export const isTest = (f) => TEST_RE.some((r) => r.test(f));
