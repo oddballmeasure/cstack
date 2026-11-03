@@ -137,6 +137,27 @@ test("exit treats any wording of a spent usage window as a usage limit, not as i
   assert.match(p.worker(["exit", "--store", p.store, "--unit", "U3"]).out, /U3\tdenied/, "a session that went on to finish did not stop on the limit");
 });
 
+test("exit re-queues a pr-open unit whose session ran out mid-babysit, but leaves a finished pr-open unit settled", () => {
+  const p = program();
+  for (const id of ["U1", "U2"]) {
+    p.orch("unit", "add", id, "--track", "core", "--state", "ready");
+    p.orch("unit", "set", id, "--state", "pr-open");
+  }
+  const lines = (...evs) => `${evs.map((e) => JSON.stringify(e)).join("\n")}\n`;
+  seedExit(p, "U1", {
+    jsonl: lines(
+      { type: "rate_limit_event", rate_limit_info: { status: "rejected", resetsAt: 1793646000, rateLimitType: "five_hour" } },
+      { type: "result", subtype: "success", is_error: true, api_error_status: 429, result: "You've hit your 5-hour limit · resets 5am (America/New_York)" },
+    ),
+  });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U1"]).out, /U1\tusage_limit\tresets_at=/);
+  assert.equal(p.unit("U1")[2], "ready", "an unpublished review repair is only reachable by a relaunch");
+
+  seedExit(p, "U2", { jsonl: lines({ type: "result", subtype: "success", is_error: false, result: "PR ready to merge" }) });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tpr-open/);
+  assert.equal(p.unit("U2")[2], "pr-open");
+});
+
 test("exit classifies billing, settled units, usage limits and crashes, and pushes one inbox entry", () => {
   const p = program();
   for (const id of ["U1", "U2", "U3", "U4", "U5", "U6"]) p.orch("unit", "add", id, "--track", "core", "--state", "ready");
