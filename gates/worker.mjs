@@ -231,15 +231,16 @@ function exit(store, unit) {
   const rejected = result?.is_error ? evs.findLast((e) => e?.type === "rate_limit_event" && e.rate_limit_info?.status === "rejected") : null;
   const denied = deniedCalls(evs);
   const deniedFile = workerFile(store, unit, "denied.txt");
+  const spent = Boolean(rejected) || USAGE_LIMIT.test(text);
   let status;
   let detail;
   if (init?.apiKeySource && init.apiKeySource !== "none") {
     status = "setup";
     detail = `billed through ${init.apiKeySource}; workers must run on the subscription`;
-  } else if (SETTLED.includes(row.state)) {
+  } else if (TERMINAL_STATES.includes(row.state) || (row.state === "pr-open" && !spent)) {
     status = row.state;
     detail = `unit ${row.state}`;
-  } else if (rejected || USAGE_LIMIT.test(text)) {
+  } else if (spent) {
     const until = (rejected?.rate_limit_info.resetsAt ? new Date(rejected.rate_limit_info.resetsAt * 1000) : parseReset(text)).toISOString();
     mkdirSync(path.join(store, "workers"), { recursive: true });
     writeFileSync(workerFile(store, unit, "not-before"), `${until}\n`);
