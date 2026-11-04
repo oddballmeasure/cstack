@@ -45,7 +45,7 @@ Log one row per action with `<log> "daemon" "<action>" "<why>" "<evidence>" "<re
    - `usage_limit`: nothing. The worker put the unit back to `ready` with a reset time, and `select` defers it.
    - `merged`, `done`, `error`, `needs-human`, `pr-open`: the unit settled its issue. Log it.
    - `crash`: step 5 settles it.
-   - `denied`: the worker's allowlist refused calls it needed (`workers/U1.denied.txt`). Never relaunch it. Settle the issue as failed with kind `setup` through `cstack:settle`, and report each refused call first. A person adds the missing rule to config `permissions_allow`.
+   - `denied`: the worker's allowlist refused calls it needed (`workers/U1.denied.txt`). Never relaunch it. Settle the issue as failed with kind `setup` through `cstack:settle`, and report each refused call first. A person adds the missing rule to config `permissions_allow`, under the `worker` key when only workers need it.
 5. **Land and settle.**
    - For each `judge` store, run `node <root>/gates/post-merge.mjs --store <store N> --json` once, without `--wait`. It judges the merge commit's checks, re-runs a red one once, and files at most one follow-up issue. Log each `filed` follow-up.
    - For each `orphan` store, run `cstack:resume-run issue-<N>`. The store has a launches file, so resume-run relaunches the worker once and settles a second death as `crash`. It never runs the unit in this session.

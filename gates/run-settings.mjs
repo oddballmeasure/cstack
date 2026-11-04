@@ -8,7 +8,8 @@
 // Usage: run-settings.mjs --permissions <role> [--repo-dir <dir>] [--worktree <dir>] [--plugin-dir <dir>] [--out <file>]
 // Prints, or writes to --out, the Claude Code settings for a headless session in <role>: worker,
 // coordinator, e2e-author (needs --worktree) or grader. Launch the session with
-// `--permission-mode dontAsk --settings <file>`. The repo is --repo-dir, else the cwd.
+// `--permission-mode dontAsk --settings <file>`. The repo is --repo-dir, else the cwd. A malformed config
+// permissions_allow (an unknown role key, say) is a usage error, so no session starts without the rules meant for it.
 // Usage: run-settings.mjs --codex-sandbox auto|<mode> --worktree <dir> [--store <dir>] [--repo-dir <dir>]
 // Prints the sandbox flags for a `codex exec` session working in --worktree, shell-quoted on one line.
 // auto is CSTACK_CODEX_SANDBOX, else config codex_sandbox, else workspace-write. --store is also made writable.
@@ -19,7 +20,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { main, parseArgs, UsageError, loadConfig } from "./lib/common.mjs";
 import { effectiveAutonomy, effectiveParallel } from "./lib/run.mjs";
-import { ROLES, permissionSettings } from "./lib/permissions.mjs";
+import { ROLES, permissionSettings, permissionsAllowErrors } from "./lib/permissions.mjs";
 import { codexSandboxArgs } from "./lib/harness.mjs";
 
 const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,6 +40,8 @@ function permissions(args) {
   if (!ROLES.includes(role)) throw new UsageError(`--permissions takes one of ${ROLES.join(", ")}`);
   if (role === "e2e-author" && !args.worktree) throw new UsageError("--permissions e2e-author needs --worktree <dir>");
   const { root, config } = loadConfig(args["repo-dir"] || process.cwd());
+  const bad = permissionsAllowErrors(config);
+  if (bad.length) throw new UsageError(bad.join("; "));
   const settings = permissionSettings(role, {
     pluginRoot: args["plugin-dir"] || PLUGIN_ROOT,
     repoRoot: root,
