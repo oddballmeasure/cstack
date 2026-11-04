@@ -11,7 +11,9 @@
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
 //   no-subagent-background a subagent may not run Bash in the background; the command dies with the session
 //   headless-foreground-agents in a headless session cstack launched (CSTACK_HEADLESS=1), Agent (Task) calls pass
-//                     run_in_background: false; a background subagent dies with the -p or exec session
+//                     run_in_background: false; a background subagent dies with the -p or exec session.
+//                     Codex's spawn_agent never reaches this hook (measured), and it is always asynchronous, so the
+//                     pending-work Stop hook keeps a headless Codex session from ending its turn over a live child
 //   role-deny         in a Codex session cstack launched, the role's Bash deny rules from gates/lib/permissions.mjs,
 //                     because Codex has no per-session allowlist
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.

@@ -11,6 +11,12 @@
 // started, and before its PR the unit has no watcher of its own (the store's watchers belong to the coordinator).
 // Under Codex (a payload with turn_id) the block is {"decision":"block","reason":…} on stdout with exit 0,
 // the form measured to keep a Codex session going.
+// Any headless Codex session cstack launched (CSTACK_HEADLESS=1, a payload with turn_id) is also blocked while a child
+// it started with spawn_agent is still running, read from its rollout (transcript_path). PreToolUse never sees
+// spawn_agent under hooks.json's matcher (measured, Codex CLI 0.166.0), and spawn_agent is always asynchronous, so a
+// tool guard could not make the session wait anyway. This check is the control. A Codex child (a payload with
+// agent_id) inherits the parent's markers but is neither the coordinator nor the unit worker, so only this check
+// applies to it.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -57,6 +63,39 @@ function block(codex, reason) {
   return 2;
 }
 
+// Children the session started and has not seen end. The rollout's SubAgentActivity items carry a kind and the other
+// agent's agent_thread_id. The kinds seen in real rollouts (Codex CLI 0.165 and 0.166) are "started" (spawn_agent),
+// "completed" and "interacted" (send_input and follow-ups). "interacted" can follow "completed" and start the child
+// again, so it marks one of this session's own children live; in a child's rollout it names the parent, which this
+// session did not start, so there it changes nothing. Only "completed" ends a child. An unknown kind changes nothing:
+// that fails closed, and the second-stop escape bounds the cost to one extra turn. An unreadable rollout or line
+// counts as no children. The hook reads the whole rollout on every headless Codex stop.
+function liveChildren(transcript) {
+  let text;
+  try {
+    text = readFileSync(transcript, "utf8");
+  } catch {
+    return [];
+  }
+  const own = new Set();
+  const live = new Map();
+  for (const line of text.split("\n")) {
+    if (!line.includes('"SubAgentActivity"')) continue;
+    let item;
+    try {
+      item = JSON.parse(line).payload?.item;
+    } catch {
+      continue;
+    }
+    if (item?.type !== "SubAgentActivity" || typeof item.agent_thread_id !== "string") continue;
+    const id = item.agent_thread_id;
+    if (item.kind === "started") own.add(id);
+    if (item.kind === "started" || (item.kind === "interacted" && own.has(id))) live.set(id, item.agent_path || id);
+    else if (item.kind === "completed") live.delete(id);
+  }
+  return [...live.values()];
+}
+
 function readUnits(store) {
   const [header, ...lines] = readFileSync(path.join(store, "units.tsv"), "utf8").split("\n");
   const cols = header.split("\t");
@@ -68,9 +107,11 @@ function readUnits(store) {
 }
 
 function main() {
+  const headless = process.env.CSTACK_HEADLESS === "1";
   const coordinator = process.env.CSTACK_COORDINATOR === "1";
-  const unit = coordinator || process.env.CSTACK_HEADLESS !== "1" ? "" : process.env.CSTACK_UNIT || "";
-  if ((!coordinator && !unit) || !process.env.CSTACK_RUN) return 0;
+  const unit = coordinator || !headless ? "" : process.env.CSTACK_UNIT || "";
+  const run = (coordinator || unit) && process.env.CSTACK_RUN;
+  if (!run && !headless) return 0;
   let input;
   try {
     input = JSON.parse(readFileSync(0, "utf8"));
@@ -78,9 +119,20 @@ function main() {
     return 0;
   }
   if (input.stop_hook_active) return 0;
+  const codex = typeof input.turn_id === "string";
+  if (headless && codex && typeof input.transcript_path === "string") {
+    const live = liveChildren(input.transcript_path);
+    if (live.length) {
+      return block(
+        true,
+        `cstack pending-work: child agents still running (${live.join(", ")}). This headless session ends when its turn ends, and they die with it. Do not end the turn. ` +
+          `Call wait_agent with a long timeout until every child has finished, then go on.`,
+      );
+    }
+  }
+  if (!run || input.agent_id) return 0;
   const found = findStore(input.cwd || process.cwd(), process.env.CSTACK_RUN);
   if (!found) return 0;
-  const codex = typeof input.turn_id === "string";
   const rows = readUnits(found.store);
   if (unit) {
     const own = rows.find((r) => r.id === unit);
