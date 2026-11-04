@@ -65,6 +65,7 @@ test("changes: create, view, files, merge state, detail, find, edit, comment, th
   assert.deepEqual(f.findChanges({ head: "feat", base: "main" }).map((x) => x.id), [1]);
   assert.deepEqual(f.findChanges({ state: "merged" }), []);
   assert.deepEqual(f.changesOn("--head", "feat"), [{ pr: 1, state: "OPEN", branch: "feat", base: "main" }]);
+  assert.equal(f.headRef(1), "feat", "the change's head is its branch on origin");
   assert.deepEqual(f.changesOn("--base", "main").length, 1);
   assert.deepEqual(f.editChange(1, { title: "Feature, renamed", bodyFile: body(r.base, "Closes #1, edited\n") }).ok, true);
   assert.equal(f.editChange(1).ok, true);

@@ -162,7 +162,7 @@ export function parseSpec(text) {
 export const LANE_FIELDS = ["Kind", "Covers", "Driver", "Script", "Evidence", "Pass when"];
 
 // e2e-plan.md: `## Lanes` holds `### E<n>.<m> <title>` blocks with LANE_FIELDS.
-// `## Red check` and `## Mutation spot-check` hold pipe tables.
+// `## Red check` and `## Mutation spot-check` hold pipe tables (see redCheck for red-check blocks).
 export function parseE2e(text) {
   const secs = sections(text);
   const problems = [];
@@ -183,9 +183,25 @@ export function parseE2e(text) {
       covers: idList(f.Covers?.value ?? ""),
     });
   }
-  const red = table(secs.get("Red check")?.body ?? [], ["Lane", "Result", "Reason"]);
+  const red = redCheck(secs.get("Red check"));
   const mutation = table(secs.get("Mutation spot-check")?.body ?? [], ["Lane", "Break", "Caught"]);
   return { sections: secs, lanes, red, mutation, problems };
+}
+
+const RED_COLUMNS = ["Lane", "Result", "Reason"];
+
+// `## Red check` holds one table, or one `### At <sha>` block per red run, oldest first. An amendment
+// to the suite keeps the earlier blocks as history and adds a block for the run on the current base.
+function redCheck(sec) {
+  if (!sec?.children.length) return { blocks: [{ sha: null, ...table(sec?.body ?? [], RED_COLUMNS) }], problems: [] };
+  const problems = [];
+  if (nonBlank(sec.body).some((l) => l.text.trim().startsWith("|"))) problems.push(`line ${sec.line}: with "### At <sha>" blocks, put every red-check table under one`);
+  const blocks = sec.children.map((b) => {
+    const m = b.title.match(/^At ([0-9a-f]{7,40})$/);
+    if (!m) problems.push(`line ${b.line}: red-check block heading must be "### At <sha>", got "${b.title}"`);
+    return { sha: m?.[1] ?? null, line: b.line, ...table(b.body, RED_COLUMNS) };
+  });
+  return { blocks, problems };
 }
 
 export const UNIT_COLUMNS = ["id", "track", "state", "branch", "pr", "sha", "issue", "depends_on", "lanes", "brief"];

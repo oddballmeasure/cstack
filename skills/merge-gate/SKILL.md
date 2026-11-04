@@ -17,7 +17,7 @@ This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator ru
 
 - the PR is open and not a draft;
 - the run ledger holds an approval for this unit at exactly this head SHA;
-- `cstack:review-loop` recorded an APPROVE round at exactly this head and no blocker or should finding is open, unless every changed file is docs, or the unit is `E2E` and touches only `paths_hidden` and `.cstack/config.json` (a reviewer may not read the hidden suite, so `check-e2e` judges PR #0). A `review` finding sends the unit back to step 10b;
+- `cstack:review-loop` recorded an APPROVE round at exactly this head and no blocker or should finding is open, unless every changed file is docs, or the unit is a suite unit (id `E2E` or `E2E-<name>`, track `e2e` in `units.tsv`) and every changed file is under the merge base's `paths_hidden`, or is `.cstack/config.json` with only `e2e_command` changed against the merge base (a reviewer may not read the hidden suite, so `check-e2e` judges PR #0 and any later suite amendment). A `review` finding sends the unit back to step 10b;
 - every required check is green on this SHA;
 - no review requests changes;
 - GitHub's merge state is not DIRTY, BEHIND, BLOCKED or UNKNOWN;

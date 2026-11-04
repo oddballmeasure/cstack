@@ -2,7 +2,9 @@
 // The only path to merge (tstack merge gate + Cardinal merge rules).
 // Usage: check-merge.mjs <pr> --unit <id> [--repo-dir <dir>] [--store <dir>] [--merge] [--json]
 // Checks: PR open and not draft; ledger approval for the exact head SHA; a review-loop APPROVE round at that
-// head (not for docs-only diffs, nor for unit E2E when it touches only paths_hidden and the config); required checks green on that SHA;
+// head (not for docs-only diffs, nor for a suite unit, E2E or E2E-<suffix> on track e2e in units.tsv, whose local diff
+// from the merge base touches only the merge base's paths_hidden and the config's e2e_command);
+// required checks green on that SHA;
 // no change requests; GitHub merge state not DIRTY/BEHIND/BLOCKED/UNKNOWN; base has not moved under the PR's files.
 // --merge merges only when every check passes AND the run's effective autonomy is "send": config autonomy,
 // overridden by <store>/run.json, which may only lower it unless this session has
@@ -13,12 +15,83 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
-import { Gate, main, parseArgs, UsageError, loadConfig, run, git, matchesAny } from "./lib/common.mjs";
+import { Gate, main, parseArgs, UsageError, loadConfig, run, git, gitOut, matchesAny } from "./lib/common.mjs";
 import { isDoc } from "./lib/repo.mjs";
 import { effectiveAutonomy } from "./lib/run.mjs";
+import { isSuiteUnit, openStore } from "./lib/store.mjs";
 import { openForge } from "./lib/forge.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+const CONFIG = ".cstack/config.json";
+// The config keys a suite unit may change: set-e2e-command.mjs (cstack:e2e-plan step 4) writes only e2e_command.
+const SUITE_CONFIG_KEYS = ["e2e_command"];
+
+// The suite-only diff rule. The forge's file list is not enough: it shows only the new path of a rename
+// (src/x.js moved into the suite would look suite-only) and may be truncated on a large PR. So the gate diffs
+// locally, with renames split into a delete and an add, from the merge base of the PR's base and head SHAs.
+// Every path on both sides must be under paths_hidden as the MERGE BASE's config sets it (a head that widens
+// paths_hidden cannot hide product code), or be the config with nothing changed but SUITE_CONFIG_KEYS against
+// the merge base. Any git or parse failure (a SHA missing locally, no config at the merge base) returns false,
+// so a review is required. set-e2e-command refuses a missing config, so no suite unit adds one.
+function suiteDiff(repoDir, baseSha, head) {
+  try {
+    const fork = gitOut(repoDir, ["merge-base", baseSha, head]);
+    const configAt = (rev) => JSON.parse(gitOut(repoDir, ["show", `${rev}:${CONFIG}`]));
+    const rest = (c) => JSON.stringify(Object.entries(c).filter(([k]) => !SUITE_CONFIG_KEYS.includes(k)).sort(([x], [y]) => x.localeCompare(y)));
+    const base = configAt(fork);
+    // -z: paths come NUL-separated and unquoted, so a name with a tab, newline or non-ASCII byte still matches.
+    const files = gitOut(repoDir, ["diff", "-z", "--name-only", "--no-renames", fork, head]).split("\0").filter(Boolean);
+    return files.every((f) => (f === CONFIG ? rest(configAt(head)) === rest(base) : !!matchesAny(f, base.paths_hidden)));
+  } catch {
+    return false;
+  }
+}
+
+// A fetch from origin that never prompts and never blocks: no terminal prompt (git's own, or Git Credential
+// Manager's), and a bounded run time. Configured credential helpers still apply, so a private HTTPS remote set up
+// with `gh auth setup-git` fetches as usual. A timed-out fetch reports a non-zero code like any failed fetch.
+const FETCH_TIMEOUT_MS = 120_000;
+function fetchRef(repoDir, ref) {
+  return run("git", ["-C", repoDir, "fetch", "--quiet", "origin", ref], {
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
+    timeout: FETCH_TIMEOUT_MS,
+  });
+}
+
+// A failed fetch's stderr, safe to print in a finding and in --json: credentials in a remote URL
+// (//user:pass@ or //token@) become //***@, and the text is one line of at most 300 characters.
+function fetchError(r) {
+  return r.stderr
+    .replace(/\/\/[^/\s]*@/g, "//***@")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+}
+
+// Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local, with
+// each fetch's outcome so a finding says why. The presence check, not the fetch exit code, decides.
+function missingShas(repoDir, forge, pr, p) {
+  const fetched = [p.base, forge.headRef(pr)].map((ref) => {
+    const r = fetchRef(repoDir, ref);
+    return `fetch ${ref}: ${r.code === 0 ? "ok" : `exit ${r.code}, ${fetchError(r)}`}`;
+  });
+  const shas = [p.baseSha, p.head].filter((s) => git(repoDir, ["cat-file", "-e", `${s}^{commit}`]).code !== 0);
+  return shas.length ? { shas, fetched } : null;
+}
+
+function suiteUnit(store, id) {
+  try {
+    const s = openStore(store);
+    try {
+      return isSuiteUnit(s.units.list().find((u) => u.id === id));
+    } finally {
+      s.close();
+    }
+  } catch {
+    return false;
+  }
+}
 
 await main(async (argv) => {
   const args = parseArgs(argv, { flags: ["json", "merge"], options: ["unit", "repo-dir", "store"] });
@@ -40,14 +113,18 @@ await main(async (argv) => {
   // Review loop (unit stage 10b): a diff that touches more than docs needs an APPROVE round at this exact
   // head and no open blocker or should finding. The files come from cstack:review-loop.
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
-  // PR #0 (unit E2E) holds only the hidden suite and the config line that runs it. A reviewer may not
-  // read paths_hidden, so check-e2e, the red check and the mutation spot-check judge it instead.
+  // A suite unit (PR #0, or a later amendment that adds lanes) holds only the hidden suite and the config
+  // line that runs it. A reviewer may not read paths_hidden, so check-e2e, the red check and the mutation
+  // spot-check judge it instead. It needs the id, the units.tsv row on track e2e, and a diff that passes
+  // suiteDiff, so a product unit cannot claim the exemption. An unreadable store means a review is required.
   const code = p.files.filter((f) => !isDoc(f));
-  const suiteOnly = args.unit === "E2E" && code.every((f) => f === ".cstack/config.json" || matchesAny(f, config.paths_hidden));
+  const suite = code.length > 0 && suiteUnit(store, args.unit);
+  const missing = suite ? missingShas(repoDir, forge, pr, p) : null;
+  const suiteOnly = suite && !missing && suiteDiff(repoDir, p.baseSha, sha);
   if (!code.length) {
     gate.pass("review", "docs-only change; no review round needed");
   } else if (suiteOnly) {
-    gate.pass("review", "hidden e2e suite change; judged by check-e2e, not a reviewer");
+    gate.pass("review", "hidden e2e suite change on track e2e; judged by check-e2e, not a reviewer");
   } else {
     const rows = (name) => {
       const file = path.join(store, name);
@@ -60,7 +137,9 @@ await main(async (argv) => {
       approved && !open.length,
       "review",
       `review-loop approved ${sha.slice(0, 12)}`,
-      !approved ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head` : `open review findings: ${open.join(", ")}`,
+      !approved
+        ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head${missing ? `. Review required: the suite-only rule cannot judge the diff, ${missing.shas.join(", ")} not available locally after fetch (${missing.fetched.join("; ")})` : ""}`
+        : `open review findings: ${open.join(", ")}`,
     );
   }
 
@@ -93,8 +172,8 @@ await main(async (argv) => {
   gate.check(p.merge === "clean", "merge state", p.mergeRaw, `${p.mergeRaw}${p.merge === "unknown" ? ` (${forge.name} still computing; retry)` : ""}`);
 
   // Base moved since the PR was based: refuse if the new base commits touch the PR's files.
-  const fetch = git(repoDir, ["fetch", "--quiet", "origin", p.base]);
-  if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetch.stderr.trim()}`);
+  const fetch = fetchRef(repoDir, p.base);
+  if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetchError(fetch)}`);
   else {
     const tip = git(repoDir, ["rev-parse", `origin/${p.base}`]).stdout.trim();
     if (tip && tip !== p.baseSha) {

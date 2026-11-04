@@ -238,6 +238,31 @@ test("e2e: the red check records a FAIL with a reason for every lane", () => {
   rejects(red("## Red check", "## Red run"), "sections", "red-check", "red-check-complete");
 });
 
+test("e2e: an amended suite keeps older red-check blocks as history and adds a block per run", () => {
+  // The first suite at aaaaaaa covered E1.1..E2.1; an amendment added E2.2 and ran it on the current base.
+  const amended = (blocks) => E2E.replace(/## Red check[\s\S]*?## Mutation/, `## Red check\n\n${blocks}\n## Mutation`);
+  const head = "| Lane | Result | Reason |\n|---|---|---|\n";
+  const rows = (...lanes) => lanes.map((l) => `| ${l} | FAIL | \`notes: command not found\` |\n`).join("");
+  const first = `### At aaaaaaa\n\n${head}${rows("E1.1", "E1.2", "E1.3", "E2.1")}\n`;
+  const later = `### At ${"b".repeat(40)}\n\n${head}${rows("E2.2")}\n`;
+  approves(e2e({ e2e: amended(first + later) }));
+
+  // The newest block is judged like any red run.
+  rejects(e2e({ e2e: amended(first + later.replace("FAIL", "PASS")) }), "red-check E2.2");
+  // A lane recorded in two blocks, or in none.
+  rejects(e2e({ e2e: amended(first + later.replace("| E2.2 |", "| E2.1 |")) }), "red-check-unique", "red-check-complete");
+  // Block headings carry a SHA; a block needs a table with rows; no loose table beside the blocks.
+  rejects(e2e({ e2e: amended(first + later.replace(/At b+/, "At main")) }), "red-check");
+  const empty = e2e({ e2e: amended(`${first}### At ccccccc\n\n${head}\n${later}`) });
+  rejects(empty, "red-check At ccccccc");
+  const noTable = e2e({ e2e: amended(`${first}### At ccccccc\n\nran it\n\n${later}`) });
+  rejects(noTable, "red-check");
+  assert.match(noTable.json.findings.find((f) => f.check === "red-check").detail, /^At ccccccc: expected a table/);
+  const loose = e2e({ e2e: amended(`${head}${rows("E2.2")}\n${first}`) });
+  rejects(loose, "red-check");
+  assert.match(loose.out, /put every red-check table under one/);
+});
+
 test("e2e: the mutation spot-check covers enough lanes and catches every break", () => {
   const mut = (from, to) => e2e({ e2e: edit(E2E, from, to) });
   rejects(mut("| E2.2 | `rm` of an unknown id exits 0 | yes |\n", ""), "mutation-count");

@@ -8,6 +8,7 @@
 //            mergeRaw, review: approved|changes|none, reviewRaw, files: [path], mergeSha, mergedAt}
 //   check   {name, state: pass|fail|pending|skipped, status, conclusion, id, started_at, url, output}
 //   issue   {number, title, state: open|closed, labels: [name], comments: [body], body, createdAt}
+// headRef(id) names the ref that holds a change's head on the remote, for a gate that must fetch it.
 // Skills reach the same layer through gates/forge.mjs, whose verbs read richer records:
 //   detail  a change plus {title, branch, author, bot, body, autoMerge, headRepo, commits, reviewRequired}
 //   thread  {id, resolved, path, line, author, bot, body, url, comments: [{author, bot, body, url, createdAt}]}
@@ -143,6 +144,7 @@ function github(repo, cwd) {
     kind: "github",
     name: "GitHub",
     repo,
+    headRef: (id) => `pull/${id}/head`,
 
     // The change's fields a gate asks for; `want` names them so each call reads only what it needs.
     change(id, want = ["number", "state", "isDraft", "headRefOid", "baseRefName", "baseRefOid", "mergeStateStatus", "reviewDecision", "mergeCommit", "files"]) {

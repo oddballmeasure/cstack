@@ -1,15 +1,21 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { makeRepo, commit, gate, git, failChecks, approve, path } from "./helpers.mjs";
+import { spawnSync } from "node:child_process";
+import { makeRepo, commit, gate, git, failChecks, approve, path, FAKE_BIN } from "./helpers.mjs";
 
 // A repo whose origin has a PR branch, plus a ledger store and a fake gh scenario.
-function setup({ cfg = {}, approve: approved = true, review = true, pr = {}, checkRuns = [], extraRules = [], runJson, env = {} } = {}) {
+// The PR head commits headFiles, after prepare(root) runs (for a git mv). headConfig: (base config) => the config
+// text the head commits, for a PR that changes it. pr.files is only the forge's list, which may differ.
+function setup({ cfg = {}, approve: approved = true, review = true, pr = {}, checkRuns = [], extraRules = [], runJson, env = {}, headFiles = { "src/f.js": "1\n" }, headConfig, prepare } = {}) {
   const r = makeRepo(cfg);
   const baseSha = git(r.root, "rev-parse", "HEAD");
   git(r.root, "checkout", "-q", "-b", "cstack/u1");
-  const head = commit(r.root, { "src/f.js": "1\n" }, "F\n\nCstack-Unit: U1");
+  headFiles = { ...headFiles };
+  if (headConfig) headFiles[".cstack/config.json"] = headConfig(JSON.parse(readFileSync(path.join(r.root, ".cstack/config.json"), "utf8")));
+  prepare?.(r.root);
+  const head = commit(r.root, headFiles, "F\n\nCstack-Unit: U1");
   git(r.root, "push", "-q", "origin", "cstack/u1");
   git(r.root, "checkout", "-q", "main");
 
@@ -91,22 +97,154 @@ test("review: an open should finding blocks; a docs-only diff needs no review", 
   assert.match(ok.out, /docs-only change/);
 });
 
-test("review: unit E2E touching only the hidden suite and config needs no review round; anything else does", () => {
-  const suite = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }, { path: ".cstack/config.json" }, { path: "docs/e2e.md" }] } });
-  const ledger = (s) => {
-    assert.equal(gate("orch.mjs", ["--store", s.store, "unit", "add", "E2E", "--track", "e2e"]).code, 0);
-    return gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E", s.head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e"]);
+// A commit that touches only the hidden suite, and the forge's file list for it.
+const SUITE = { "tests/acceptance/a.test.mjs": "x\n" };
+const listed = (files) => Object.keys(files).map((p) => ({ path: p }));
+
+test("review: a suite unit touching only the hidden suite and config needs no review round; anything else does", () => {
+  // unit: the id to gate; track: its units.tsv track, or null for no row. A suite unit records its pass by hand;
+  // any other unit gets the row check-verdict would write. units: replaces units.tsv after setup.
+  const merge = (headFiles, unit, track, { units } = {}) => {
+    const s = setup({ review: false, headFiles, pr: { files: listed(headFiles) } });
+    const orch = (...a) => gate("orch.mjs", ["--store", s.store, ...a]);
+    if (track) assert.equal(orch("unit", "add", unit, "--track", track).code, 0);
+    if (track === "e2e" && unit.startsWith("E2E")) {
+      assert.equal(orch("ledger", "record", unit, s.head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e").code, 0);
+    } else approve(s.store, unit, s.head);
+    if (units !== undefined) writeFileSync(path.join(s.store, "units.tsv"), units);
+    return gate("check-merge.mjs", ["5", "--unit", unit, "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario } });
   };
-  assert.equal(ledger(suite).code, 0);
-  const e2e = (s) => gate("check-merge.mjs", ["5", "--unit", "E2E", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario } });
-  const ok = e2e(suite);
+  for (const unit of ["E2E", "E2E-UI"]) {
+    const ok = merge(SUITE, unit, "e2e");
+    assert.equal(ok.code, 0, ok.out);
+    assert.match(ok.out, /hidden e2e suite change on track e2e/);
+  }
+  const review = (res, why) => assert.deepEqual(failChecks(res), ["review"], why);
+  review(merge({ ...SUITE, "src/f.js": "1\n" }, "E2E-UI", "e2e"), "product code on a suite unit needs a review");
+  review(merge({ ...SUITE, "docs/e2e.md": "x\n" }, "E2E", "e2e"), "a doc beside the suite needs a review");
+  review(merge(SUITE, "U2", "e2e"), "track e2e without a suite id does not count");
+  review(merge(SUITE, "E2E", "issue"), "a suite id on another track does not count");
+  review(merge(SUITE, "E2E", null), "the id alone, with no units.tsv row, does not count");
+  review(merge(SUITE, "E2E", "e2e", { units: "not a units file\n" }), "an unreadable store means a review");
+});
+
+// Gate unit E2E-UI (track e2e, hand-recorded pass) on a PR built by setup(opts).
+// after(s) runs once the PR and store exist, just before the gate.
+function suiteMerge({ after, env = {}, ...opts }) {
+  const s = setup({ review: false, ...opts });
+  assert.equal(gate("orch.mjs", ["--store", s.store, "unit", "add", "E2E-UI", "--track", "e2e"]).code, 0);
+  assert.equal(gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E-UI", s.head, "approved", "--evidence", "e2e-plan.md"]).code, 0);
+  after?.(s);
+  return gate("check-merge.mjs", ["5", "--unit", "E2E-UI", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario, ...env } });
+}
+const needsReview = (res, why) => assert.deepEqual(failChecks(res), ["review"], why);
+
+test("review: a suite unit's config change is exempt only for e2e_command, judged against the merge base's config", () => {
+  const configPr = (headConfig, { headFiles = SUITE, pr = {} } = {}) =>
+    suiteMerge({ headFiles, headConfig, pr: { files: [...listed(headFiles), { path: ".cstack/config.json" }], ...pr } });
+  const json = (c) => `${JSON.stringify(c, null, 2)}\n`;
+  const ok = configPr((c) => json({ ...c, e2e_command: ["node", "--test", "--test-reporter=tap", "x"] }));
   assert.equal(ok.code, 0, ok.out);
   assert.match(ok.out, /hidden e2e suite change/);
-  const mixed = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }, { path: "src/f.js" }] } });
-  assert.equal(ledger(mixed).code, 0);
-  assert.deepEqual(failChecks(e2e(mixed)), ["review"], "product code in PR #0 needs a review");
-  const other = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }] } });
-  assert.deepEqual(failChecks(other.run()), ["review"], "only unit E2E gets the exemption");
+  needsReview(configPr((c) => json({ ...c, required_checks: [...c.required_checks, "lint"] })), "required_checks needs a review");
+  needsReview(configPr((c) => json({ ...c, autonomy: "send" })), "autonomy needs a review");
+  // A head that widens paths_hidden cannot hide product code: the merge base's paths_hidden decides.
+  const widened = (c) => json({ ...c, paths_hidden: [...c.paths_hidden, "src/**"] });
+  needsReview(configPr(widened), "paths_hidden needs a review");
+  needsReview(configPr(widened, { headFiles: { ...SUITE, "src/f.js": "1\n" } }), "a widened paths_hidden is read from the merge base, not the head");
+  needsReview(configPr(() => "{ not json"), "a head config that does not parse needs a review");
+  const gone = configPr((c) => json(c), { pr: { baseRefOid: "0".repeat(40) } });
+  needsReview(gone, "a base SHA missing locally needs a review");
+  const why = gone.json.findings.find((f) => f.check === "review").detail;
+  assert.match(why, new RegExp(`Review required: .+${"0".repeat(40)} not available locally after fetch`));
+  // Each fetch's outcome is in the finding: the base fetch worked, the head ref is not on this origin.
+  assert.match(why, /\(fetch main: ok; fetch pull\/5\/head: exit \d+, .*pull\/5\/head/);
+});
+
+// Runs fn(env, log) with a git wrapper first on PATH. On a fetch the wrapper runs `onFetch` (shell, may exit);
+// everything else, and a fetch onFetch lets through, goes to the real git. The wrapper dir is removed after.
+const POSIX_ONLY = { skip: process.platform === "win32" && "the git wrapper is a POSIX shell script" };
+function withGitWrapper(onFetch, fn) {
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-git-"));
+  try {
+    const log = path.join(dir, "fetch.log");
+    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(path.join(dir, "git"), `#!/bin/sh\ncase " $* " in *" fetch "*) LOG="${log}"; ${onFetch};; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    return fn({ PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` }, log);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("review: the gate's fetches never prompt and keep the configured credential helper", POSIX_ONLY, () => {
+  withGitWrapper(`echo "prompt=$GIT_TERMINAL_PROMPT gcm=$GCM_INTERACTIVE args=$*" >> "$LOG"`, (env, log) => {
+    const ok = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE) }, env });
+    assert.equal(ok.code, 0, ok.out);
+    const fetches = readFileSync(log, "utf8").trim().split("\n");
+    assert.ok(fetches.length >= 3, `base and head ref fetched before judging, base again after: ${fetches.join(" | ")}`);
+    for (const f of fetches) {
+      assert.match(f, /^prompt=0 gcm=never args=-C \S+ fetch --quiet origin \S+$/);
+      assert.doesNotMatch(f, /credential/, "no -c credential.helper= override: a configured helper (gh auth setup-git) still applies");
+    }
+  });
+});
+
+test("review: a failed fetch's stderr is redacted and capped in every finding", POSIX_ONLY, () => {
+  // Every fetch fails and echoes a token URL, a user:pass URL, a bare-token URL, a second line and a long tail.
+  const fail = `printf '%s\\n' "fatal: unable to access 'https://x-access-token:ghs_SECRET1@github.com/o/r.git/': 403" "remote: see https://bob:pw@SECRET2@git.example.com/o and https://glpat_SECRET3@host/x $(printf 'z%.0s' $(seq 1 400))" >&2; exit 128`;
+  withGitWrapper(fail, (env) => {
+    const res = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE), baseRefOid: "0".repeat(40) }, env });
+    assert.deepEqual(failChecks(res).sort(), ["base", "review"]);
+    assert.doesNotMatch(res.out, /SECRET/, "no credential reaches the output or --json");
+    const base = res.json.findings.find((f) => f.check === "base").detail;
+    assert.match(base, /^git fetch failed: fatal: unable to access 'https:\/\/\*\*\*@github\.com\/o\/r\.git\/': 403 remote: see https:\/\/\*\*\*@git\.example\.com\/o and https:\/\/\*\*\*@host\/x z+$/);
+    assert.equal(base.length, "git fetch failed: ".length + 300, "one line of at most 300 characters");
+    const review = res.json.findings.find((f) => f.check === "review").detail;
+    assert.match(review, /fetch main: exit 128, fatal: unable to access 'https:\/\/\*\*\*@github\.com/);
+    assert.doesNotMatch(review, /\n/);
+  });
+});
+
+test("review: the gate fetches the PR head ref before it judges a suite-only diff", () => {
+  // The head lives only on origin under the forge's head ref, as a fork PR's head does.
+  const ok = suiteMerge({
+    headFiles: SUITE,
+    pr: { files: listed(SUITE) },
+    after: (s) => {
+      git(s.root, "push", "-q", "origin", `${s.head}:refs/pull/5/head`);
+      git(s.root, "push", "-q", "origin", "--delete", "cstack/u1");
+      git(s.root, "branch", "-q", "-D", "cstack/u1");
+      git(s.root, "update-ref", "-d", "refs/remotes/origin/cstack/u1");
+      git(s.root, "reflog", "expire", "--expire=now", "--all");
+      git(s.root, "gc", "-q", "--prune=now");
+      assert.notEqual(spawnSync("git", ["-C", s.root, "cat-file", "-e", `${s.head}^{commit}`]).status, 0, "the head is not local before the gate runs");
+    },
+  });
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /hidden e2e suite change/);
+});
+
+test("review: suite paths with a space, non-ASCII, and (off Windows) a tab or a quote still match paths_hidden", () => {
+  // git quotes a path with non-ASCII, a tab or a quote unless -z is set. Windows forbids tab and quote in names.
+  const name = process.platform === "win32" ? "a b é" : 'a\tb "é"';
+  const odd = { [`tests/acceptance/${name}.test.mjs`]: "x\n" };
+  const ok = suiteMerge({ headFiles: odd, pr: { files: listed(odd) } });
+  assert.equal(ok.code, 0, ok.out);
+});
+
+test("review: the suite-only rule reads the local diff, not the forge's file list", () => {
+  // git mv of product code into the suite: the forge lists only the new path.
+  const moved = suiteMerge({
+    headFiles: {},
+    prepare: (root) => git(root, "mv", "src/app.js", "tests/acceptance/app.js"),
+    pr: { files: [{ path: "tests/acceptance/app.js" }] },
+  });
+  needsReview(moved, "a rename out of src/ needs a review");
+  // A large PR whose forge list is truncated to the suite files: the local diff still holds the product file.
+  needsReview(suiteMerge({ headFiles: { ...SUITE, "src/f.js": "1\n" }, pr: { files: listed(SUITE) } }), "a truncated list does not hide product code");
+  // The local diff decides both ways: a suite-only commit passes whatever extra paths the forge lists.
+  const ok = suiteMerge({ headFiles: SUITE, pr: { files: [...listed(SUITE), { path: "src/other.js" }] } });
+  assert.equal(ok.code, 0, ok.out);
 });
 
 test("base moves: refuses when new base commits touch PR files, allows otherwise", () => {

@@ -14,6 +14,9 @@ Format checked by gates/check-e2e.mjs against spec.md and .cstack/config.json.
 - Every E has at least one lane. Every R has at least one negative lane.
 - Red check: one row per lane from running the suite on the current base.
   Result is FAIL for every lane. PASS means "already passing", ERROR means "broken test". Both reject.
+  An amendment to a merged suite puts each red run under its own "### At <sha>" heading, oldest first:
+  keep the earlier table unchanged under the SHA it ran at, and add a block for the new lanes run on
+  the current base. Every lane appears in exactly one block.
 - Mutation spot-check: at least max(2, ceil(20% of lanes)) distinct lanes. Break says what you broke
   in a scratch copy of the reference behaviour. Caught is yes on every row.
 - config e2e_command must be set.

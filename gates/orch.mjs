@@ -5,7 +5,7 @@
 // Exit codes: 0 ok, 1 `ledger check` found no passing verdict, 2 usage, validation or store error.
 import path from "node:path";
 import { main, parseArgs, UsageError } from "./lib/common.mjs";
-import { countLine, isPassing, openStore, positiveInteger } from "./lib/store.mjs";
+import { countLine, isPassing, isSuiteUnit, openStore, positiveInteger, SUITE_ID } from "./lib/store.mjs";
 
 const DISPLAY_LIMIT = 4;
 
@@ -23,7 +23,7 @@ Commands:
   unit counts
   unit ready
   ledger record <unit> <sha> <verdict> --evidence <path> [--pr <n>] [--verifier <name>]
-                                     a passing verdict only for E2E (track e2e) and program-final;
+                                     a passing verdict only for E2E or E2E-<suffix> (track e2e) and program-final;
                                      check-verdict.mjs --store records every other unit's approval
   ledger check <unit> <sha>          exit 0 only if the latest verdict passes
   ledger summary
@@ -43,9 +43,9 @@ Unit states: planned ready in-progress verifying pr-open merged done error needs
 Verdicts: approved rejected live-ui-verified unit-test-verified type-check-only verifier-blocked verifier-failed
 `;
 
-// A unit's approval is the gate's result, written by check-verdict.mjs --store. Only E2E (cstack:e2e-plan step 7)
-// and program-final (cstack:program) are judged by checks with no single gate, so only they record a pass by hand.
-const HAND_RECORDED = ["E2E", "program-final"];
+// A unit's approval is the gate's result, written by check-verdict.mjs --store. Only suite units (E2E and
+// E2E-<suffix> on track e2e, cstack:e2e-plan step 7) and program-final (cstack:program) are judged by checks
+// with no single gate, so only they record a pass by hand.
 
 const tsv = (...cells) => cells.join("\t");
 const unitLine = (u) => tsv(u.id, u.track, u.state, u.branch, u.pr, u.sha, u.issue, u.depends_on, u.lanes, u.brief);
@@ -117,11 +117,11 @@ const COMMANDS = {
     options: ["evidence", "pr", "verifier"],
     required: ["evidence"],
     run: (s, a, o) => {
-      if (isPassing(a.verdict) && !HAND_RECORDED.includes(a.unit)) {
+      if (isPassing(a.verdict) && a.unit !== "program-final" && !SUITE_ID.test(a.unit)) {
         throw new UsageError(`a passing verdict for ${a.unit} comes only from check-verdict.mjs --store; run the gate, do not record ${a.verdict} by hand`);
       }
-      if (isPassing(a.verdict) && a.unit === "E2E" && s.units.list().find((u) => u.id === "E2E")?.track !== "e2e") {
-        throw new UsageError("a passing verdict for E2E needs unit E2E registered with track e2e (cstack:e2e-plan step 3)");
+      if (isPassing(a.verdict) && SUITE_ID.test(a.unit) && !isSuiteUnit(s.units.list().find((u) => u.id === a.unit))) {
+        throw new UsageError(`a passing verdict for ${a.unit} needs unit ${a.unit} registered with track e2e (cstack:e2e-plan step 3)`);
       }
       return s.ledger.record({ unit: a.unit, sha: a.sha, verdict: a.verdict, evidence: o.evidence, pr: o.pr, verifier: o.verifier });
     },

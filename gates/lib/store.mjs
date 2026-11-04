@@ -67,6 +67,15 @@ export function isPassing(verdict) {
   return PASSING_VERDICTS.includes(verdict);
 }
 
+// Suite units ship the hidden e2e suite: PR #0 (`E2E`) and later amendments (`E2E-<suffix>`, for example E2E-UI).
+// No single gate judges them, so orch accepts their pass by hand, and check-merge skips the review round when
+// the diff touches only the suite and the config. Both need the id AND a units.tsv row on track e2e.
+export const SUITE_ID = /^E2E(-[A-Za-z0-9][A-Za-z0-9-]*)?$/;
+
+export function isSuiteUnit(unit) {
+  return Boolean(unit) && unit.track === "e2e" && SUITE_ID.test(unit.id);
+}
+
 export function splitList(cell) {
   return cell === "" ? [] : cell.split(",");
 }
