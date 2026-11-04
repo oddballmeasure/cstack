@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, writeFileSync, chmodSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { run, which, envPath, cmdLine } from "../../gates/lib/common.mjs";
+import { run, which, envPath, cmdLine, insideDir } from "../../gates/lib/common.mjs";
 
 const tmp = () => mkdtempSync(path.join(tmpdir(), "cstack-common-"));
 
@@ -57,4 +57,25 @@ test("run passes every argument through literally, also to a Windows batch file"
   const r = run("echo-args", args, { env: { ...process.env, PATH: `${dir}${path.delimiter}${envPath()}` } });
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(JSON.parse(r.stdout), args);
+});
+
+test("insideDir compares a git-style store root and a short-name temp path in one form on Windows", () => {
+  // git prints the common dir with forward slashes and the long name; os.tmpdir() gives the 8.3 short name.
+  const disk = new Set(["C:\\", "C:\\Users", "C:\\Users\\runneradmin", "C:\\Users\\runneradmin\\Temp", "C:\\Users\\runneradmin\\Temp\\g\\repo\\.cstack\\runs"]);
+  const short = (q) => q.replace(/^c:\\users\\RUNNER~1/i, "C:\\Users\\runneradmin");
+  const win = { platform: "win32", exists: (q) => disk.has(short(q).replace(/^c:/, "C:")), realpath: (q) => short(q).replace(/^c:/, "C:") };
+  const runs = "C:/Users/runneradmin/Temp/g/repo/.cstack/runs";
+  assert.equal(insideDir(runs, "c:\\Users\\RUNNER~1\\Temp\\g\\repo\\.cstack\\runs\\p\\final-e2e-0123456789ab.json", win), true);
+  assert.equal(insideDir(runs, "C:\\USERS\\runneradmin\\temp\\g\\repo\\.cstack\\runs\\..x\\r.json", win), true);
+  assert.equal(insideDir(runs, "c:\\Users\\RUNNER~1\\Temp\\g\\repo\\.cstack\\r.json", win), false);
+  assert.equal(insideDir(runs, "C:\\Users\\runneradmin\\Temp\\g\\repo\\.cstack\\runs", win), false);
+  assert.equal(insideDir(runs, "D:\\Users\\runneradmin\\Temp\\g\\repo\\.cstack\\runs\\r.json", { ...win, exists: () => false }), false);
+});
+
+test("insideDir follows symlinks and keeps case on POSIX", () => {
+  const posix = { platform: "linux", exists: (q) => q === "/" || q.startsWith("/real") || q === "/link", realpath: (q) => q.replace(/^\/link/, "/elsewhere") };
+  assert.equal(insideDir("/real/runs", "/real/runs/p/r.json", posix), true);
+  assert.equal(insideDir("/real/runs", "/real/RUNS/p/r.json", { ...posix, exists: (q) => q === "/" || q === "/real" }), false);
+  assert.equal(insideDir("/link", "/link/r.json", posix), true);
+  assert.equal(insideDir("/real/runs", "/link/r.json", posix), false);
 });

@@ -1,14 +1,17 @@
 #!/usr/bin/env node
 // Run the hidden e2e suite against a commit and report only lane ids and one-line reasons.
-// Usage: run-e2e.mjs <worktree-dir> [--sha <commit>] [--lanes E1.1,E2.1] [--raw] [--json]
+// Usage: run-e2e.mjs <worktree-dir> [--sha <commit>] [--lanes E1.1,E2.1] [--raw] [--json] [--out <final-e2e-sha12.json>]
 // It clones the repo into a temporary grader checkout (full, not sparse) at the commit,
 // runs config setup_command then e2e_command with CSTACK_ROLE=grader and CI=1, and parses TAP.
 // Test names must start with the lane id (for example "E1.2 rejects an empty title").
 // --raw prints the full suite output and is allowed only when CSTACK_ROLE=grader.
-import { mkdtempSync, rmSync } from "node:fs";
+// --out also writes the --json report to a new file named final-e2e-<12 hex>.json inside the repo's run store
+// (<repo>/.cstack/runs/), so a verifier without a Write tool can save it. A relative --out resolves against the cwd.
+// It never overwrites a file, so it cannot replace another gate's input. Stdout is unchanged.
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Gate, main, parseArgs, UsageError, loadConfig, run, gitOut, globPrefix } from "./lib/common.mjs";
+import { Gate, main, parseArgs, UsageError, loadConfig, run, gitOut, globPrefix, insideDir } from "./lib/common.mjs";
 
 // Parse TAP: lane id -> {ok, reason}. A lane reported more than once fails if any report fails.
 function parseTap(text) {
@@ -43,19 +46,35 @@ function clean(reason, hiddenPrefixes) {
 }
 
 await main(async (argv) => {
-  const args = parseArgs(argv, { flags: ["json", "raw"], options: ["sha", "lanes"] });
+  const args = parseArgs(argv, { flags: ["json", "raw"], options: ["sha", "lanes", "out"] });
   const [wt] = args._;
-  if (!wt) throw new UsageError("usage: run-e2e.mjs <worktree-dir> [--sha <commit>] [--lanes E1.1,E2.1] [--raw] [--json]");
+  if (!wt) throw new UsageError("usage: run-e2e.mjs <worktree-dir> [--sha <commit>] [--lanes E1.1,E2.1] [--raw] [--json] [--out <final-e2e-sha12.json>] (a relative --out resolves against the cwd)");
   if (args.raw && process.env.CSTACK_ROLE !== "grader") throw new UsageError("--raw is only allowed for CSTACK_ROLE=grader");
   const { config } = loadConfig(wt);
   if (!Array.isArray(config.e2e_command) || !config.e2e_command.length) throw new UsageError("config e2e_command is not set");
   const sha = gitOut(wt, ["rev-parse", args.sha || "HEAD"]);
   const commonDir = path.resolve(wt, gitOut(wt, ["rev-parse", "--git-common-dir"]));
+  const runs = path.join(path.dirname(commonDir), ".cstack", "runs");
+  const out = args.out ? path.resolve(args.out) : null;
+  if (out) {
+    // Real paths, so a symlinked directory under runs/ cannot point the write elsewhere.
+    if (!insideDir(runs, out) || !/^final-e2e-[0-9a-f]{12}\.json$/.test(path.basename(out))) {
+      throw new UsageError(`--out must be a file named final-e2e-<12 hex>.json inside ${runs}`);
+    }
+    if (existsSync(out)) throw new UsageError(`${out} already exists; --out never overwrites a report`);
+  }
   const hidden = config.paths_hidden.map(globPrefix).filter(Boolean);
   const timeout = config.limits.test_timeout_seconds * 1000;
   const env = { ...process.env, CSTACK_ROLE: "grader", CI: "1" };
 
   const gate = new Gate("run-e2e", { json: args.json });
+  const finish = (extra) => {
+    if (out) {
+      mkdirSync(path.dirname(out), { recursive: true });
+      writeFileSync(out, gate.jsonText(extra), { flag: "wx" });
+    }
+    return gate.finish(extra);
+  };
   const dir = mkdtempSync(path.join(tmpdir(), "cstack-grader-"));
   try {
     const clone = run("git", ["clone", "--quiet", "--shared", "--no-checkout", commonDir, dir]);
@@ -69,7 +88,7 @@ await main(async (argv) => {
       const s = run(config.setup_command[0], config.setup_command.slice(1), { cwd: dir, env, timeout });
       if (s.code !== 0) {
         gate.fail("setup", `setup_command exited ${s.code}`);
-        return gate.finish({ sha });
+        return finish({ sha });
       }
     }
     const r = run(config.e2e_command[0], config.e2e_command.slice(1), { cwd: dir, env, timeout });
@@ -85,7 +104,7 @@ await main(async (argv) => {
       else if (l.ok) gate.pass(id, "pass");
       else gate.fail(id, clean(l.reason, hidden));
     }
-    return gate.finish({ sha, lanes: Object.fromEntries([...lanes].map(([k, v]) => [k, v.ok ? "pass" : "fail"])) });
+    return finish({ sha, lanes: Object.fromEntries([...lanes].map(([k, v]) => [k, v.ok ? "pass" : "fail"])) });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

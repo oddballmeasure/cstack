@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { makeRepo, commit, gate, git, write, failChecks, existsSync, path } from "./helpers.mjs";
 import { isTest } from "../../gates/lib/repo.mjs";
 
@@ -189,6 +189,63 @@ test("run-e2e reports lanes without leaking hidden paths", () => {
   assert.doesNotMatch(res.out, /tests\/acceptance/);
   assert.equal(gate("run-e2e.mjs", [wt, "--lanes", "E1.1"]).code, 0);
   assert.match(gate("run-e2e.mjs", [wt, "--lanes", "E9.9"]).out, /lane not reported/);
+});
+
+const REPORT = "final-e2e-0123456789ab.json";
+
+test("run-e2e --out writes the --json report into the run store and keeps stdout unchanged", () => {
+  const { root, wt } = isolated();
+  const file = path.join(root, ".cstack/runs/prog", REPORT);
+  const json = gate("run-e2e.mjs", [wt, "--json", "--out", file]);
+  assert.equal(json.code, 1);
+  assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), json.json);
+  assert.equal(readFileSync(file, "utf8"), json.out);
+  // Text mode still prints text; a relative --out resolves against the cwd; a directory named ..x is inside the store.
+  const text = gate("run-e2e.mjs", [wt, "--lanes", "E1.2", "--out", path.join("..x", REPORT)], { cwd: path.join(root, ".cstack/runs") });
+  assert.match(text.out, /^FAIL E1.2: /m);
+  const saved = JSON.parse(readFileSync(path.join(root, ".cstack/runs/..x", REPORT), "utf8"));
+  assert.equal(saved.approved, false);
+  assert.deepEqual(saved.findings.map((f) => f.check), ["E1.2"]);
+  const setup = isolated({ setup_command: ["sh", "-c", "exit 3"] });
+  const early = path.join(setup.root, ".cstack/runs/x", REPORT);
+  gate("run-e2e.mjs", [setup.wt, "--out", early]);
+  assert.equal(JSON.parse(readFileSync(early, "utf8")).findings[0].check, "setup");
+});
+
+test("run-e2e --out refuses other names, paths outside the run store, and an existing report", () => {
+  const { root, base, wt } = isolated();
+  const runs = path.join(root, ".cstack/runs");
+  write(root, ".cstack/runs/p/verdict-U1-0123456789ab.json", "{}\n");
+  write(root, ".cstack/runs/p/frontier.json", "{}\n");
+  write(root, `.cstack/runs/p/${REPORT}`, "kept\n");
+  for (const bad of [
+    path.join(base, REPORT), runs, path.join(runs, "..", REPORT), path.join(runs, `x/${REPORT.replace(".json", ".txt")}`),
+    path.join(wt, ".cstack/runs", REPORT), path.join(runs, "p/verdict-U1-0123456789ab.json"), path.join(runs, "p/frontier.json"),
+    path.join(runs, "p/final-e2e-abc.json"), path.join(runs, "p/final-e2e-0123456789AB.json"),
+  ]) {
+    const res = gate("run-e2e.mjs", [wt, "--out", bad]);
+    assert.equal(res.code, 2, bad);
+    assert.match(res.err, /--out must be a file named final-e2e-<12 hex>.json inside/, bad);
+  }
+  const again = gate("run-e2e.mjs", [wt, "--out", path.join(runs, "p", REPORT)]);
+  assert.equal(again.code, 2);
+  assert.match(again.err, /already exists; --out never overwrites/);
+  assert.equal(readFileSync(path.join(runs, "p", REPORT), "utf8"), "kept\n");
+  assert.equal(readFileSync(path.join(runs, "p/verdict-U1-0123456789ab.json"), "utf8"), "{}\n");
+  assert.equal(readFileSync(path.join(runs, "p/frontier.json"), "utf8"), "{}\n");
+  assert.ok(!existsSync(path.join(base, REPORT)));
+});
+
+test("run-e2e --out refuses a symlinked directory under the run store that points outside it", { skip: process.platform === "win32" && "symlinks need privileges on Windows" }, () => {
+  const { root, base, wt } = isolated();
+  const outside = path.join(base, "elsewhere");
+  mkdirSync(outside);
+  mkdirSync(path.join(root, ".cstack/runs"), { recursive: true });
+  symlinkSync(outside, path.join(root, ".cstack/runs/link"));
+  const res = gate("run-e2e.mjs", [wt, "--out", path.join(root, ".cstack/runs/link", REPORT)]);
+  assert.equal(res.code, 2);
+  assert.match(res.err, /--out must be a file named/);
+  assert.ok(!existsSync(path.join(outside, REPORT)));
 });
 
 test("run-e2e raw output is grader-only", () => {

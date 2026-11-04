@@ -4,7 +4,7 @@
 //   last line: "gate <name>: approved" or "gate <name>: rejected (<n> findings)"
 //   --json prints {gate, approved, findings:[{check, detail}], passes:[...]} instead
 // Exit codes: 0 approved, 1 rejected, 2 usage or environment error.
-import { readFileSync, existsSync, statSync, accessSync, constants } from "node:fs";
+import { readFileSync, existsSync, realpathSync, statSync, accessSync, constants } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 
@@ -89,6 +89,26 @@ export function loadConfig(dir) {
   }
 }
 
+// Whether file lies strictly inside dir. Both sides go to one form first: resolved, the deepest existing ancestor
+// through the native realpath (it follows symlinks and, on Windows, expands 8.3 short names such as RUNNER~1, which
+// the JS realpath keeps), and compared without case on Windows, where git and os.tmpdir() spell the same path
+// differently. The options exist for tests.
+export function insideDir(dir, file, { platform = process.platform, exists = existsSync, realpath = realpathSync.native } = {}) {
+  const p = platform === "win32" ? path.win32 : path.posix;
+  const real = (q) => {
+    q = p.resolve(q);
+    const rest = [];
+    for (let up = p.dirname(q); !exists(q) && up !== q; up = p.dirname(q)) {
+      rest.unshift(p.basename(q));
+      q = up;
+    }
+    const r = p.join(realpath(q), ...rest);
+    return platform === "win32" ? r.toLowerCase() : r;
+  };
+  const rel = p.relative(real(dir), real(file));
+  return rel !== "" && rel !== ".." && !rel.startsWith(`..${p.sep}`) && !p.isAbsolute(rel);
+}
+
 // Static prefix of a glob: the part before the first wildcard segment.
 export function globPrefix(glob) {
   const out = [];
@@ -147,10 +167,14 @@ export class Gate {
   get approved() {
     return this.findings.length === 0;
   }
+  // The report as --json prints it.
+  jsonText(extra = {}) {
+    return JSON.stringify({ gate: this.name, approved: this.approved, findings: this.findings, passes: this.passes, ...extra }, null, 2) + "\n";
+  }
   // Prints the report and returns the exit code (0 approved, 1 rejected).
   finish(extra = {}) {
     if (this.json) {
-      process.stdout.write(JSON.stringify({ gate: this.name, approved: this.approved, findings: this.findings, passes: this.passes, ...extra }, null, 2) + "\n");
+      process.stdout.write(this.jsonText(extra));
     } else {
       for (const p of this.passes) process.stdout.write(`PASS ${p.check}: ${p.detail}\n`);
       for (const f of this.findings) process.stdout.write(`FAIL ${f.check}: ${f.detail}\n`);
