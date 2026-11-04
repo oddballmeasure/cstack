@@ -52,7 +52,7 @@ Spawn exactly one `Agent`:
 - `subagent_type`: `cstack-worker`, the plugin's worker agent. Claude Code lists it with the plugin prefix.
 - `model`: config `models.code`. If it is `inherit`, omit `model`.
 - No `isolation`. The unit worktree already isolates the work, and the worker must commit there.
-- No `run_in_background`. Wait for the completion notification. Do not poll.
+- `run_in_background: false`. Wait for its result in the foreground. Do not poll. Under `claude -p` the end of the turn ends the session, and a background subagent dies with it.
 
 Write the brief with these headings. Give paths, not pasted bulk.
 

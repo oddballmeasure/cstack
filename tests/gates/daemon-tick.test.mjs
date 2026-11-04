@@ -248,6 +248,7 @@ test("the systemd user unit runs the loop prompt as a coordinator, on the subscr
   assert.match(unit, /^ExecStartPre=\/usr\/bin\/env node \$\{CSTACK_PLUGIN\}\/gates\/run-settings\.mjs --permissions coordinator --repo-dir \/%I .*--out \/%I\/\.cstack\/permissions\/coordinator\.json$/m);
   assert.match(exec, /"\/loop 10m \/cstack:daemon"$/);
   assert.match(unit, /^Environment=CSTACK_COORDINATOR=1$/m);
+  assert.match(unit, /^Environment=CSTACK_HEADLESS=1$/m, "the daemon's subagents must run in the foreground");
   assert.match(unit, /^Environment=PATH=/m);
   assert.match(unit, /^UnsetEnvironment=ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CSTACK_PROGRAM_AUTONOMY$/m);
   assert.match(unit, /^WorkingDirectory=\/%I$/m);

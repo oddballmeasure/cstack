@@ -139,9 +139,12 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
 export function deniedCalls(events) {
   const result = events.findLast((e) => e?.type === "result");
   const list = Array.isArray(result?.permission_denials) ? result.permission_denials : [];
-  return list.map((d) => {
-    const input = d?.tool_input || {};
-    const what = input.command ?? input.file_path ?? input.notebook_path ?? input.path ?? input.url ?? JSON.stringify(input);
-    return `${d?.tool_name || "?"}: ${String(what).replace(/\s+/g, " ").slice(0, 200)}`;
-  });
+  return list.map((d) => callSummary(d?.tool_name, d?.tool_input));
+}
+
+// One line for a tool call: its name and the input field that says what it did, at most 200 characters.
+export function callSummary(name, input) {
+  const i = input || {};
+  const what = i.command ?? i.file_path ?? i.notebook_path ?? i.path ?? i.url ?? i.description ?? JSON.stringify(i);
+  return `${name || "?"}: ${String(what).replace(/\s+/g, " ").slice(0, 200)}`;
 }

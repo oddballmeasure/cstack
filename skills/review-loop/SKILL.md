@@ -69,7 +69,7 @@ Findings file columns: `id`, `round`, `severity`, `location`, `claim`, `outcome`
 
 ## 3. Run a round
 
-Spawn the reviewer. Do not edit the scoped files while it runs. Wait for its notification. Do not poll. Do not start a second reviewer. On a failure, record it, then start a fresh reviewer with the ledger.
+Spawn the reviewer. Do not edit the scoped files while it runs. Wait for its notification. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn it with `run_in_background: false` and wait for its result in the foreground. Do not start a second reviewer. On a failure, record it, then start a fresh reviewer with the ledger.
 
 Round 1 brief:
 

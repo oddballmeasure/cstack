@@ -87,6 +87,43 @@ export function parseReset(text, now = new Date()) {
   return at;
 }
 
+// The last thing a finished session did in its own thread: the tool calls of its final assistant message (the
+// calls since its last tool result), the last call, and the text it wrote after that call, if any. Reads
+// `claude -p` stream-json (subagent events carry parent_tool_use_id and are skipped) and `codex exec --json`
+// items, where each command is its own step. A call is { id, name, input }; call and message may be null.
+export function lastActions(events) {
+  let calls = [];
+  let open = false;
+  let message = null;
+  for (const e of events) {
+    const own = !e?.parent_tool_use_id;
+    if (e?.type === "assistant" && own && Array.isArray(e.message?.content)) {
+      for (const c of e.message.content) {
+        if (c?.type === "tool_use") {
+          calls = open ? [...calls, { id: c.id, name: c.name, input: c.input }] : [{ id: c.id, name: c.name, input: c.input }];
+          [open, message] = [true, null];
+        } else if (c?.type === "text" && c.text?.trim()) message = c.text;
+      }
+    } else if (e?.type === "user" && own && Array.isArray(e.message?.content) && e.message.content.some((c) => c?.type === "tool_result")) {
+      open = false;
+    } else if (e?.type === "item.completed" && e.item?.type === "command_execution") {
+      [calls, message] = [[{ id: e.item.id, name: "Bash", input: { command: e.item.command } }], null];
+    } else if (e?.type === "item.completed" && e.item?.type === "agent_message" && e.item.text?.trim()) {
+      message = e.item.text;
+    }
+  }
+  return { calls, call: calls.at(-1) ?? null, message };
+}
+
+// The first of these calls that the result event's permission_denials hold, matched by tool_use_id, else by
+// name and input; or null.
+export function refusedCall(calls, events) {
+  const result = events.findLast((e) => e?.type === "result");
+  const list = Array.isArray(result?.permission_denials) ? result.permission_denials : [];
+  const same = (call) => (d) => (d?.tool_use_id ? d.tool_use_id === call.id : d?.tool_name === call.name && JSON.stringify(d?.tool_input) === JSON.stringify(call.input));
+  return calls.find((call) => list.some(same(call))) ?? null;
+}
+
 // A worker session that stopped on the subscription usage window.
 export const USAGE_LIMIT = /usage limit|limit reached|hit your (?:[\w-]+ )?limit|out of (?:extra )?usage/i;
 

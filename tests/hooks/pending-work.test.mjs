@@ -24,7 +24,7 @@ function repo({ states = [], autonomy = "stop", config = true } = {}) {
 function stop(input, env = {}, cwd = undefined) {
   const r = spawnSync(process.execPath, [HOOK], {
     input: typeof input === "string" ? input : JSON.stringify(input),
-    env: { ...process.env, CSTACK_COORDINATOR: "1", CSTACK_RUN: "prog", ...env },
+    env: { ...process.env, CSTACK_COORDINATOR: "1", CSTACK_RUN: "prog", CSTACK_UNIT: "", CSTACK_HEADLESS: "", ...env },
     encoding: "utf8",
     cwd,
   });
@@ -105,4 +105,26 @@ test("under Codex the block is a decision on stdout with exit 0", () => {
   assert.match(j.reason, /units in flight \(U1 in-progress\)/);
   assert.ok(j.reason.includes(`gates/inbox-wait.mjs --store ${store}`) && j.reason.includes("in the foreground"), j.reason);
   assert.equal(stop({ cwd: root, turn_id: "t1", stop_hook_active: true }).out, "", "the second stop is still allowed");
+});
+
+test("a headless unit worker may not end its turn before its unit opens a PR or settles", () => {
+  const { root } = repo({ states: ["in-progress", "verifying", "pr-open", "needs-human"] });
+  const worker = (unit, input = { cwd: root }) => stop(input, { CSTACK_COORDINATOR: "", CSTACK_UNIT: unit, CSTACK_HEADLESS: "1" });
+  assert.equal(stop({ cwd: root }, { CSTACK_COORDINATOR: "", CSTACK_UNIT: "U1" }).code, 0, "an interactive session with a unit marker may stop");
+  assert.equal(stop({ cwd: root }, { CSTACK_COORDINATOR: "", CSTACK_HEADLESS: "1" }).code, 0, "a headless session that is neither coordinator nor unit worker");
+  const out = worker("U1");
+  assert.equal(out.code, 2);
+  assert.match(out.err, /cstack pending-work: unit U1 is still in-progress\. .*every subagent it started dies with it/);
+  assert.match(out.err, /run_in_background: false/);
+  assert.equal(worker("U2").code, 2, "verifying is still unsettled");
+  assert.equal(worker("U3").code, 0, "pr-open: babysit waits under its own Monitor");
+  assert.equal(worker("U4").code, 0, "settled");
+  assert.equal(worker("U9").code, 0, "no row for the unit");
+  assert.equal(worker("U1", { cwd: root, stop_hook_active: true }).code, 0, "the second stop in a row is allowed");
+  assert.equal(stop({ cwd: root }, { CSTACK_COORDINATOR: "1", CSTACK_UNIT: "U3" }).code, 2, "a coordinator marker wins over a unit marker");
+  const codex = worker("U1", { cwd: root, turn_id: "t1" });
+  assert.equal(codex.code, 0);
+  const j = JSON.parse(codex.out);
+  assert.equal(j.decision, "block");
+  assert.match(j.reason, /unit U1 is still in-progress.*wait_agent/);
 });

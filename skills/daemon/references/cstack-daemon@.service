@@ -21,6 +21,8 @@ Environment=PATH=%h/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/us
 Environment=CSTACK_PLUGIN=%h/cstack
 # The daemon is a coordinator. Workers it launches get this unset again by gates/worker.mjs.
 Environment=CSTACK_COORDINATOR=1
+# The session runs under claude -p, so its subagents must run in the foreground (the guard reads this).
+Environment=CSTACK_HEADLESS=1
 # Subscription billing only, and autonomy from config only.
 UnsetEnvironment=ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN CSTACK_PROGRAM_AUTONOMY
 # No permission bypass: generate the coordinator allowlist, then run with dontAsk, which refuses

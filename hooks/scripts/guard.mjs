@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// cstack PreToolUse guard. One entry point, eight rules:
+// cstack PreToolUse guard. One entry point, ten rules:
 //   hidden-paths      no tool may target paths_hidden unless CSTACK_ROLE is e2e-author or grader
 //                     and no Bash command may list the tree without naming directories outside them
 //   off-limits        no file write to paths_off_limits, .git/, or vendor dirs
@@ -10,12 +10,14 @@
 //   no-deploy-approval no Bash command runs gates/deploy.mjs with --approved; a person runs that command
 //   no-eval-publish   every `claude plugin eval` carries --no-publish; the report would leave the machine
 //   no-subagent-background a subagent may not run Bash in the background; the command dies with the session
+//   headless-foreground-agents in a headless session cstack launched (CSTACK_HEADLESS=1), Agent (Task) calls pass
+//                     run_in_background: false; a background subagent dies with the -p or exec session
 //   role-deny         in a Codex session cstack launched, the role's Bash deny rules from gates/lib/permissions.mjs,
 //                     because Codex has no per-session allowlist
 // Exit 0 allows. Exit 2 blocks; stderr is shown to the model.
 // Every rule applies only in a cstack context: the session's cwd, or a path the tool call targets, is
 // inside a repo whose root has .cstack/config.json, or the session carries a marker that cstack's own
-// launches set (CSTACK_ROLE, CSTACK_RUN, CSTACK_UNIT, CSTACK_COORDINATOR). Anywhere else the guard
+// launches set (CSTACK_ROLE, CSTACK_RUN, CSTACK_UNIT, CSTACK_COORDINATOR, CSTACK_HEADLESS). Anywhere else the guard
 // exits 0 at once, so a user-scope install does not change Claude's behaviour in unrelated projects.
 // A marker without a config means Bash rules only (no path rules).
 // Codex sends the same payload. Its shell tool arrives as Bash, and its edits arrive as apply_patch with the
@@ -35,7 +37,7 @@ const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
 const ALWAYS_OFF = [".cstack/config.json"];
 const PRIVILEGED_ROLES = new Set(["e2e-author", "grader"]);
 // Set by gates/worker.mjs (workers and coordinators), the daemon unit, run-e2e.mjs and the e2e author launch.
-const MARKERS = ["CSTACK_ROLE", "CSTACK_RUN", "CSTACK_UNIT", "CSTACK_COORDINATOR"];
+const MARKERS = ["CSTACK_ROLE", "CSTACK_RUN", "CSTACK_UNIT", "CSTACK_COORDINATOR", "CSTACK_HEADLESS"];
 // Windows and macOS file systems ignore case by default, so TESTS/Acceptance names tests/acceptance there.
 const fold = process.platform === "win32" || process.platform === "darwin" ? (s) => s.toLowerCase() : (s) => s;
 
@@ -264,6 +266,11 @@ function main() {
   if (!root && !marked) process.exit(0); // not a cstack context: change nothing
   markSeen(input);
 
+  // Agent runs in the background unless told otherwise. Under -p the end of the turn ends the process, so in a
+  // headless launch a background subagent dies with it and its result never arrives. Interactive sessions keep it.
+  if ((tool === "Agent" || tool === "Task") && process.env.CSTACK_HEADLESS === "1" && ti.run_in_background !== false) {
+    block("headless-foreground-agents", "in a headless session cstack launched, a background subagent dies when the turn ends. Spawn it again with run_in_background: false and wait for its result. To run several at once, put them in one message.");
+  }
   if (bash && input.agent_id && ti.run_in_background === true) {
     block("no-subagent-background", "a subagent's background command is killed when the session ends, and its result never reaches it. Run it in the foreground, with a Bash timeout of up to 600000 ms.");
   }
