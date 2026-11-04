@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { makeRepo, commit, gate, git, failChecks, approve, path, FAKE_BIN } from "./helpers.mjs";
@@ -161,24 +161,48 @@ test("review: a suite unit's config change is exempt only for e2e_command, judge
   assert.match(why, /\(fetch main: ok; fetch pull\/5\/head: exit \d+, .*pull\/5\/head/);
 });
 
-test("review: the gate's fetches never prompt and keep the configured credential helper", { skip: process.platform === "win32" && "the git wrapper is a POSIX shell script" }, () => {
-  // A git wrapper first on PATH logs each fetch's prompt settings and arguments, then runs the real git.
+// Runs fn(env, log) with a git wrapper first on PATH. On a fetch the wrapper runs `onFetch` (shell, may exit);
+// everything else, and a fetch onFetch lets through, goes to the real git. The wrapper dir is removed after.
+const POSIX_ONLY = { skip: process.platform === "win32" && "the git wrapper is a POSIX shell script" };
+function withGitWrapper(onFetch, fn) {
   const dir = mkdtempSync(path.join(tmpdir(), "cstack-git-"));
-  const log = path.join(dir, "fetch.log");
-  const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
-  writeFileSync(
-    path.join(dir, "git"),
-    `#!/bin/sh\ncase " $* " in *" fetch "*) echo "prompt=$GIT_TERMINAL_PROMPT gcm=$GCM_INTERACTIVE args=$*" >> "${log}";; esac\nexec "${realGit}" "$@"\n`,
-    { mode: 0o755 },
-  );
-  const ok = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE) }, env: { PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` } });
-  assert.equal(ok.code, 0, ok.out);
-  const fetches = readFileSync(log, "utf8").trim().split("\n");
-  assert.ok(fetches.length >= 3, `base and head ref fetched before judging, base again after: ${fetches.join(" | ")}`);
-  for (const f of fetches) {
-    assert.match(f, /^prompt=0 gcm=never args=-C \S+ fetch --quiet origin \S+$/);
-    assert.doesNotMatch(f, /credential/, "no -c credential.helper= override: a configured helper (gh auth setup-git) still applies");
+  try {
+    const log = path.join(dir, "fetch.log");
+    const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+    writeFileSync(path.join(dir, "git"), `#!/bin/sh\ncase " $* " in *" fetch "*) LOG="${log}"; ${onFetch};; esac\nexec "${realGit}" "$@"\n`, { mode: 0o755 });
+    return fn({ PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` }, log);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
+}
+
+test("review: the gate's fetches never prompt and keep the configured credential helper", POSIX_ONLY, () => {
+  withGitWrapper(`echo "prompt=$GIT_TERMINAL_PROMPT gcm=$GCM_INTERACTIVE args=$*" >> "$LOG"`, (env, log) => {
+    const ok = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE) }, env });
+    assert.equal(ok.code, 0, ok.out);
+    const fetches = readFileSync(log, "utf8").trim().split("\n");
+    assert.ok(fetches.length >= 3, `base and head ref fetched before judging, base again after: ${fetches.join(" | ")}`);
+    for (const f of fetches) {
+      assert.match(f, /^prompt=0 gcm=never args=-C \S+ fetch --quiet origin \S+$/);
+      assert.doesNotMatch(f, /credential/, "no -c credential.helper= override: a configured helper (gh auth setup-git) still applies");
+    }
+  });
+});
+
+test("review: a failed fetch's stderr is redacted and capped in every finding", POSIX_ONLY, () => {
+  // Every fetch fails and echoes a token URL, a user:pass URL, a bare-token URL, a second line and a long tail.
+  const fail = `printf '%s\\n' "fatal: unable to access 'https://x-access-token:ghs_SECRET1@github.com/o/r.git/': 403" "remote: see https://bob:pw_SECRET2@git.example.com/o and https://glpat_SECRET3@host/x $(printf 'z%.0s' $(seq 1 400))" >&2; exit 128`;
+  withGitWrapper(fail, (env) => {
+    const res = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE), baseRefOid: "0".repeat(40) }, env });
+    assert.deepEqual(failChecks(res).sort(), ["base", "review"]);
+    assert.doesNotMatch(res.out, /SECRET/, "no credential reaches the output or --json");
+    const base = res.json.findings.find((f) => f.check === "base").detail;
+    assert.match(base, /^git fetch failed: fatal: unable to access 'https:\/\/\*\*\*@github\.com\/o\/r\.git\/': 403 remote: see https:\/\/\*\*\*@git\.example\.com\/o and https:\/\/\*\*\*@host\/x z+$/);
+    assert.equal(base.length, "git fetch failed: ".length + 300, "one line of at most 300 characters");
+    const review = res.json.findings.find((f) => f.check === "review").detail;
+    assert.match(review, /fetch main: exit 128, fatal: unable to access 'https:\/\/\*\*\*@github\.com/);
+    assert.doesNotMatch(review, /\n/);
+  });
 });
 
 test("review: the gate fetches the PR head ref before it judges a suite-only diff", () => {

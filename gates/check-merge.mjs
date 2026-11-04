@@ -59,12 +59,22 @@ function fetchRef(repoDir, ref) {
   });
 }
 
+// A failed fetch's stderr, safe to print in a finding and in --json: credentials in a remote URL
+// (//user:pass@ or //token@) become //***@, and the text is one line of at most 300 characters.
+function fetchError(r) {
+  return r.stderr
+    .replace(/\/\/[^/\s@]+@/g, "//***@")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+}
+
 // Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local, with
 // each fetch's outcome so a finding says why. The presence check, not the fetch exit code, decides.
 function missingShas(repoDir, forge, pr, p) {
   const fetched = [p.base, forge.headRef(pr)].map((ref) => {
     const r = fetchRef(repoDir, ref);
-    return `fetch ${ref}: ${r.code === 0 ? "ok" : `exit ${r.code}, ${r.stderr.trim()}`}`;
+    return `fetch ${ref}: ${r.code === 0 ? "ok" : `exit ${r.code}, ${fetchError(r)}`}`;
   });
   const shas = [p.baseSha, p.head].filter((s) => git(repoDir, ["cat-file", "-e", `${s}^{commit}`]).code !== 0);
   return shas.length ? { shas, fetched } : null;
@@ -163,7 +173,7 @@ await main(async (argv) => {
 
   // Base moved since the PR was based: refuse if the new base commits touch the PR's files.
   const fetch = fetchRef(repoDir, p.base);
-  if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetch.stderr.trim()}`);
+  if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetchError(fetch)}`);
   else {
     const tip = git(repoDir, ["rev-parse", `origin/${p.base}`]).stdout.trim();
     if (tip && tip !== p.baseSha) {
