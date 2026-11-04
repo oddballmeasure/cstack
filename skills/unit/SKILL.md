@@ -119,6 +119,8 @@ node <root>/gates/isolate.mjs <repo> <branch> <wt>
 <orch> unit set <unit> --branch <branch>
 ```
 
+A new branch starts at `origin/<base_branch>` after a fetch, or at the local `<base_branch>` when the repo has no `origin` remote. The `worktree` line names the start ref and commit. A failed fetch exits 2.
+
 Pass: stage 3. Fail: failure `git`.
 
 Isolate comes before profile and intake on purpose. Every explorer and planner from here on reads code only inside `<wt>`, where the hidden suite is not on disk. The main checkout still holds it.

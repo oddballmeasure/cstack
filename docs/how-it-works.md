@@ -31,7 +31,7 @@ cstack is four kinds of parts. **Skills** hold the procedure and the judgement. 
 
 | Stage | What happens | Who decides |
 |---|---|---|
-| Isolate | A worktree is created with the hidden suite left out of the checkout. | `isolate` |
+| Isolate | A worktree is created from the fetched base branch, with the hidden suite left out of the checkout. | `isolate` |
 | Intake | The issue is classified and split into 1 to 4 tickets. | `check-intake` |
 | Implement | A worker writes the change and tests and commits with `Cstack-Unit`/`Cstack-Ticket`/`Refs` trailers. | `check-commit` reruns the tests itself |
 | Verify | A verifier on another model checks every requirement at the exact head. | `check-verdict`, which records its own result in the ledger by SHA |

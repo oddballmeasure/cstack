@@ -11,7 +11,7 @@ A **unit** is one piece of work that ends as one PR. `cstack:unit` drives it. Th
 | Run store | `<repo root>/.cstack/runs/<slug>/` (gitignored). Use `node <root>/gates/orch.mjs --store <repo root>/.cstack/runs/<slug> ...`. Always pass `--store` with an absolute path. |
 | Unit id | Standalone: `U1`. Under orchestrate: the id in `units.tsv`. |
 | Branch | `cstack/<N>-<slug>`, where `<slug>` is the issue title lowercased, non-alphanumerics to `-`, at most 40 chars. |
-| Worktree | `~/.local/state/cstack/worktrees/<owner>-<repo>/<branch with / replaced by ->`. Create it only with `gates/isolate.mjs`. |
+| Worktree | `~/.local/state/cstack/worktrees/<owner>-<repo>/<branch with / replaced by ->`. Create it only with `gates/isolate.mjs`. A new branch starts at the fetched `origin/<base_branch>`, or at the local base branch when there is no `origin` remote. |
 | Intake | `<store>/intake-<unit>.json` (one per unit, so a program store can hold many). Format: header of `gates/check-intake.mjs`, example in `templates/intake.json`. |
 | Verdict | `<store>/verdict-<unit>-<sha12>.json`. Format: header of `gates/check-verdict.mjs`. |
 | Review ledger | `<store>/review-<unit>-rounds.tsv` and `<store>/review-<unit>.tsv`, kept by `cstack:review-loop`. |
