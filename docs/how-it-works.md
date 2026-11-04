@@ -46,7 +46,7 @@ Every failure ends in a named kind (`tests_failed`, `verification`, `ci_failed`,
 ## Two levels of delegation
 
 - **In session.** For small programs, the coordinator runs units itself and uses subagents for implementing, verifying and reviewing. Subagents can nest three levels deep.
-- **Detached workers.** For larger programs, each unit runs as its own headless session (`claude -p`, or `codex exec` under Codex) under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process. It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call ends the unit as `denied`. A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
+- **Detached workers.** For larger programs, each unit runs as its own headless session (`claude -p`, or `codex exec` under Codex) under the host supervisor: `systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, or a detached process. It has no permission bypass: it runs in `dontAsk` mode with an allowlist for its role, and a refused call that stops the session ends the unit as `denied`. A unit survives a coordinator crash, a context compaction or a usage-limit pause, and the coordinator picks up its result from the run store.
 
 ## Two harnesses
 

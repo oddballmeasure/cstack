@@ -93,7 +93,7 @@ function daemonRun(args) {
   const plugin = path.resolve(args["plugin-dir"] || PLUGIN_ROOT);
   const settings = spawnSync(process.execPath, [path.join(plugin, "gates", "run-settings.mjs"), "--permissions", "coordinator", "--repo-dir", repo, "--plugin-dir", plugin, "--out", path.join(repo, ".cstack", "permissions", "coordinator.json")], { stdio: "inherit" });
   if (settings.status !== 0) return 2;
-  const env = { ...process.env, CSTACK_COORDINATOR: "1" };
+  const env = { ...process.env, CSTACK_COORDINATOR: "1", CSTACK_HEADLESS: "1" };
   // launchd gives a job a minimal PATH. Windows already has the full one, under its own key.
   /* node:coverage disable */
   if (process.platform !== "win32") env.PATH = `${process.env.PATH}:${workerPath()}`;

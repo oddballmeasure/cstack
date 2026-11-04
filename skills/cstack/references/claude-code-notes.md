@@ -23,6 +23,7 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 - `isolation: "worktree"` gives the agent its own git worktree. Name the branch or commit it checks out. Its behaviour inside headless sessions is not measured yet (Phase 3).
 - `model` takes only `opus`, `sonnet`, `haiku`, `fable`, or omit it to inherit the session model. cstack picks it from the config `models` role: `code`, `judge`, `review`, `gather`. A role set to `inherit` means omit `model`.
 - Subagents run in the background by default and notify the parent when they finish. Do not pass `run_in_background: true`.
+- Under `claude -p` the end of the turn ends the process, and every background subagent dies with it. So in a headless session cstack launched (every launch sets `CSTACK_HEADLESS=1`) pass `run_in_background: false`. Interactive sessions keep background agents. The guard refuses an `Agent` call without it there (`headless-foreground-agents`), and the `pending-work` Stop hook blocks a headless unit worker's first stop while its unit is `in-progress` or `verifying`.
 - There is no resume field. To continue work, spawn a fresh agent and put the earlier brief, directives, and report in its prompt.
 - Attachments are file paths listed in the brief.
 
@@ -34,7 +35,7 @@ Subagents nest to depth 3: main, L1, L2, L3. The L3 tool list has no `Agent` too
 
 Plugin `PreToolUse` hooks fire in the main session, in every subagent level, and in `-p` sessions. The hook payload carries `agent_id` for subagent calls. Exit code 2 blocks the call, and the model reports the block.
 
-Hooks must match parsed `tool_input` fields, not the raw input text. Check `file_path` and `path` for Read, Edit, Write, Grep and Glob, and `command` for Bash. Do not match Agent or Skill input, because a brief that only mentions a path is not an access. The Bash check is heuristic, so hidden suites also need filesystem isolation.
+Hooks must match parsed `tool_input` fields, not the raw input text. Check `file_path` and `path` for Read, Edit, Write, Grep and Glob, and `command` for Bash. Do not match Agent or Skill input against paths, because a brief that only mentions a path is not an access. The guard reads only the Agent call's `run_in_background`. The Bash check is heuristic, so hidden suites also need filesystem isolation.
 
 ## Headless workers
 

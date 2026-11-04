@@ -16,7 +16,7 @@ Read the cstack mode skill first: `<root>/skills/cstack/SKILL.md`.
 
 - **You never edit product code.** Implementers and verifiers are subagents. You run gates, write briefs, feedback, PR bodies and comments, and keep the run store.
 - **Gates decide.** A subagent's report is a model claim. Move to the next stage only on a gate's exit code and output that you observed.
-- **Do not end your turn while work is pending.** While a subagent runs, wait for its notification. While the PR is pending, stay on the Monitor until pr-wait exits. If you end the turn early, nobody wakes you and the unit stops.
+- **Do not end your turn while work is pending.** Spawn every subagent with `run_in_background: false` and wait for its result in the foreground. While the PR is pending, stay on the Monitor until pr-wait exits. If you end the turn early, nobody wakes you and the unit stops. Under `claude -p` the end of the turn also ends the process, and every subagent it started dies with it.
 - **A new commit voids the verdict.** Stage 6 runs again on the new HEAD before stage 8.
 - **Bound every loop** with config `limits`. Hitting a limit is a classified failure.
 - **Hard stops** from the mode skill apply. Never force-push a branch other than this unit's branch, never close a PR, never merge outside `cstack:merge-gate`.

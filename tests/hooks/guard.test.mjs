@@ -19,7 +19,7 @@ function repo(config = { paths_hidden: ["tests/acceptance/**"], paths_off_limits
 function run(root, tool_name, tool_input, env = {}, cwd = root) {
   const r = spawnSync(process.execPath, [GUARD], {
     input: JSON.stringify({ tool_name, tool_input, cwd }),
-    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env },
+    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", CSTACK_HEADLESS: "", ...env },
     encoding: "utf8",
   });
   return { code: r.status, err: r.stderr };
@@ -274,7 +274,7 @@ test("an agent is told a person must fix a config that does not parse", () => {
 function runAs(root, agent_id, tool_input) {
   const r = spawnSync(process.execPath, [GUARD], {
     input: JSON.stringify({ tool_name: "Bash", tool_input, cwd: root, ...(agent_id ? { agent_id } : {}) }),
-    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "" },
+    env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", CSTACK_HEADLESS: "" },
     encoding: "utf8",
   });
   return { code: r.status, err: r.stderr };
@@ -293,6 +293,30 @@ test("a subagent may run in the foreground, and the main session may run in the 
   assert.equal(runAs(r, "a1", { command: "node gates/run-tests.mjs ." }).code, 0);
   assert.equal(runAs(r, "a1", { command: "node gates/run-tests.mjs .", run_in_background: false }).code, 0);
   assert.equal(runAs(r, null, { command: "node gates/run-tests.mjs .", run_in_background: true }).code, 0);
+});
+
+test("a headless session cstack launched must run its subagents in the foreground, because -p ends with the turn", () => {
+  const r = repo();
+  const spawn = { subagent_type: "cstack:cstack-worker", description: "T2", prompt: "GOAL ..." };
+  const headless = { CSTACK_HEADLESS: "1" };
+  for (const env of [{ ...headless, CSTACK_UNIT: "U2", CSTACK_RUN: "prog" }, { ...headless, CSTACK_COORDINATOR: "1" }, { ...headless, CSTACK_ROLE: "e2e-author" }]) {
+    for (const [tool, input] of [
+      ["Agent", spawn],
+      ["Agent", { ...spawn, run_in_background: true }],
+      ["Task", spawn],
+    ]) {
+      const out = run(r, tool, input, env);
+      assert.equal(out.code, 2, `${tool} ${JSON.stringify(input)} ${JSON.stringify(env)}`);
+      assert.match(out.err, /headless-foreground-agents.*run_in_background: false/);
+    }
+    assert.equal(run(r, "Agent", { ...spawn, run_in_background: false }, env).code, 0);
+  }
+  assert.equal(run(r, "Agent", spawn).code, 0, "an ordinary session keeps background agents");
+  assert.equal(run(r, "Agent", spawn, { CSTACK_COORDINATOR: "1", CSTACK_RUN: "prog" }).code, 0, "an interactive coordinator (CSTACK_COORDINATOR=1 claude) keeps background agents");
+  assert.equal(run(r, "Agent", spawn, { CSTACK_UNIT: "U2", CSTACK_ROLE: "e2e-author" }).code, 0, "role markers without the headless marker");
+  assert.equal(run(r, "Agent", spawn, { CSTACK_HEADLESS: "0" }).code, 0, "only 1 means headless");
+  const outside = mkdtempSync(path.join(tmpdir(), "cstack-guard-plain-"));
+  assert.equal(run(outside, "Agent", spawn, headless).code, 2, "the headless marker alone makes a cstack context");
 });
 
 test("malformed hook input never blocks", () => {

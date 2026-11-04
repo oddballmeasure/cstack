@@ -301,7 +301,7 @@ function launch() {
       script,
       `#!/bin/sh
 cd ${q(clone)}
-exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   codex exec --json -C ${q(clone)} ${box} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" < /dev/null > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
@@ -315,7 +315,7 @@ exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_COD
     script,
     `#!/bin/sh
 cd ${q(clone)}
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${q(plugin)} --permission-mode dontAsk --settings ${q(settings)} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,

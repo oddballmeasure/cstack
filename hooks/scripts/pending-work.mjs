@@ -1,10 +1,14 @@
 #!/usr/bin/env node
-// cstack Stop hook: a coordinator must not end its turn while units are in flight and nothing will wake it.
-// Active only when CSTACK_COORDINATOR=1 and CSTACK_RUN names a run store under <repo>/.cstack/runs/.
+// cstack Stop hook: a coordinator must not end its turn while units are in flight and nothing will wake it,
+// and a unit worker must not end its turn before its unit reaches a PR or a settled state.
+// Active only when CSTACK_COORDINATOR=1, or CSTACK_UNIT with CSTACK_HEADLESS=1, and CSTACK_RUN names a run store under <repo>/.cstack/runs/.
 // Blocks (exit 2, reason on stderr) when the store has units in-progress or verifying (or pr-open under
 // effective autonomy send, from config and <store>/run.json, where the run still merges them) and no
 // watcher is alive for the store. inbox-wait, pr-wait and post-merge --wait each hold <store>/watchers/<pid>. Allows (exit 0) otherwise, and on the second stop in a row
 // (stop_hook_active), so a session that cannot comply is nudged once and never trapped.
+// A headless unit worker (CSTACK_UNIT and CSTACK_HEADLESS=1, set by gates/worker.mjs) is blocked while its own row is in-progress
+// or verifying. Under `claude -p` and `codex exec` the end of the turn ends the process and every subagent it
+// started, and before its PR the unit has no watcher of its own (the store's watchers belong to the coordinator).
 // Under Codex (a payload with turn_id) the block is {"decision":"block","reason":…} on stdout with exit 0,
 // the form measured to keep a Codex session going.
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -44,8 +48,29 @@ function alive(pid) {
   }
 }
 
+function block(codex, reason) {
+  if (codex) {
+    process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
+    return 0;
+  }
+  process.stderr.write(reason + "\n");
+  return 2;
+}
+
+function readUnits(store) {
+  const [header, ...lines] = readFileSync(path.join(store, "units.tsv"), "utf8").split("\n");
+  const cols = header.split("\t");
+  const [id, state] = [cols.indexOf("id"), cols.indexOf("state")];
+  return lines
+    .filter(Boolean)
+    .map((l) => l.split("\t"))
+    .map((c) => ({ id: c[id], state: c[state] }));
+}
+
 function main() {
-  if (process.env.CSTACK_COORDINATOR !== "1" || !process.env.CSTACK_RUN) return 0;
+  const coordinator = process.env.CSTACK_COORDINATOR === "1";
+  const unit = coordinator || process.env.CSTACK_HEADLESS !== "1" ? "" : process.env.CSTACK_UNIT || "";
+  if ((!coordinator && !unit) || !process.env.CSTACK_RUN) return 0;
   let input;
   try {
     input = JSON.parse(readFileSync(0, "utf8"));
@@ -55,30 +80,29 @@ function main() {
   if (input.stop_hook_active) return 0;
   const found = findStore(input.cwd || process.cwd(), process.env.CSTACK_RUN);
   if (!found) return 0;
+  const codex = typeof input.turn_id === "string";
+  const rows = readUnits(found.store);
+  if (unit) {
+    const own = rows.find((r) => r.id === unit);
+    if (!own || !["in-progress", "verifying"].includes(own.state)) return 0;
+    const wait = codex ? "Wait for every child with wait_agent before you end the turn" : "Spawn subagents with run_in_background: false and wait for each result in the foreground";
+    return block(
+      codex,
+      `cstack pending-work: unit ${unit} is still ${own.state}. This headless session ends when its turn ends, and every subagent it started dies with it. Do not end the turn. ` +
+        `${wait}, then go on with the unit's stages until it opens its PR or settles through cstack:settle.`,
+    );
+  }
   const moving = autonomy(found.repo, found.store) === "send" ? ["in-progress", "verifying", "pr-open"] : ["in-progress", "verifying"];
-  const [header, ...lines] = readFileSync(path.join(found.store, "units.tsv"), "utf8").split("\n");
-  const cols = header.split("\t");
-  const [id, state] = [cols.indexOf("id"), cols.indexOf("state")];
-  const pending = lines
-    .filter(Boolean)
-    .map((l) => l.split("\t"))
-    .filter((c) => moving.includes(c[state]))
-    .map((c) => `${c[id]} ${c[state]}`);
+  const pending = rows.filter((r) => moving.includes(r.state)).map((r) => `${r.id} ${r.state}`);
   if (pending.length === 0) return 0;
   const watchers = path.join(found.store, "watchers");
   if (existsSync(watchers) && readdirSync(watchers).some(alive)) return 0;
-  const codex = typeof input.turn_id === "string";
   const watch = codex ? "run it in the foreground with --once --timeout 1500, act on its lines, and run it again while it exits 3" : "arm the Monitor tool on it and wait for its events";
   const reason =
     `cstack pending-work: units in flight (${pending.join(", ")}) and no watcher is armed (inbox-wait, pr-wait --store, or post-merge --wait). Do not end the turn. ` +
     `Drain with \`node ${ROOT}/gates/orch.mjs --store ${found.store} inbox drain\`, then start ` +
     `\`node ${ROOT}/gates/inbox-wait.mjs --store ${found.store}\` and ${watch}.`;
-  if (codex) {
-    process.stdout.write(JSON.stringify({ decision: "block", reason }) + "\n");
-    return 0;
-  }
-  process.stderr.write(reason + "\n");
-  return 2;
+  return block(codex, reason);
 }
 
 process.exitCode = main();

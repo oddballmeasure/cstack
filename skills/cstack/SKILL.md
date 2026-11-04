@@ -137,7 +137,7 @@ Spawn with the `Agent` tool.
 - **Type.** `general-purpose` for work that writes files. `Explore` for read-only work. `Explore` keeps `Bash`, so the brief says "do not edit files", and you run `git status` afterward. Use a plugin agent where a skill names one.
 - **Model.** Take it from config `models` by role. `code` for implementers. `judge` for verifiers and synthesis. `review` for reviewers. `gather` for explorers. A role set to `inherit` means omit `model`.
 - **Isolation.** Writers use `isolation: "worktree"` and name the branch or commit to check out. Two writers never share a checkout.
-- **Background.** Agents run in the background by default. Do other work, or wait with `Monitor`. Do not poll.
+- **Background.** Agents run in the background by default. Do other work, or wait with `Monitor`. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), pass `run_in_background: false` and wait in the foreground: under `claude -p` the end of the turn ends the session and its background subagents, and the guard refuses a background spawn there. To run several at once, spawn them in one message.
 - **Depth.** Nesting stops at depth 3. The third level has no `Agent` tool, so it is a leaf. Plan coordinator, sub-coordinator, worker inside that.
 - **Brief.** Write each brief with these headings: GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT. Give file pointers, not pasted bulk. Put this skill's absolute path in CONTEXT and tell the agent to read it first. FORBIDDEN lists the hidden and off-limits paths from config.
 - **Ownership.** You own every subagent's output. Review its diff yourself. Write your own summary. Do not pass its report through. Its claims are model claims under rule 1.

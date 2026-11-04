@@ -72,7 +72,7 @@ systemctl --user enable --now "cstack-daemon@$(systemd-escape --path /path/to/re
 loginctl enable-linger "$USER"
 ```
 
-The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `--permission-mode dontAsk` and the coordinator allowlist that `ExecStartPre` writes to `.cstack/permissions/coordinator.json` (no permission bypass), `CSTACK_COORDINATOR=1`, an explicit `PATH`, and `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_PROGRAM_AUTONOMY` unset, so the daemon and its workers bill the subscription and the run's autonomy comes from config. Read its log with `journalctl --user -u 'cstack-daemon@*'`.
+The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `--permission-mode dontAsk` and the coordinator allowlist that `ExecStartPre` writes to `.cstack/permissions/coordinator.json` (no permission bypass), `CSTACK_COORDINATOR=1`, `CSTACK_HEADLESS=1`, an explicit `PATH`, and `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_PROGRAM_AUTONOMY` unset, so the daemon and its workers bill the subscription and the run's autonomy comes from config. Read its log with `journalctl --user -u 'cstack-daemon@*'`.
 
 Not live-tested yet: whether a headless `claude -p` session stays alive under `/loop` between firings. If it exits after the first tick, the unit's `Restart=always` with `RestartSec=600` still gives about a 10-minute cadence, one tick per start, with doctor once per start.
 

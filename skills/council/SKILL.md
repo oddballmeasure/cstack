@@ -37,7 +37,7 @@ REPORT: SCORE: <n>/10 for the work as it stands (code review only).
   Then a one-line recommendation.
 ```
 
-Wait for the three notifications. Do not poll.
+Wait for the three notifications. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn them with `run_in_background: false`. Calls in one message still run at the same time, and the message returns when all three finish.
 
 ## 3. Synthesize
 

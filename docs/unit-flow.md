@@ -101,10 +101,10 @@ Every comment and PR body ends with the badge line from `templates/footer.md`. R
 
 | Thing | Contract |
 |---|---|
-| Worker prompt | `/cstack:unit <N> --run <slug> --unit <id>`, with `CSTACK_RUN` and `CSTACK_UNIT` set, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_COORDINATOR` unset, an explicit PATH, `--strict-mcp-config`. |
+| Worker prompt | `/cstack:unit <N> --run <slug> --unit <id>`, with `CSTACK_RUN`, `CSTACK_UNIT` and `CSTACK_HEADLESS=1` set, `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_COORDINATOR` unset, an explicit PATH, `--strict-mcp-config`. |
 | Worker files | `<store>/workers/<unit>.{jsonl,stderr.log,launches,exit.txt,not-before}` (header of `gates/lib/workers.mjs`). |
-| Exit entry | systemd `ExecStopPost` runs `worker.mjs exit`, which pushes one inbox entry from agent `worker` with status `setup`, the unit's settled state, `usage_limit`, `denied` (the allowlist refused calls; `workers/<unit>.denied.txt`), or `crash`. It runs after SIGKILL too. |
+| Exit entry | systemd `ExecStopPost` runs `worker.mjs exit`, which pushes one inbox entry from agent `worker` with status `setup`, the unit's settled state, `usage_limit`, `denied` (the session stopped right after a call the allowlist refused; `workers/<unit>.denied.txt` lists every refusal), or `crash` (anything else; the detail names the last call and the text after it). It runs after SIGKILL too. |
 | Usage limit | `worker.mjs exit` sets the unit back to `ready` and writes `not-before` from "resets <time>" in the output (else one hour). `worker.mjs next` defers the unit until then. |
 | Standing orders | The unit reads `orch standing show` at stage 1 and carries each line into its briefs. |
 | Merge SHA | After a merge, stage 12 sets the unit's `sha` column to the merge commit. `gates/post-merge.mjs` judges that commit's checks. |
-| Waiting | The coordinator waits under the Monitor tool on `gates/inbox-wait.mjs`, which holds `<store>/watchers/<pid>`. The `pending-work` Stop hook blocks a coordinator (`CSTACK_COORDINATOR=1`, `CSTACK_RUN=<slug>`) from ending its turn while units are in flight and no watcher is alive. |
+| Waiting | The coordinator waits under the Monitor tool on `gates/inbox-wait.mjs`, which holds `<store>/watchers/<pid>`. The `pending-work` Stop hook blocks a coordinator (`CSTACK_COORDINATOR=1`, `CSTACK_RUN=<slug>`) from ending its turn while units are in flight and no watcher is alive. It also blocks a headless worker (`CSTACK_UNIT`, `CSTACK_HEADLESS=1`) from ending its turn while its own unit is `in-progress` or `verifying`, and the guard makes every headless session's subagents run in the foreground: under `claude -p` the end of the turn ends the session. |

@@ -40,7 +40,7 @@ Spawn exactly one `Agent`:
 - `subagent_type`: `cstack-verifier`, the plugin's verifier agent. Claude Code lists it with the plugin prefix.
 - `model`: from step 2.
 - No `isolation`. It reads the unit worktree at `sha`.
-- No `run_in_background`. Wait for the completion notification. Do not poll.
+- `run_in_background: false`. Wait for its result in the foreground. Do not poll. Under `claude -p` the end of the turn ends the session, and a background subagent dies with it.
 
 Brief:
 

@@ -45,6 +45,7 @@ test("launch --dry-run builds the systemd-run command with PATH, prompt and exit
   assert.ok(argv.includes("--setenv=PATH=/fake/bin:/usr/bin"));
   assert.ok(argv.includes(`--working-directory=${p.root}`));
   assert.ok(argv.includes("--strict-mcp-config"));
+  assert.ok(argv.includes("--setenv=CSTACK_HEADLESS=1"), "the guard and the Stop hook know the session is headless");
   assert.ok(!argv.some((a) => /dangerously|bypass/i.test(a)), "no permission bypass");
   assert.deepEqual(argv.slice(argv.indexOf("--permission-mode"), argv.indexOf("--permission-mode") + 4), ["--permission-mode", "dontAsk", "--settings", p.files("U1.settings.json")]);
   const settings = JSON.parse(readFileSync(p.files("U1.settings.json"), "utf8")).permissions;
@@ -133,7 +134,8 @@ test("exit treats any wording of a spent usage window as a usage limit, not as i
   seedExit(p, "U2", { jsonl: lines({ ...refused, is_error: true, result: "You've hit your weekly limit · resets 3pm" }) });
   assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tusage_limit/);
 
-  seedExit(p, "U3", { jsonl: lines(limit("rejected", 1793646000), { ...refused, is_error: false, result: "all done" }) });
+  const call = { type: "assistant", message: { content: [{ type: "tool_use", id: "t1", name: "Bash", input: { command: "cd x; cat y" } }] } };
+  seedExit(p, "U3", { jsonl: lines(limit("rejected", 1793646000), call, { ...refused, is_error: false, result: "all done" }) });
   assert.match(p.worker(["exit", "--store", p.store, "--unit", "U3"]).out, /U3\tdenied/, "a session that went on to finish did not stop on the limit");
 });
 
@@ -204,23 +206,85 @@ test("exit classifies billing, settled units, usage limits and crashes, and push
   assert.match(readFileSync(p.files("U6.exit.txt"), "utf8"), /^crash /);
 });
 
+const lines = (...evs) => `${evs.map((e) => JSON.stringify(e)).join("\n")}\n`;
+const said = (...content) => ({ type: "assistant", message: { content } });
+const use = (id, name, input) => ({ type: "tool_use", id, name, input });
+const answered = (...ids) => ({ type: "user", message: { content: ids.map((id) => ({ type: "tool_result", tool_use_id: id, content: "x" })) } });
+
 test("exit reports refused tool calls: denied when the unit stopped short, a note when it settled", () => {
   const p = program();
   for (const id of ["U1", "U2"]) p.orch("unit", "add", id, "--track", "core", "--state", "in-progress");
   const denials = [
-    { tool_name: "Bash", tool_input: { command: "curl -s https://example.com" } },
     { tool_name: "Edit", tool_input: { file_path: "/etc/hosts" } },
+    { tool_name: "Bash", tool_input: { command: "curl -s https://example.com" } },
   ];
-  seedExit(p, "U1", { jsonl: JSON.stringify({ type: "result", result: "stopped", permission_denials: denials }) + "\n" });
+  const calls = [said(use("t1", "Edit", { file_path: "/etc/hosts" })), answered("t1"), said({ type: "text", text: "trying curl" }, use("t2", "Bash", { command: "curl -s https://example.com" }))];
+  seedExit(p, "U1", { jsonl: lines(...calls, said({ type: "text", text: "I cannot fetch it, stopping." }), { type: "result", result: "stopped", permission_denials: denials }) });
   const u1 = p.worker(["exit", "--store", p.store, "--unit", "U1"]);
-  assert.match(u1.out, /U1\tdenied\t2 tool call\(s\) refused by the role's allowlist, first: Bash: curl -s https:\/\/example\.com; see .*U1\.denied\.txt/);
-  assert.equal(readFileSync(p.files("U1.denied.txt"), "utf8"), "Bash: curl -s https://example.com\nEdit: /etc/hosts\n");
+  assert.match(u1.out, /U1\tdenied\tstopped after a call the role's allowlist refused: Bash: curl -s https:\/\/example\.com; 2 refused in all, see .*U1\.denied\.txt/, "text after the refused call is not an action");
+  assert.equal(readFileSync(p.files("U1.denied.txt"), "utf8"), "Edit: /etc/hosts\nBash: curl -s https://example.com\n");
   assert.equal(p.unit("U1")[2], "in-progress", "the coordinator settles it; the wrapper only reports");
 
   p.orch("unit", "set", "U2", "--state", "merged");
   seedExit(p, "U2", { jsonl: JSON.stringify({ type: "result", result: "done", permission_denials: denials.slice(0, 1) }) + "\n" });
   assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tmerged\tunit merged; 1 tool call\(s\) refused, see .*U2\.denied\.txt/);
   assert.deepEqual(inbox(p).map((e) => e[3]), ["denied", "merged"]);
+});
+
+test("exit reports a session that ended its turn after unrelated refusals as a crash that names its last action", () => {
+  const p = program();
+  for (const id of ["U1", "U2", "U3", "U4"]) p.orch("unit", "add", id, "--track", "core", "--state", "in-progress");
+  const optional = [1, 2, 3, 4].map((n) => ({ tool_name: "Bash", tool_use_id: `d${n}`, tool_input: { command: `gh label list ${n}` } }));
+  const early = optional.flatMap((d) => [said(use(d.tool_use_id, "Bash", d.tool_input)), answered(d.tool_use_id)]);
+  // The incident in #82: the T2 worker spawned, a poll loop was blocked by the guard, then the turn ended.
+  seedExit(p, "U1", {
+    jsonl: lines(
+      ...early,
+      said(use("a1", "Agent", { description: "T2 implementer", subagent_type: "cstack:cstack-worker", prompt: "GOAL" })),
+      answered("a1"),
+      { type: "assistant", parent_tool_use_id: "a1", message: { content: [use("s1", "Bash", { command: "npm test" })] } },
+      { type: "user", parent_tool_use_id: "a1", message: { content: [{ type: "tool_result", tool_use_id: "s1" }] } },
+      said(use("b1", "Bash", { command: "until test -f done; do sleep 30; done" })),
+      answered("b1"),
+      said({ type: "text", text: "The worker's completion notification\nwill wake me." }),
+      { type: "result", result: "The worker's completion notification will wake me.", permission_denials: optional },
+    ),
+  });
+  const u1 = p.worker(["exit", "--store", p.store, "--unit", "U1"], { SERVICE_RESULT: "success", EXIT_CODE: "exited", EXIT_STATUS: "0" });
+  assert.match(u1.out, /U1\tcrash\tservice success, exited 0, unit state in-progress; last call Bash: until test -f done; do sleep 30; done, then wrote "The worker's completion notification will wake me\."; 4 tool call\(s\) refused, see .*U1\.denied\.txt/);
+  assert.match(readFileSync(p.files("U1.exit.txt"), "utf8"), /^crash .*last call Bash: until test/, "the inbox entry points at this line");
+  assert.deepEqual(inbox(p).map((e) => [e[2], e[3], e[4]]), [["U1", "crash", p.files("U1.exit.txt")]]);
+
+  // Without tool_use_id the refusal matches on name and input.
+  seedExit(p, "U2", { jsonl: lines(said(use("x", "Read", { file_path: "/etc/shadow" })), { type: "result", permission_denials: [{ tool_name: "Read", tool_input: { file_path: "/etc/shadow" } }] }) });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U2"]).out, /U2\tdenied\tstopped after a call the role's allowlist refused: Read: \/etc\/shadow/);
+
+  seedExit(p, "U3", { jsonl: lines(said({ type: "text", text: "  " }), { type: "result", permission_denials: optional }) });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U3"]).out, /U3\tcrash\t.*; last call none; 4 tool call/, "refusals with no call of its own in the stream");
+
+  // A refusal anywhere in the final message counts, not only in its last call.
+  p.orch("unit", "add", "U5", "--track", "core", "--state", "in-progress");
+  seedExit(p, "U5", {
+    jsonl: lines(
+      said(use("e1", "Bash", { command: "gh label list" })),
+      answered("e1"),
+      { type: "user", message: { content: "plain text turn" } },
+      said(use("f1", "Bash", { command: "curl -s https://x" }), use("f2", "Read", { file_path: "/tmp/a" })),
+      answered("f1", "f2"),
+      { type: "result", permission_denials: [{ tool_name: "Bash", tool_use_id: "e1", tool_input: { command: "gh label list" } }, { tool_name: "Bash", tool_use_id: "f1", tool_input: { command: "curl -s https://x" } }] },
+    ),
+  });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U5"]).out, /U5\tdenied\tstopped after a call the role's allowlist refused: Bash: curl -s https:\/\/x; 2 refused in all/);
+
+  // codex exec --json: the last command, then the last agent message.
+  seedExit(p, "U4", {
+    jsonl: lines(
+      { type: "item.completed", item: { id: "i1", type: "command_execution", command: "node gates/check-commit.mjs" } },
+      { type: "item.completed", item: { id: "i2", type: "agent_message", text: "" } },
+      { type: "item.completed", item: { id: "i3", type: "agent_message", text: "Waiting for the child." } },
+    ),
+  });
+  assert.match(p.worker(["exit", "--store", p.store, "--unit", "U4"]).out, /U4\tcrash\t.*; last call Bash: node gates\/check-commit\.mjs, then wrote "Waiting for the child\."$/m);
 });
 
 test("next fills free slots in id order, defers usage-limited units, and frees merge-ready slots", () => {
@@ -346,6 +410,7 @@ test("launch under the other backends: the runner starts claude and runs exit wh
   assert.deepEqual(spec.argv.slice(0, 2), ["claude", "-p"]);
   assert.deepEqual(spec.unset, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CSTACK_COORDINATOR"]);
   assert.equal(spec.env.CSTACK_UNIT, "U1");
+  assert.equal(spec.env.CSTACK_HEADLESS, "1");
   assert.deepEqual(spec.onExit.slice(-5), ["exit", "--store", p.store, "--unit", "U1"]);
   const coord = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", "--dry-run"], { ...runner, CSTACK_SUPERVISOR: "launchd" }).out);
   assert.equal(coord.onExit, null, "the coordinator has no exit hook");

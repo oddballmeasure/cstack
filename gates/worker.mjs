@@ -16,15 +16,16 @@
 //   setup        the session billed through an API key
 //   <state>      the unit reached merged, done, error, needs-human or pr-open
 //   usage_limit  the subscription window ran out; the unit goes back to ready with workers/<unit>.not-before
-//   denied       the session was refused tool calls and stopped short; workers/<unit>.denied.txt lists them
-//   crash        anything else
+//   denied       a tool call in the session's final message was refused; workers/<unit>.denied.txt lists every refusal
+//   crash        anything else; the detail names the session's last tool call and any text it wrote after it
 // Sessions never skip permissions: each runs with --permission-mode dontAsk and the role's
 // generated settings, workers/<id>.settings.json (role worker, or coordinator with --coordinator).
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
 // pending-work Stop hook applies to it. It has no exit hook and no unit row. When <store>/run.json has
 // "entry": "program", the coordinator runs `/cstack:program --resume <slug>` instead.
-// The PATH comes from workerPath (gates/lib/workers.mjs).
+// Every session gets CSTACK_HEADLESS=1, which the guard and the pending-work Stop hook read: under -p or exec the
+// end of the turn ends the process. The PATH comes from workerPath (gates/lib/workers.mjs).
 // CSTACK_PROGRAM_AUTONOMY passes through only when this process has it set to "send" (a human-launched
 // program session); otherwise the worker gets it empty, so a value in the systemd manager's environment
 // cannot raise a run's autonomy. `next` takes parallel from <store>/run.json, else config.
@@ -39,11 +40,12 @@ import { RUNNER, clearEntry, pickBackend, startRunner, writeEntry } from "./lib/
 import { BILLING_VARS, COORDINATOR_SANDBOX, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
-import { deniedCalls, permissionSettings } from "./lib/permissions.mjs";
+import { callSummary, deniedCalls, permissionSettings } from "./lib/permissions.mjs";
 import {
   IN_FLIGHT_STATES,
   TERMINAL_STATES,
   USAGE_LIMIT,
+  lastActions,
   launchCount,
   notBefore,
   parseReset,
@@ -52,6 +54,7 @@ import {
   workerName,
   workerPath,
   workerState,
+  refusedCall,
 } from "./lib/workers.mjs";
 
 const SELF = fileURLToPath(import.meta.url);
@@ -132,6 +135,7 @@ function launch(store, unit, args) {
     CSTACK_RUN: slug,
     CSTACK_PROGRAM_AUTONOMY: process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : "",
     CSTACK_HARNESS: harness,
+    CSTACK_HEADLESS: "1",
     ...(coordinator ? { CSTACK_COORDINATOR: "1" } : { CSTACK_UNIT: unit }),
   };
   if (backend !== "systemd") return launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, session, unset, sessionEnv, args });
@@ -147,6 +151,7 @@ function launch(store, unit, args) {
     `--setenv=CSTACK_RUN=${slug}`,
     `--setenv=CSTACK_PROGRAM_AUTONOMY=${process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : ""}`,
     `--setenv=CSTACK_HARNESS=${harness}`,
+    "--setenv=CSTACK_HEADLESS=1",
     ...(process.env.CSTACK_GUARD_HIDE ? [`--setenv=CSTACK_GUARD_HIDE=${process.env.CSTACK_GUARD_HIDE}`] : []),
     // append, not truncate: systemd reopens these files for ExecStopPost, and truncate would wipe the
     // worker's own output before the exit hook can classify it. The files are emptied once, below.
@@ -220,6 +225,12 @@ function events(file) {
   return out;
 }
 
+// What the session did last, for a crash report: the last call, and the text it ended the turn with.
+function lastNote({ call, message }) {
+  const said = message ? `, then wrote "${message.replace(/\s+/g, " ").trim().slice(0, 200)}"` : "";
+  return `last call ${call ? callSummary(call.name, call.input) : "none"}${said}`;
+}
+
 function exit(store, unit) {
   const row = withStore(store, (s) => s.units.get(unit));
   const evs = events(workerFile(store, unit, "jsonl"));
@@ -230,6 +241,9 @@ function exit(store, unit) {
   // The stream names the spent window and its reset exactly, whatever the wording of the message.
   const rejected = result?.is_error ? evs.findLast((e) => e?.type === "rate_limit_event" && e.rate_limit_info?.status === "rejected") : null;
   const denied = deniedCalls(evs);
+  const last = lastActions(evs);
+  // Only a refusal in the session's final message explains its end. Earlier refusals of optional calls are a note on a crash.
+  const refused = refusedCall(last.calls, evs);
   const deniedFile = workerFile(store, unit, "denied.txt");
   const spent = Boolean(rejected) || USAGE_LIMIT.test(text);
   let status;
@@ -247,13 +261,13 @@ function exit(store, unit) {
     withStore(store, (s) => s.units.set({ id: unit, state: "ready" }));
     status = "usage_limit";
     detail = `resets_at=${until}`;
-  } else if (denied.length) {
+  } else if (refused) {
     status = "denied";
-    detail = `${denied.length} tool call(s) refused by the role's allowlist, first: ${denied[0]}; see ${deniedFile}`;
+    detail = `stopped after a call the role's allowlist refused: ${callSummary(refused.name, refused.input)}; ${denied.length} refused in all, see ${deniedFile}`;
   } else {
     status = "crash";
     const e = process.env;
-    detail = `service ${e.SERVICE_RESULT || "unknown"}, ${e.EXIT_CODE || "unknown"} ${e.EXIT_STATUS || "?"}, unit state ${row.state}`;
+    detail = `service ${e.SERVICE_RESULT || "unknown"}, ${e.EXIT_CODE || "unknown"} ${e.EXIT_STATUS || "?"}, unit state ${row.state}; ${lastNote(last)}`;
   }
   mkdirSync(path.join(store, "workers"), { recursive: true });
   if (denied.length) {
