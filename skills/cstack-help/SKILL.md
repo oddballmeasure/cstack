@@ -42,7 +42,7 @@ Check the state that changes the answer, and mention it only when it does:
 
 `/cstack:program <guideline text or path>` runs the pipeline in `skills/program/SKILL.md`: preflight, spec (H1), profile, the hidden e2e suite as PR #0, plan (H2), orchestrated units, post-merge CI, a final e2e proof at the merged SHA by an agent that wrote no code, a council review, and an audited report.
 
-- `--autonomy=send` merges through the merge gate and skips H2. It needs a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send`, else it stays `stop`.
+- `--autonomy=send` merges through the merge gate and skips H2. Named gates the plan declares (`gate:<id>` in a unit's `depends_on`) still wait for a person. It needs a session the human launched with `CSTACK_PROGRAM_AUTONOMY=send`, else it stays `stop`.
 - `--autonomy=stop` ends at each merge-ready PR. Merge it, then `/cstack:program --resume <slug>`.
 - `--parallel=N` runs up to N units at once as detached workers.
 - A good guideline states the problem, the users, the goals, the non-goals, and end-to-end requirements with exact outputs. A thin one gets `cstack:sharpen` first. `tests/fixtures/f1-cli-ledger/guideline.md` is a worked example.

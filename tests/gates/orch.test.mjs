@@ -227,6 +227,25 @@ describe("store", () => {
     assert.deepEqual(store.units.ready(), []);
   });
 
+  test("a gate:<id> dependency holds a unit until the gate is resolved approve", () => {
+    const { store } = fresh();
+    store.units.add({ id: "E2E", track: "e2e", state: "merged" });
+    store.units.add({ id: "u1", track: "t", dependsOn: "E2E,gate:PROTO" });
+    store.units.add({ id: "u2", track: "t", dependsOn: "u1" });
+    assert.deepEqual(store.units.ready(), [], "no override past an unparked gate, directly or through u1");
+    assert.deepEqual(store.units.held(), [{ unit: "u1", gate: "PROTO", status: "unparked" }]);
+    store.gates.park({ id: "PROTO", question: "q", options: "approve|reject", defaultAnswer: "approve" });
+    assert.equal(store.units.held()[0].status, "open");
+    store.gates.resolve({ id: "PROTO", answer: "reject" });
+    assert.deepEqual(store.units.held(), [{ unit: "u1", gate: "PROTO", status: "rejected", answer: "reject" }]);
+    assert.deepEqual(store.units.ready(), []);
+    store.gates.resolve({ id: "PROTO", answer: "approve" });
+    assert.deepEqual(store.units.held(), []);
+    assert.deepEqual(store.units.ready().map((u) => [u.id, u.override]), [["u1", false]]);
+    store.units.set({ id: "u1", state: "merged" });
+    assert.deepEqual(store.units.ready().map((u) => u.id), ["u2"]);
+  });
+
   test("appends ledger verdicts; latest row per unit and SHA wins", () => {
     const { store } = fresh();
     assert.equal(store.ledger.latest({ unit: "u1", sha: "abc" }), null);

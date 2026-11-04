@@ -211,14 +211,22 @@ export function parseUnits(text) {
 
 export const PLAN_FIELDS = ["Files", "Verify", "Size"];
 
-// plan.md: one `## U<n> <title>` section per unit with Files, Verify and Size fields.
+export const GATE_FIELDS = ["Question"];
+// A depends_on entry that names a human gate: `gate:<id>`.
+export const GATE_DEP = "gate:";
+
+// plan.md: one `## U<n> <title>` section per unit with Files, Verify and Size fields, and one
+// `## Gate <id> <title>` section per human gate a unit names as `gate:<id>` in depends_on.
 export function parsePlan(text) {
   const units = new Map();
+  const gates = new Map();
   for (const [title, s] of sections(text)) {
     const m = title.match(/^(U\d+)\b/);
+    const g = title.match(/^Gate\s+(\S+)/);
     if (m) units.set(m[1], { line: s.line, fields: fields(s.body, PLAN_FIELDS) });
+    else if (g) gates.set(g[1], { line: s.line, fields: fields(s.body, GATE_FIELDS) });
   }
-  return { units };
+  return { units, gates };
 }
 
 // A field is filled when it has an inline value or at least one item line.

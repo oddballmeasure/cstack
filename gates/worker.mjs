@@ -8,7 +8,8 @@
 //   worker.mjs launch --store <dir> --unit <id> [--plugin-dir <root>] [--wait] [--dry-run]
 //   worker.mjs launch --store <dir> --coordinator [--resume] [--plugin-dir <root>] [--wait] [--dry-run]
 //   worker.mjs exit   --store <dir> --unit <id>        (ExecStopPost or the runner's onExit; also safe by hand)
-//   worker.mjs next   --store <dir> [--json]           units to launch now, and units deferred by a usage limit
+//   worker.mjs next   --store <dir> [--json]           units to launch now, units deferred by a usage limit,
+//                                                      and units held by a human gate (depends_on gate:<id>)
 //   worker.mjs path                                    the PATH a detached session gets
 // launch is idempotent: a live worker is left alone. It marks the unit in-progress, records the launch
 // in workers/<unit>.launches, and arranges for `exit` to run when the session ends for any reason,
@@ -286,7 +287,7 @@ function exit(store, unit) {
 function next(store, json) {
   const { config } = loadConfig(store);
   const parallel = effectiveParallel(config, store).value;
-  const { rows, ready } = withStore(store, (s) => ({ rows: s.units.list(), ready: s.units.ready() }));
+  const { rows, ready, hold } = withStore(store, (s) => ({ rows: s.units.list(), ready: s.units.ready(), hold: s.units.held() }));
   // A pr-open unit whose worker has exited is merge-ready and waits on the human, so it holds no slot.
   const busy = rows.filter((u) => IN_FLIGHT_STATES.includes(u.state) && (u.state !== "pr-open" || workerState(workerName(config.repo, store, u.id)).alive)).length;
   const now = new Date();
@@ -300,12 +301,13 @@ function next(store, json) {
   const launchNow = candidates.slice(0, Math.max(0, parallel - busy));
   const wake = defer.map((d) => d.until).sort()[0] ?? null;
   if (json) {
-    process.stdout.write(`${JSON.stringify({ parallel, busy, launch: launchNow, defer, wake }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ parallel, busy, launch: launchNow, defer, hold, wake }, null, 2)}\n`);
     return 0;
   }
   const lines = [
     ...launchNow.map((u) => `launch ${u.id}${u.override ? " (dependency override)" : ""}`),
     ...defer.map((d) => `defer ${d.id} until ${d.until}`),
+    ...hold.map((h) => `hold ${h.unit} on gate ${h.gate} (${h.status === "rejected" ? `rejected: ${h.answer}` : h.status})`),
     `slots ${parallel - busy}/${parallel}`,
   ];
   process.stdout.write(`${lines.join("\n")}\n`);

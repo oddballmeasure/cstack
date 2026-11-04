@@ -1,13 +1,17 @@
 #!/usr/bin/env node
 // Gate: units.tsv (and plan.md when given) cover spec.md through the lanes of e2e-plan.md.
-// Rows on track e2e (PR #0, the hidden suite) are skipped.
+// Rows on track e2e (PR #0, the hidden suite) are skipped, but a unit may depend on one.
+// A unit may also depend on `gate:<id>`, a human gate declared in plan.md as `## Gate <id> <title>`
+// with a Question field. Without --plan no gate is declared, so a gate dependency is rejected.
 // A unit covers requirement R when one of its lanes lists R in Covers. plan.md has no
 // Requirements line: the e2e plan is the one place requirements meet lanes.
 // Usage: node gates/check-plan.mjs --units <units.tsv> --spec <spec.md> --e2e <e2e-plan.md> [--plan <plan.md>] [--json]
 import { Gate, main, parseArgs, UsageError } from "./lib/common.mjs";
-import { readDoc, parseSpec, parseE2e, parseUnits, parsePlan, duplicates, findCycle, filled } from "./lib/docs.mjs";
+import { readDoc, parseSpec, parseE2e, parseUnits, parsePlan, duplicates, findCycle, filled, GATE_DEP } from "./lib/docs.mjs";
 
 const SIZES = ["S", "M", "L"];
+// A gate id is also an `orch gate park` id; H<n> names the program's own gates (H2 is plan approval).
+const GATE_ID = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
 main((argv) => {
   const args = parseArgs(argv, { flags: ["json"], options: ["units", "spec", "e2e", "plan"] });
@@ -30,10 +34,14 @@ main((argv) => {
   const dup = duplicates(ids);
   g.check(!dup.length, "units-unique", "unit ids unique", `repeated: ${dup.join(", ")}`);
 
+  // A unit may also wait for an e2e-track row (PR #0) or for a human gate that plan.md declares.
+  const e2eIds = parsed.units.filter((u) => u.track === "e2e").map((u) => u.id);
+  const declared = (d) => d.startsWith(GATE_DEP) && Boolean(plan?.gates.has(d.slice(GATE_DEP.length)));
   const lanes = new Map(e2e.lanes.map((l) => [l.id, l]));
   for (const u of units) {
-    const deps = u.depends_on.filter((d) => d === u.id || !ids.includes(d));
-    g.check(!deps.length, `depends ${u.id}`, "dependencies exist", `unknown or self dependency: ${deps.join(", ")}`);
+    const deps = u.depends_on.filter((d) => d === u.id || !(ids.includes(d) || e2eIds.includes(d) || declared(d)));
+    const why = (d) => (d.startsWith(GATE_DEP) ? `${d} (no "## Gate ${d.slice(GATE_DEP.length)}" section in plan.md)` : d);
+    g.check(!deps.length, `depends ${u.id}`, "dependencies exist", `unknown or self dependency: ${deps.map(why).join(", ")}`);
     const unknown = u.lanes.filter((l) => !lanes.has(l));
     g.check(
       u.lanes.length > 0 && !unknown.length,
@@ -65,6 +73,13 @@ main((argv) => {
     }
     const extra = [...plan.units.keys()].filter((id) => !ids.includes(id));
     g.check(!extra.length, "plan-units", "every plan section is a unit", `sections with no unit row: ${extra.join(", ")}`);
+    for (const [id, s] of plan.gates) {
+      const bad = [];
+      if (!GATE_ID.test(id)) bad.push("id must match [A-Za-z][A-Za-z0-9_-]*");
+      if (/^H\d+$/.test(id)) bad.push(`${id} is a built-in human gate`);
+      if (!filled(s.fields.Question)) bad.push("Question is empty");
+      g.check(!bad.length, `gate ${id}`, "gate declared with a Question", bad.join("; "));
+    }
   }
   return g.finish();
 });

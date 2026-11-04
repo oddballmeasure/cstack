@@ -23,7 +23,7 @@ These rules bind every cstack skill and every subagent.
 4. **Implementers never read or edit hidden e2e suites.** The paths are in config `paths_hidden`. Hooks enforce this. Do not work around a block.
 5. **Progress lives in git and the run store, not in context.** Record it in commit trailers and in `.cstack/runs/<slug>/`. A fresh agent must be able to resume from those alone.
 6. **Do not end a turn while work is pending.** Wait with the `Monitor` tool on a watcher script. In Codex, run the watcher in the foreground with `--timeout` (see the Codex notes). Never write sleep loops.
-7. **Never block on the human for reversible work.** Always stop before you force-push a shared branch, deploy, delete data, or message people outside the run.
+7. **Never block on the human for reversible work.** Always stop before you force-push a shared branch, deploy, delete data, or message people outside the run. Only a human's answer resolves a parked gate (H2, a plan's `gate:<id>`). Ask with `AskUserQuestion` and record the answer. Without it, give the person the exact `gate resolve` command to run. Never answer a gate yourself. Headless sessions are denied the command.
 8. **Fight scope.** Decline extras. File each one as a follow-up.
 9. **Encode lessons in structure.** Add a lint, hook, or gate before you add prose.
 10. **Bound every loop.** Take the bound from config `limits`. Hitting the limit is a classified failure, not approval.
