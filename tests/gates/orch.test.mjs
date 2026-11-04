@@ -774,6 +774,15 @@ describe("orch CLI", () => {
     o("unit", "add", "E2E", "--track", "issue");
     assert.equal(o("ledger", "record", "E2E", "32854ae", "approved", "--evidence", "e2e-plan.md").code, 2, "a renamed issue unit");
     assert.equal(o("ledger", "check", "E2E", "32854ae").code, 1);
+    // A suite amendment (E2E-<suffix>) is held to the same rule; an id that only starts with E2E is not a suite unit.
+    r = o("ledger", "record", "E2E-UI", "32854ae", "approved", "--evidence", "e2e-plan.md");
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /needs unit E2E-UI registered with track e2e/);
+    o("unit", "add", "E2E-UI", "--track", "e2e");
+    assert.equal(o("ledger", "record", "E2E-UI", "32854ae", "approved", "--evidence", "e2e-plan.md").code, 0);
+    assert.equal(o("ledger", "check", "E2E-UI", "32854ae").code, 0);
+    o("unit", "add", "E2EX", "--track", "e2e");
+    assert.match(o("ledger", "record", "E2EX", "32854ae", "approved", "--evidence", "e2e-plan.md").stderr, /comes only from check-verdict\.mjs --store/);
     assert.equal(o("ledger", "record", "program-final", "f1", "approved", "--evidence", "final.json").code, 0);
     assert.equal(o("ledger", "check", "program-final", "f1").code, 0);
   });

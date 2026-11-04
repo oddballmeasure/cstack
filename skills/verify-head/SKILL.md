@@ -110,7 +110,7 @@ The gate already recorded `approved` or `rejected`. Record by hand only `verifie
 node <root>/gates/orch.mjs --store <store> ledger record <unit> <sha> verifier-failed --evidence <verdict path> [--pr <n>] --verifier <model used>
 ```
 
-`orch ledger record` refuses a passing verdict for every unit except `E2E` (registered with track `e2e`) and `program-final`, so an approval can come only from the gate. Log one row with `cstack:show-me-your-work`: the verdict, the SHA, the verdict path.
+`orch ledger record` refuses a passing verdict for every unit except the suite units `E2E` and `E2E-<name>` (registered with track `e2e`) and `program-final`, so an approval can come only from the gate. Log one row with `cstack:show-me-your-work`: the verdict, the SHA, the verdict path.
 
 ### 7. Route
 

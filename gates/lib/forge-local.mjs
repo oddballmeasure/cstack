@@ -116,6 +116,7 @@ export function local(config, cwd) {
     kind: "local",
     name: "local git",
     repo: config.repo ?? path.basename(top),
+    headRef: (id) => read("changes", id).branch,
 
     change(id, want = ["files"]) {
       return toChange(read("changes", id), want.includes("files"));

@@ -37,10 +37,12 @@ If the guard blocks a write inside `paths_hidden`, the session was started witho
 Commit only files inside `paths_hidden`, in the worktree from the brief, with these trailers:
 
 ```
-Cstack-Unit: E2E
+Cstack-Unit: <unit from the brief: E2E for the first suite, for example E2E-UI for an amendment>
 Cstack-Ticket: E2E-SUITE
 Refs: #<issue from the brief>
 ```
+
+When the brief says you amend a merged suite, follow **Amend the suite** in the e2e-plan skill: add lanes, keep the merged lanes and their red-check rows, and record each red run under its own `### At <sha>` heading.
 
 ## Report
 

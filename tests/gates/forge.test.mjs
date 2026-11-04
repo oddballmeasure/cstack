@@ -27,8 +27,10 @@ test("openForge returns each backend", () => {
   assert.equal(f.kind, "github");
   assert.equal(f.name, "GitHub");
   assert.equal(f.repo, "o/r");
+  assert.equal(f.headRef(5), "pull/5/head");
   const g = openForge({ repo: "grp/app", forge: "gitlab", forge_host: "git.example.com" });
   assert.deepEqual([g.kind, g.name, g.repo], ["gitlab", "GitLab", "grp/app"]);
+  assert.equal(g.headRef(5), "merge-requests/5/head");
   assert.equal(openForge({ repo: "grp/app", forge: "gitlab" }).kind, "gitlab", "gitlab.com when no host is set");
   assert.equal(openForge({ forge: "local" }, { cwd: process.cwd() }).kind, "local");
   assert.equal(openForge({ forge: "local" }).kind, "local", "the cwd's checkout when none is given");

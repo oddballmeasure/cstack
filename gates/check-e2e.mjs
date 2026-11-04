@@ -66,18 +66,35 @@ main((argv) => {
   const noNeg = spec.requirements.map((r) => r.id).filter((id) => !negative.has(id));
   g.check(!noNeg.length, "negative-coverage", "every R has a negative lane", `no negative lane for ${noNeg.join(", ")}`);
 
-  // Red check: every lane ran on the base and failed for the right reason.
-  if (plan.red.problem) g.fail("red-check", plan.red.problem);
-  for (const r of plan.red.rows) {
-    const verdict = {
-      FAIL: r.reason ? null : "FAIL without a reason",
-      PASS: "already passing: the requirement is met or the test is wrong",
-      ERROR: "broken test: it errored instead of failing on missing behaviour",
-    };
-    const problem = ids.includes(r.lane) ? (Object.hasOwn(verdict, r.result) ? verdict[r.result] : `result must be FAIL, PASS or ERROR, got "${r.result}"`) : "not a lane in this plan";
-    g.check(!problem, `red-check ${r.lane}`, "fails on base", problem);
+  // Red check: every lane ran on a base without its behaviour and failed for the right reason. With
+  // `### At <sha>` blocks, each block records one run; an amendment adds a block for its new lanes on
+  // the current base and keeps the older blocks as history. Each lane appears in exactly one block.
+  for (const p of plan.red.problems) g.fail("red-check", p);
+  const verdict = {
+    PASS: "already passing: the requirement is met or the test is wrong",
+    ERROR: "broken test: it errored instead of failing on missing behaviour",
+  };
+  for (const b of plan.red.blocks) {
+    const at = b.sha ? ` At ${b.sha}` : "";
+    if (b.problem) g.fail("red-check", b.sha ? `At ${b.sha}: ${b.problem}` : b.problem);
+    else if (b.sha) g.check(b.rows.length > 0, `red-check${at}`, `${b.rows.length} rows`, "block has no rows");
+    for (const r of b.rows) {
+      const problem = !ids.includes(r.lane)
+        ? "not a lane in this plan"
+        : r.result === "FAIL"
+          ? r.reason
+            ? null
+            : "FAIL without a reason"
+          : Object.hasOwn(verdict, r.result)
+            ? verdict[r.result]
+            : `result must be FAIL, PASS or ERROR, got "${r.result}"`;
+      g.check(!problem, `red-check ${r.lane}`, `fails on base${at}`, problem);
+    }
   }
-  const unrun = ids.filter((id) => !plan.red.rows.some((r) => r.lane === id));
+  const redLanes = plan.red.blocks.flatMap((b) => b.rows.map((r) => r.lane));
+  const twice = duplicates(redLanes);
+  g.check(!twice.length, "red-check-unique", "each lane recorded once", `recorded more than once: ${twice.join(", ")}`);
+  const unrun = ids.filter((id) => !redLanes.includes(id));
   g.check(!unrun.length, "red-check-complete", "every lane in the red-check table", `missing: ${unrun.join(", ")}`);
 
   // Mutation spot-check: enough distinct lanes, each caught a deliberate break.

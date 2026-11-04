@@ -198,7 +198,7 @@ The author's tables are model claims. Check them yourself:
 2. `node <root>/gates/run-e2e.mjs <wt> --json` at the branch head. Every lane in the plan is reported and fails, and no lane passes. Compare the lane ids with the plan's lanes. The exit code is non-zero by design: the red result is the pass condition here.
 3. `git -C <wt> diff --name-only origin/<base_branch>...HEAD` lists only files under `paths_hidden` and `.cstack/config.json`. Run it without naming the hidden prefix in the command.
 
-All three pass: record the approval for the head and the lanes, and log it. `E2E` is one of two units whose pass `orch ledger record` accepts by hand, because no single gate judges it. It accepts it only for the unit step 3 registered with track `e2e`. Record it only after all three checks passed, each read on its own.
+All three pass: record the approval for the head and the lanes, and log it. `E2E` is a suite unit, and suite units and `program-final` are the only units whose pass `orch ledger record` accepts by hand, because no single gate judges them. It accepts it only for the unit step 3 registered with track `e2e`. Record it only after all three checks passed, each read on its own.
 
 ```sh
 <orch> ledger record E2E <head sha> approved --evidence <store>/e2e-plan.md --verifier check-e2e
@@ -215,13 +215,30 @@ PR #0 goes through the ship stages of `docs/unit-flow.md` with unit id `E2E`, is
 |---|---|---|
 | 8 Publish | `cstack:unit` | `node <root>/gates/publish.mjs <wt> --store <store> --unit E2E`. It pushes only when `units.tsv` records `<branch>` for `E2E` (step 3) and for no other unit and the ledger holds step 7's approval for the head. A `ledger` finding: run step 7 again on this head. |
 | 9 PR | `cstack:file-pr` | The body starts `Closes #<N>`. It lists the lanes by id and title (from the plan, not the suite source), the red-check summary and the mutation summary. If step 4 ran, add a section "Config change for review" that names the `e2e_command` it set. |
-| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` when the diff touches only `paths_hidden` and `.cstack/config.json`. Log `skip: hidden suite`. |
+| 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` on track `e2e` when every changed file is under the merge base's `paths_hidden`, or is `.cstack/config.json` with only `e2e_command` changed against the merge base. Log `skip: hidden suite`. |
 | 11 Merge gate | `cstack:merge-gate` | Merges only under the run's effective autonomy `send` (`gates/run-settings.mjs`), as for any unit. |
 | 12 Settle | `cstack:settle` | Settle `<N>` and set the unit state. |
 
 When step 4 changed the config, put the config change first in the final report so the human reviews it. Under `autonomy: stop` the human reviews it before merging. Under `send` the human reviews it after the merge. The change is one revertible line.
 
 On failure at any stage, follow **On failure** in `cstack:unit` with unit `E2E`.
+
+## Amend the suite
+
+Use this when a merged suite needs new lanes, for example browser lanes after a UI prototype gate, or lanes for an E that `cstack:spec` added. An amendment only adds lanes. A change to a merged lane is not an amendment: ask the human.
+
+The amendment ships as its own e2e unit, through steps 3 to 8 with these changes:
+
+1. **Spec.** If a new lane tests a new E, amend `spec.md` through `cstack:spec` first. `check-spec.mjs` must pass.
+2. **Unit.** Pick a unit id `E2E-<name>`, for example `E2E-UI`, with branch `cstack/<N>-e2e-<name>`. Register it on track `e2e`: `<orch> unit add E2E-UI --track e2e --issue <N> --state ready`. Use this id wherever steps 3 to 8 say `E2E`. The gates treat a unit as a suite unit only when its id is `E2E` or `E2E-<name>` and its `units.tsv` row has track `e2e`: `orch ledger record` then accepts its pass by hand, `publish.mjs` pushes its branch, and `check-merge.mjs` skips the review round when every changed file is under the merge base's `paths_hidden`, or is `.cstack/config.json` with only `e2e_command` changed against the merge base. The gate fetches the base branch and the PR head ref, then takes the changed files from a local `git diff --no-renames` against the merge base, not from the forge's list, so a file moved into the suite counts on both sides. A SHA it still cannot find locally means a review is required, and the finding names it. Any other file or config key in the diff, docs included, needs a review round.
+3. **Brief.** Add to the step 5 brief: the unit id for the commit trailer, the lanes to add, and the SHA the existing red-check table ran at. That SHA is the head of the last `approved` row in `<store>/ledger.tsv` for the unit that shipped the existing table (`E2E`, or the previous amendment).
+4. **The author's red check.** Step 6 runs on a base where earlier lanes may already pass. Only the new lanes must FAIL for the right reason. Record the red check in blocks, oldest first:
+   - If `## Red check` holds one table, move it unchanged under `### At <sha from the brief>`. Keep older blocks unchanged.
+   - Add `### At <worktree base SHA>` with one row per new lane from this run.
+   Each lane appears in exactly one block. `check-e2e.mjs` judges every row and rejects a lane recorded twice or not at all.
+5. **The author's mutation spot-check.** Keep the earlier rows. Spot-check at least one new lane, and keep the table at max(2, ceil(20% of all lanes)) distinct lanes.
+6. **Gate the result.** In step 7, check 2 changes: every new lane is reported and fails. An earlier lane whose unit has merged must pass; one that fails is a regression, so stop and report it. Record the approval and lanes under the amendment's unit id, with only the new lanes in `--lanes`: `<orch> ledger record E2E-UI <head sha> approved --evidence <store>/e2e-plan.md --verifier check-e2e`. Publish with `--unit E2E-UI`.
+7. **After the merge.** The new lanes need product units. Run `cstack:plan` to add them before `check-plan.mjs` runs again.
 
 ## Report
 

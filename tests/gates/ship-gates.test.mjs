@@ -216,6 +216,19 @@ test("publish holds the hand-recorded units to their shape: E2E needs track e2e,
   let res = gate("publish.mjs", [...u.args(wt, "E2E"), "--json"]);
   assert.deepEqual(failChecks(res), ["unit"]);
   assert.equal(res.json.findings[0].detail, "unit E2E has track issue, not e2e");
+  // A suite amendment is held to the same shape, and publishes on track e2e.
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/other").code, 0);
+  assert.equal(u.orch("unit", "add", "E2E-UI", "--track", "issue").code, 0);
+  assert.equal(u.orch("unit", "set", "E2E-UI", "--branch", "cstack/9-fake").code, 0);
+  approve(u.store, "E2E-UI", head);
+  res = gate("publish.mjs", [...u.args(wt, "E2E-UI"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit"]);
+  assert.equal(res.json.findings[0].detail, "unit E2E-UI has track issue, not e2e");
+  assert.equal(u.orch("unit", "set", "E2E-UI", "--track", "e2e").code, 0);
+  res = gate("publish.mjs", [...u.args(wt, "E2E-UI"), "--json"]);
+  assert.equal(res.code, 0, res.out + res.err);
+  git(wt, "push", "-q", "origin", "--delete", "cstack/9-fake");
+  assert.equal(u.orch("unit", "set", "E2E-UI", "--branch", "cstack/ui").code, 0);
   assert.equal(u.orch("unit", "add", "program-final", "--track", "e2e").code, 0);
   assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/other").code, 0);
   assert.equal(u.orch("unit", "set", "program-final", "--branch", "cstack/9-fake").code, 0);

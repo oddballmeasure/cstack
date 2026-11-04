@@ -102,6 +102,7 @@ export function gitlab(repo, cwd, host = null) {
     kind: "gitlab",
     name: "GitLab",
     repo,
+    headRef: (id) => `merge-requests/${id}/head`,
 
     change(id, want = ["files"]) {
       const m = json("GET", `${project}/merge_requests/${id}?include_diverged_commits_count=true`);
