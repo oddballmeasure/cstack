@@ -1,7 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
-import { makeRepo, commit, gate, git, write, failChecks, path } from "./helpers.mjs";
+import { writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { makeRepo, commit, gate, git, write, failChecks, approve, path } from "./helpers.mjs";
 
 function scenario(base, rules) {
   const p = path.join(base, `gh-${Math.random().toString(36).slice(2)}.json`);
@@ -109,13 +110,27 @@ test("sync-base refuses a dirty tree, a failed fetch and bad usage", () => {
 
 // publish
 
-test("publish pushes new work, is idempotent, and refuses a moved remote", () => {
-  const { root, wt, base } = isolated();
+// A run store where unit U1 owns the worktree's branch, as cstack:unit stage 2 records it.
+function unitStore(branch = "cstack/1-x") {
+  const store = mkdtempSync(path.join(tmpdir(), "cstack-store-"));
+  const orch = (...a) => gate("orch.mjs", ["--store", store, ...a]);
+  assert.equal(orch("init").code, 0);
+  assert.equal(orch("unit", "add", "U1", "--track", "issue").code, 0);
+  assert.equal(orch("unit", "set", "U1", "--branch", branch).code, 0);
+  return { store, orch, args: (wt, unit = "U1") => [wt, "--store", store, "--unit", unit] };
+}
+const remoteHead = (wt) => git(wt, "ls-remote", "origin", "refs/heads/cstack/1-x");
+
+test("publish pushes an approved head, is idempotent, and refuses a moved remote", () => {
+  const { wt, base } = isolated();
+  const u = unitStore();
   const head = commit(wt, { "src/f.js": "1\n" }, "work");
-  let res = gate("publish.mjs", [wt, "--json"]);
+  approve(u.store, "U1", head);
+  let res = gate("publish.mjs", [...u.args(wt), "--json"]);
   assert.equal(res.code, 0, res.out + res.err);
   assert.equal(res.json.sha, head);
-  assert.match(gate("publish.mjs", [wt]).out, /already at/);
+  assert.match(res.json.passes.find((p) => p.check === "ledger").detail, /^approved for U1 at /);
+  assert.match(gate("publish.mjs", u.args(wt)).out, /already at/);
 
   // Someone else pushes to the branch: our lease (observed just before) still protects their work
   // because we re-read it, so simulate a race by making the push itself fail.
@@ -123,29 +138,114 @@ test("publish pushes new work, is idempotent, and refuses a moved remote", () =>
   git(base, "clone", "-q", "-b", "cstack/1-x", path.join(base, "origin.git"), other);
   commit(other, { "src/g.js": "theirs\n" }, "theirs");
   git(other, "push", "-q", "origin", "cstack/1-x");
-  commit(wt, { "src/h.js": "ours\n" }, "ours");
+  approve(u.store, "U1", commit(wt, { "src/h.js": "ours\n" }, "ours"));
   git(wt, "config", "remote.origin.pushurl", "/nonexistent.git");
-  res = gate("publish.mjs", [wt, "--json"]);
+  res = gate("publish.mjs", [...u.args(wt), "--json"]);
   assert.equal(res.code, 1);
   assert.deepEqual(failChecks(res), ["push", "remote sha"]);
-  void root;
 });
 
 test("publish reports a missing remote branch when the first push fails", () => {
   const { wt } = isolated();
-  commit(wt, { "src/f.js": "1\n" }, "work");
+  const u = unitStore();
+  approve(u.store, "U1", commit(wt, { "src/f.js": "1\n" }, "work"));
   git(wt, "config", "remote.origin.pushurl", "/nonexistent.git");
-  assert.match(gate("publish.mjs", [wt]).out, /is missing, expected/);
+  assert.match(gate("publish.mjs", u.args(wt)).out, /is missing, expected/);
 });
 
-test("publish errors: detached HEAD, unreachable remote, usage", () => {
+test("publish pushes nothing when check-verdict rejected the head, even after a hand-recorded approval", () => {
+  const { wt, base } = isolated();
+  const u = unitStore();
+  const head = commit(wt, { "src/f.js": "1\n", "test/f.test.js": "t\n" }, "work");
+  let res = gate("publish.mjs", [...u.args(wt), "--json"]);
+  assert.equal(res.code, 1);
+  assert.match(res.json.findings.find((f) => f.check === "ledger").detail, /no approval for U1 at .+ \(not verified\); verify this head first/);
+
+  // The incident: check-verdict rejects, and the same command chain records an approval and publishes.
+  const verdict = path.join(base, "verdict.json");
+  writeFileSync(verdict, JSON.stringify({ unit: "U1", head_sha: head, requirements: [{ id: "R1", delivered: true, evidence: "ran it" }], findings: ["off by one"] }));
+  assert.equal(gate("check-verdict.mjs", [wt, "--verdict", verdict, "--base", "main", "--requirements", "R1", "--store", u.store, "--unit", "U1"]).code, 1);
+  assert.equal(u.orch("ledger", "record", "U1", head, "approved", "--evidence", verdict).code, 2);
+  res = gate("publish.mjs", [...u.args(wt), "--json"]);
+  assert.equal(res.code, 1);
+  assert.deepEqual(failChecks(res), ["ledger"]);
+  assert.match(res.json.findings[0].detail, /\(rejected\)/);
+  assert.equal(remoteHead(wt), "", "nothing was pushed");
+});
+
+test("publish refuses a unit that does not own the branch, so a hand-recorded E2E approval publishes nothing else", () => {
   const { wt } = isolated();
+  const u = unitStore();
+  const head = commit(wt, { "src/f.js": "1\n" }, "work");
+  assert.equal(u.orch("unit", "add", "E2E", "--track", "e2e").code, 0);
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/2-e2e").code, 0);
+  assert.equal(u.orch("ledger", "record", "E2E", head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e").code, 0);
+  let res = gate("publish.mjs", [...u.args(wt, "E2E"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit"]);
+  assert.match(res.json.findings[0].detail, /unit E2E is on branch cstack\/2-e2e, not cstack\/1-x/);
+  assert.equal(u.orch("unit", "add", "U2", "--track", "issue").code, 0);
+  res = gate("publish.mjs", [...u.args(wt, "U2"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit", "ledger"]);
+  assert.match(res.json.findings[0].detail, /unit U2 is on branch \(none\)/);
+  res = gate("publish.mjs", [...u.args(wt, "U9"), "--json"]);
+  assert.match(res.json.findings[0].detail, /unit U9 is not in .+units\.tsv/);
+  assert.equal(remoteHead(wt), "", "nothing was pushed");
+
+  // Pointing E2E at another unit's branch does not help: U1 still claims it.
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/1-x").code, 0);
+  res = gate("publish.mjs", [...u.args(wt, "E2E"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit"]);
+  assert.equal(res.json.findings[0].detail, "cstack/1-x is also claimed by U1");
+  assert.equal(remoteHead(wt), "", "nothing was pushed");
+
+  // E2E publishes its own branch with the coordinator's recorded approval.
+  git(wt, "checkout", "-q", "-b", "cstack/2-e2e");
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/2-e2e").code, 0);
+  res = gate("publish.mjs", [...u.args(wt, "E2E"), "--json"]);
+  assert.equal(res.code, 0, res.out + res.err);
+});
+
+test("publish holds the hand-recorded units to their shape: E2E needs track e2e, program-final never publishes", () => {
+  const { wt } = isolated();
+  const u = unitStore();
+  const head = commit(wt, { "src/f.js": "1\n" }, "work");
+  git(wt, "checkout", "-q", "-b", "cstack/9-fake");
+  assert.equal(u.orch("unit", "add", "E2E", "--track", "issue").code, 0);
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/9-fake").code, 0);
+  approve(u.store, "E2E", head);
+  let res = gate("publish.mjs", [...u.args(wt, "E2E"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit"]);
+  assert.equal(res.json.findings[0].detail, "unit E2E has track issue, not e2e");
+  assert.equal(u.orch("unit", "add", "program-final", "--track", "e2e").code, 0);
+  assert.equal(u.orch("unit", "set", "E2E", "--branch", "cstack/other").code, 0);
+  assert.equal(u.orch("unit", "set", "program-final", "--branch", "cstack/9-fake").code, 0);
+  assert.equal(u.orch("ledger", "record", "program-final", head, "approved", "--evidence", "final.json").code, 0);
+  res = gate("publish.mjs", [...u.args(wt, "program-final"), "--json"]);
+  assert.deepEqual(failChecks(res), ["unit"]);
+  assert.match(res.json.findings[0].detail, /program-final judges a merged base and is never published/);
+  assert.equal(git(wt, "ls-remote", "origin", "refs/heads/cstack/9-fake"), "", "nothing was pushed");
+});
+
+test("publish errors: detached HEAD, unreachable remote, missing store, usage", () => {
+  const { wt } = isolated();
+  const u = unitStore();
   git(wt, "checkout", "-q", "--detach");
-  assert.match(gate("publish.mjs", [wt]).err, /detached HEAD/);
+  assert.match(gate("publish.mjs", u.args(wt)).err, /detached HEAD/);
   git(wt, "checkout", "-q", "cstack/1-x");
+  approve(u.store, "U1", git(wt, "rev-parse", "HEAD"));
   git(wt, "remote", "set-url", "origin", "/nonexistent.git");
-  assert.match(gate("publish.mjs", [wt]).err, /ls-remote failed/);
+  assert.match(gate("publish.mjs", u.args(wt)).err, /ls-remote failed/);
+  assert.equal(gate("publish.mjs", [wt, "--store", path.join(u.store, "missing"), "--unit", "U1"]).code, 2);
   assert.equal(gate("publish.mjs", []).code, 2);
+  assert.equal(gate("publish.mjs", [wt, "--unit", "U1"]).code, 2);
+  assert.equal(gate("publish.mjs", [wt, "--store", u.store]).code, 2);
+});
+
+test("check-verdict usage names --store and --unit and says nothing is recorded without them", () => {
+  const res = gate("check-verdict.mjs", []);
+  assert.equal(res.code, 2);
+  assert.match(res.err, /\[--store <dir> --unit <id>\]/);
+  assert.match(res.err, /without them nothing is recorded, so publish\.mjs refuses this head/);
 });
 
 // ci-log

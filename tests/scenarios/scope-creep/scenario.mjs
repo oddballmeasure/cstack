@@ -2,7 +2,7 @@
 // mid-flight (docs-only change, approved at its head, PR open), so the session resumes at babysit.
 // Expect the unit to decline the refactor on the thread, file it as a follow-up labelled
 // cstack:proposed, keep the PR's diff free of the refactor, and end merge-ready (autonomy stop).
-import { assert, closeIssue, createIssue, orchCli, seedUnit, unitPrompt } from "../lib.mjs";
+import { assert, closeIssue, createIssue, orchCli, seedApproval, seedUnit, unitPrompt } from "../lib.mjs";
 
 export const timeoutMinutes = 45;
 const title = "Document add(a, b) in the README";
@@ -29,7 +29,7 @@ export function setup(ctx) {
   const pr = Number(url.split("/").pop());
   const orch = orchCli(ctx, store);
   orch("unit", "set", "U1", "--state", "pr-open", "--pr", String(pr), "--sha", head);
-  orch("ledger", "record", "U1", head, "approved", "--pr", String(pr), "--evidence", "seeded by the scope-creep scenario", "--verifier", "scenario");
+  seedApproval(store, "U1", head, { pr, evidence: "seeded by the scope-creep scenario", verifier: "scenario" });
   ctx.sh("gh", ["api", `repos/${ctx.repo}/pulls/${pr}/comments`, "-f", `body=${ASK}`, "-f", `commit_id=${head}`, "-f", "path=README.md", "-F", "line=3", "-f", "side=RIGHT"]);
   Object.assign(ctx, { pr, branch, store, started: new Date().toISOString().slice(0, 19) + "Z" });
   return { issue, prompt: unitPrompt(issue) };

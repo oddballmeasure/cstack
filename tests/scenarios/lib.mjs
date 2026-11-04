@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as fs from "node:fs";
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
+import { openStore } from "../../gates/lib/store.mjs";
 
 export function createIssue(ctx, title, body) {
   const url = ctx.gh("issue", "create", "--title", title, "--body", body, "--label", "cstack:ready");
@@ -104,6 +105,15 @@ export function seedUnit(ctx, { issue, title, intake, commits }) {
 export const UNATTENDED = "This is an unattended scenario run: no human will answer questions. Take documented defaults instead of asking.";
 export const REPO_NAME = (process.env.CSTACK_TESTBED_REPO || "oddballmeasure/cstack-testbed").split("/")[1];
 export const storeOf = (ctx, slug) => path.join(ctx.testbed, ".cstack/runs", slug);
+// Seed an approved ledger row as check-verdict.mjs --store writes one; `orch ledger record` refuses a hand-recorded pass.
+export function seedApproval(store, unit, sha, { pr, evidence = "seeded", verifier } = {}) {
+  const s = openStore(store);
+  try {
+    s.ledger.record({ unit, sha, verdict: "approved", evidence, pr, verifier });
+  } finally {
+    s.close();
+  }
+}
 export const orchCli = (ctx, store) => (...a) => ctx.sh("node", [path.join(ctx.cstack, "gates/orch.mjs"), "--store", store, ...a]);
 export const workerCli = (ctx, args, env = {}) => ctx.sh("node", [path.join(ctx.cstack, "gates/worker.mjs"), ...args], { env: { ...process.env, ...env } });
 export const unitName = (slug, unit) => `cstack-${REPO_NAME}-${slug}-${unit}`;

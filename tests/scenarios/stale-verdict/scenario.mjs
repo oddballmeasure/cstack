@@ -1,6 +1,6 @@
 // Scenario 12: an approval exists for an older head; a later push must make the merge gate refuse.
 // Deterministic: no Claude session.
-import { createIssue, seedUnit, assert } from "../lib.mjs";
+import { createIssue, seedUnit, seedApproval, assert } from "../lib.mjs";
 import path from "node:path";
 
 const title = "Stale verdict probe";
@@ -18,8 +18,7 @@ export function setup(ctx) {
   ctx.git("push", "-q", "origin", branch);
   const url = ctx.gh("pr", "create", "--head", branch, "--base", "main", "--title", title, "--body", `Closes #${issue}`);
   ctx.pr = Number(url.split("/").pop());
-  const orch = (...a) => ctx.sh("node", [path.join(ctx.cstack, "gates/orch.mjs"), "--store", store, ...a]);
-  orch("ledger", "record", "U1", approved, "approved", "--pr", String(ctx.pr), "--evidence", "seeded");
+  seedApproval(store, "U1", approved, { pr: ctx.pr });
   ctx.git("commit", "-q", "--allow-empty", "-m", "Someone pushes after the approval");
   ctx.git("push", "-q", "origin", branch);
   ctx.git("checkout", "-q", "main");

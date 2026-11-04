@@ -1,23 +1,31 @@
 #!/usr/bin/env node
 // Gate on a verifier's assessment. The model argues; this decides (Cardinal verifier rules).
-// Usage: check-verdict.mjs <worktree> --verdict <file.json> --base <ref> --requirements R1,R2 [--lanes E1.1,E2.1] [--json]
+// Usage: check-verdict.mjs <worktree> --verdict <file.json> --base <ref> --requirements R1,R2 [--lanes E1.1,E2.1]
+//        [--store <dir> --unit <id>] [--json]
 // verdict.json: {"unit":"U1","head_sha":"<sha>","requirements":[{"id":"R1","delivered":true,"evidence":"..."}],"findings":["..."]}
-// Approved only when every check passes. The skill records the result in the ledger keyed by (unit, sha).
+// Approved only when every check passes. With --store and --unit the gate records its own result in the ledger,
+// keyed by (unit, HEAD): approved or rejected. Without them nothing is recorded, so publish.mjs refuses the head.
+// `orch ledger record` refuses a passing verdict for such a unit, so an approval row can only come from here.
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, gitOut, run } from "./lib/common.mjs";
 import { changedFiles, pathViolations, runTests, isTest, isDoc } from "./lib/repo.mjs";
+import { openStore } from "./lib/store.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const list = (s) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 
 await main(async (argv) => {
-  const args = parseArgs(argv, { flags: ["json"], options: ["verdict", "base", "requirements", "lanes"] });
+  const args = parseArgs(argv, { flags: ["json"], options: ["verdict", "base", "requirements", "lanes", "store", "unit"] });
   const [wt] = args._;
   if (!wt || !args.verdict || !args.base || !args.requirements) {
-    throw new UsageError("usage: check-verdict.mjs <worktree> --verdict <file> --base <ref> --requirements R1,R2 [--lanes E1.1]");
+    throw new UsageError(
+      "usage: check-verdict.mjs <worktree> --verdict <file> --base <ref> --requirements R1,R2 [--lanes E1.1] [--store <dir> --unit <id>]\n" +
+        "--store and --unit record the result in the ledger; without them nothing is recorded, so publish.mjs refuses this head",
+    );
   }
+  if (!args.store !== !args.unit) throw new UsageError("--store and --unit go together; without both nothing is recorded, so publish.mjs refuses this head");
   let v;
   try {
     v = JSON.parse(readFileSync(args.verdict, "utf8"));
@@ -28,6 +36,7 @@ await main(async (argv) => {
   const gate = new Gate("check-verdict", { json: args.json });
   const head = gitOut(wt, ["rev-parse", "HEAD"]);
 
+  if (args.unit) gate.check(v.unit === args.unit, "unit", `verdict names unit ${args.unit}`, `verdict names unit ${v.unit || "nothing"}, not ${args.unit}`);
   gate.check(v.head_sha === head, "head", `verdict names HEAD ${head.slice(0, 12)}`, `verdict names ${v.head_sha || "nothing"}, HEAD is ${head}`);
 
   const wanted = list(args.requirements);
@@ -70,6 +79,17 @@ await main(async (argv) => {
     if (!report) gate.fail("e2e", `run-e2e failed: ${r.stderr.trim().split("\n").pop()}`);
     else for (const f of report.findings) gate.fail(`e2e ${f.check}`, f.detail);
     if (report && report.approved) gate.pass("e2e", `${lanes.length} lanes pass`);
+  }
+
+  if (args.store) {
+    const verdict = gate.approved ? "approved" : "rejected";
+    const store = openStore(args.store);
+    try {
+      store.ledger.record({ unit: args.unit, sha: head, verdict, evidence: path.resolve(args.verdict), verifier: String(v.by || "cstack-verifier") });
+    } finally {
+      store.close();
+    }
+    gate.pass("ledger", `recorded ${verdict} for ${args.unit} at ${head.slice(0, 12)}`);
   }
 
   return gate.finish({ unit: v.unit, head });

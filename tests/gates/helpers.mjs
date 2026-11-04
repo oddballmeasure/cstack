@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, existsS
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { openStore } from "../../gates/lib/store.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "../..");
@@ -85,6 +86,17 @@ export function gate(name, args, { env = {}, cwd = ROOT } = {}) {
     json = JSON.parse(r.stdout);
   } catch {}
   return { code: r.status, out: r.stdout, err: r.stderr, json };
+}
+
+// Seed an approved ledger row the way check-verdict.mjs --store writes one. `orch ledger record` refuses a hand-recorded
+// pass for any unit but E2E and program-final.
+export function approve(store, unit, sha, { pr, evidence = "check-verdict approved", verifier = "fable" } = {}) {
+  const s = openStore(store);
+  try {
+    return s.ledger.record({ unit, sha, verdict: "approved", evidence, pr, verifier });
+  } finally {
+    s.close();
+  }
 }
 
 export const failChecks = (res) => (res.json?.findings || []).map((f) => f.check);

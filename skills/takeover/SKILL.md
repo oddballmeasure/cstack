@@ -37,6 +37,14 @@ node <root>/gates/isolate.mjs <repo> <branch> <worktree> --base origin/takeover-
 
 Name the branch `cstack/<N>-<slug>` when an issue `N` exists (`docs/unit-flow.md`), else `cstack/takeover-<n>`. The branch starts at the original head, so it keeps the original commits, authors and `Co-authored-by` trailers. Add your fixes as separate commits on top.
 
+Register the branch in a run store, so the ledger and the publish gate know it. Inside a unit, use the unit's store and id. Outside a run, the store is `<repo>/.cstack/runs/takeover-<n>/` and the unit id is `takeover-<n>`:
+
+```bash
+node <root>/gates/orch.mjs --store <store> init
+node <root>/gates/orch.mjs --store <store> unit add takeover-<n> --track takeover
+node <root>/gates/orch.mjs --store <store> unit set takeover-<n> --branch <branch>
+```
+
 Credit the original contributors in the PR body and link the original PR. Use identities you verified from `git log --format='%an <%ae>'` or the forge's change record. Do not guess an email. If the repo squash-merges, check that the squash message keeps a `Co-authored-by:` line for each human contributor. A model attribution line does not replace contributor credit.
 
 ## 3. Modernize and finish
@@ -49,7 +57,7 @@ Rework only what the original goal needs. Do not add unrelated features. Simplif
 
 - Reproduce the original failure, then show the same reproduction passing, with `cstack:prove`.
 - Exercise the realistic user workflows, per the repo's guidance and permissions. Green mocked tests do not prove the user experience.
-- Get a non-author verdict at the exact head with `cstack:verify-head`. You wrote the fixes, so you cannot approve them (rule 3).
+- Get a non-author verdict at the exact head with `cstack:verify-head`, with the store and unit id from step 2. You wrote the fixes, so you cannot approve them (rule 3). Its gate records the ledger row.
 - Run `cstack:review-loop` on the diff.
 
 State what stays unverified.
@@ -58,10 +66,11 @@ State what stays unverified.
 
 When the requested finish includes a PR:
 
-1. File it with `cstack:file-pr`. Give it the issue, branch, worktree, verified SHA and a run store (`<repo>/.cstack/runs/takeover-<n>/` outside a run). The body adds a credit line after the fix paragraph: `Takes over #<n> by @<login>.`
-2. Drive it to green with `cstack:babysit-pr`. Do not stop at creation.
-3. Write every reply with `cstack:leaving-pr-comments`.
-4. Merge only through `cstack:merge-gate`, under the run's effective autonomy.
+1. Publish the verified head: `node <root>/gates/publish.mjs <worktree> --store <store> --unit <unit>`. It refuses to push unless the ledger approves that head. A `ledger` finding: run step 4 again.
+2. File it with `cstack:file-pr`. Give it the issue, branch, worktree, verified SHA and the run store from step 2. The body adds a credit line after the fix paragraph: `Takes over #<n> by @<login>.`
+3. Drive it to green with `cstack:babysit-pr`. Do not stop at creation.
+4. Write every reply with `cstack:leaving-pr-comments`.
+5. Merge only through `cstack:merge-gate`, under the run's effective autonomy.
 
 Inside a unit, the unit flow owns the `<label_prefix>:*` state labels. Outside one, move the issue to `<label_prefix>:in-progress` while you work and settle it at the end. Keep one state label at a time.
 

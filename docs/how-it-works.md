@@ -34,8 +34,9 @@ cstack is four kinds of parts. **Skills** hold the procedure and the judgement. 
 | Isolate | A worktree is created with the hidden suite left out of the checkout. | `isolate` |
 | Intake | The issue is classified and split into 1 to 4 tickets. | `check-intake` |
 | Implement | A worker writes the change and tests and commits with `Cstack-Unit`/`Cstack-Ticket`/`Refs` trailers. | `check-commit` reruns the tests itself |
-| Verify | A verifier on another model checks every requirement at the exact head. | `check-verdict`, recorded in the ledger by SHA |
+| Verify | A verifier on another model checks every requirement at the exact head. | `check-verdict`, which records its own result in the ledger by SHA |
 | Sync | The base is merged in; conflicts become a SYNC repair ticket. | `sync-base` |
+| Publish | The verified head is pushed with a lease. | `publish`, only when the ledger approves that head |
 | PR and babysit | The PR is opened and watched; CI failures become CI-REPAIR tickets with the log tail. | `pr-wait` under the Monitor tool |
 | Review | A review loop on a third model reads the diff; findings become REPAIR tickets. | the review ledger |
 | Merge gate | Merge only with a ledger approval and a review approval at this exact SHA, green required checks, no change requests, and no base drift under the PR's files. | `check-merge` |

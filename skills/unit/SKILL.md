@@ -181,12 +181,13 @@ REPAIR, CI-REPAIR and SYNC tickets come back to this stage and pass the same gat
 
 Owner: `cstack:verify-head`. Skip if `<orch> ledger check <unit> <HEAD>` exits 0 (`skip: verified at <sha12>`).
 
-It runs the plugin's `cstack-verifier` agent (model `models.judge`) read-only in `<wt>`. The verifier never wrote this code. It writes `<store>/verdict-<unit>-<sha12>.json`. `cstack:verify-head` runs the gate and records the ledger row. Confirm both from their output:
+It runs the plugin's `cstack-verifier` agent (model `models.judge`) read-only in `<wt>`. The verifier never wrote this code. It writes `<store>/verdict-<unit>-<sha12>.json`. `cstack:verify-head` runs the gate, and the gate records its own result in the ledger. Confirm it from the gate's output (`PASS ledger: recorded approved for <unit> at <sha12>`):
 
 ```bash
-node <root>/gates/check-verdict.mjs <wt> --verdict <store>/verdict-<unit>-<sha12>.json --base <base> --requirements <R ids> [--lanes <lane ids>]
-<orch> ledger record <unit> <HEAD> <approved|rejected> --evidence <store>/verdict-<unit>-<sha12>.json --verifier cstack-verifier
+node <root>/gates/check-verdict.mjs <wt> --verdict <store>/verdict-<unit>-<sha12>.json --base <base> --requirements <R ids> [--lanes <lane ids>] --store <store> --unit <unit>
 ```
+
+`<orch> ledger record` refuses `approved` for this unit. Never try to record it by hand.
 
 Pass: stage 7. Fail: `cstack:repair` with source `verify` returns `retry REPAIR-<n>` (go to stage 5) or `exhausted verification` (failure `verification`). The limit is `limits.verify_rounds`.
 
@@ -200,14 +201,14 @@ Owner: `cstack:sync-base`. Gate: `node <root>/gates/sync-base.mjs <wt> --json`.
 
 ### 8 Publish
 
-Owner: this skill. First confirm the verdict is current: `<orch> ledger check <unit> <HEAD>` must exit 0. If not, go to stage 6. Then:
+Owner: this skill. Run it as its own Bash call, after you read stage 6's result. Never chain it after `check-verdict.mjs`.
 
 ```bash
-node <root>/gates/publish.mjs <wt>
+node <root>/gates/publish.mjs <wt> --store <store> --unit <unit>
 <orch> unit set <unit> --sha <HEAD>
 ```
 
-The gate passes when the remote SHA equals the verified SHA. Pass: stage 9, or stage 10 when the PR already exists. Fail: failure `git`.
+The gate refuses before any push unless `units.tsv` records `<branch>` for `<unit>` and the ledger approves `<HEAD>` for `<unit>`, the same check as `<orch> ledger check <unit> <HEAD>`. It passes when the remote SHA equals the verified SHA. Pass: stage 9, or stage 10 when the PR already exists. A `ledger` finding: go to stage 6. Any other failure: failure `git`.
 
 ### 9 PR
 
