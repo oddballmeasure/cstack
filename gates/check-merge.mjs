@@ -48,11 +48,21 @@ function suiteDiff(repoDir, baseSha, head) {
   }
 }
 
+// A fetch from origin that never prompts and never blocks: no terminal prompt, no credential helper, and a
+// bounded run time. A timed-out fetch reports a non-zero code like any other failed fetch.
+const FETCH_TIMEOUT_MS = 120_000;
+function fetchRef(repoDir, ref) {
+  return run("git", ["-C", repoDir, "-c", "credential.helper=", "fetch", "--quiet", "origin", ref], {
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    timeout: FETCH_TIMEOUT_MS,
+  });
+}
+
 // Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local.
 // Fetch errors are ignored: the presence check after them decides.
 function missingShas(repoDir, forge, pr, p) {
-  git(repoDir, ["fetch", "--quiet", "origin", p.base]);
-  git(repoDir, ["fetch", "--quiet", "origin", forge.headRef(pr)]);
+  fetchRef(repoDir, p.base);
+  fetchRef(repoDir, forge.headRef(pr));
   return [p.baseSha, p.head].filter((s) => git(repoDir, ["cat-file", "-e", `${s}^{commit}`]).code !== 0);
 }
 
@@ -148,7 +158,7 @@ await main(async (argv) => {
   gate.check(p.merge === "clean", "merge state", p.mergeRaw, `${p.mergeRaw}${p.merge === "unknown" ? ` (${forge.name} still computing; retry)` : ""}`);
 
   // Base moved since the PR was based: refuse if the new base commits touch the PR's files.
-  const fetch = git(repoDir, ["fetch", "--quiet", "origin", p.base]);
+  const fetch = fetchRef(repoDir, p.base);
   if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetch.stderr.trim()}`);
   else {
     const tip = git(repoDir, ["rev-parse", `origin/${p.base}`]).stdout.trim();

@@ -177,8 +177,10 @@ test("review: the gate fetches the PR head ref before it judges a suite-only dif
   assert.match(ok.out, /hidden e2e suite change/);
 });
 
-test("review: suite paths with a tab, a quote or non-ASCII still match paths_hidden", () => {
-  const odd = { 'tests/acceptance/a\tb "é".test.mjs': "x\n" };
+test("review: suite paths with a space, non-ASCII, and (off Windows) a tab or a quote still match paths_hidden", () => {
+  // git quotes a path with non-ASCII, a tab or a quote unless -z is set. Windows forbids tab and quote in names.
+  const name = process.platform === "win32" ? "a b é" : 'a\tb "é"';
+  const odd = { [`tests/acceptance/${name}.test.mjs`]: "x\n" };
   const ok = suiteMerge({ headFiles: odd, pr: { files: listed(odd) } });
   assert.equal(ok.code, 0, ok.out);
 });

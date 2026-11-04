@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, writeFileSync } from "node:fs";
+import { existsSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { makeRepo, gate, path, GATES, FAKE_BIN } from "./helpers.mjs";
 
 function program() {
@@ -14,7 +14,12 @@ function program() {
   orch("init");
   const states = path.join(r.base, "states.json");
   writeFileSync(states, "{}");
-  const setStates = (o) => writeFileSync(states, JSON.stringify(o));
+  // Write then rename, so the fake systemctl never reads a half-written file. A torn read parses as an error,
+  // reports state "unknown", and the watcher exits idle before the transition a test waits for.
+  const setStates = (o) => {
+    writeFileSync(`${states}.tmp`, JSON.stringify(o));
+    renameSync(`${states}.tmp`, states);
+  };
   return { ...r, store, orch, states, setStates };
 }
 
@@ -37,10 +42,15 @@ function watch(p, args) {
     }
   });
   child.stderr.on("data", (d) => (err += d));
-  const exited = new Promise((resolve) => child.on("exit", (code) => resolve({ code, lines, err })));
+  const exited = new Promise((resolve) => child.on("close", (code) => resolve({ code, lines, err })));
+  // Rejects when the watcher exits without the line, so a missed transition fails the test instead of hanging it.
   const waitFor = (re) => {
     const hit = lines.find((l) => re.test(l));
-    return hit ? Promise.resolve(hit) : new Promise((resolve) => waiters.push({ re, resolve }));
+    if (hit) return Promise.resolve(hit);
+    return Promise.race([
+      new Promise((resolve) => waiters.push({ re, resolve })),
+      exited.then((r) => Promise.reject(new Error(`watcher exited ${r.code} without ${re}; printed: ${JSON.stringify(r.lines)}`))),
+    ]);
   };
   return { child, lines, exited, waitFor };
 }
