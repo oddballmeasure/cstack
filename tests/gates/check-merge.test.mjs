@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { makeRepo, commit, gate, git, failChecks, approve, path } from "./helpers.mjs";
+import { makeRepo, commit, gate, git, failChecks, approve, path, FAKE_BIN } from "./helpers.mjs";
 
 // A repo whose origin has a PR branch, plus a ledger store and a fake gh scenario.
 // The PR head commits headFiles, after prepare(root) runs (for a git mv). headConfig: (base config) => the config
@@ -130,12 +130,12 @@ test("review: a suite unit touching only the hidden suite and config needs no re
 
 // Gate unit E2E-UI (track e2e, hand-recorded pass) on a PR built by setup(opts).
 // after(s) runs once the PR and store exist, just before the gate.
-function suiteMerge({ after, ...opts }) {
+function suiteMerge({ after, env = {}, ...opts }) {
   const s = setup({ review: false, ...opts });
   assert.equal(gate("orch.mjs", ["--store", s.store, "unit", "add", "E2E-UI", "--track", "e2e"]).code, 0);
   assert.equal(gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E-UI", s.head, "approved", "--evidence", "e2e-plan.md"]).code, 0);
   after?.(s);
-  return gate("check-merge.mjs", ["5", "--unit", "E2E-UI", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario } });
+  return gate("check-merge.mjs", ["5", "--unit", "E2E-UI", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario, ...env } });
 }
 const needsReview = (res, why) => assert.deepEqual(failChecks(res), ["review"], why);
 
@@ -155,7 +155,30 @@ test("review: a suite unit's config change is exempt only for e2e_command, judge
   needsReview(configPr(() => "{ not json"), "a head config that does not parse needs a review");
   const gone = configPr((c) => json(c), { pr: { baseRefOid: "0".repeat(40) } });
   needsReview(gone, "a base SHA missing locally needs a review");
-  assert.match(gone.json.findings.find((f) => f.check === "review").detail, new RegExp(`Review required: .+${"0".repeat(40)} not available locally after fetch`));
+  const why = gone.json.findings.find((f) => f.check === "review").detail;
+  assert.match(why, new RegExp(`Review required: .+${"0".repeat(40)} not available locally after fetch`));
+  // Each fetch's outcome is in the finding: the base fetch worked, the head ref is not on this origin.
+  assert.match(why, /\(fetch main: ok; fetch pull\/5\/head: exit \d+, .*pull\/5\/head/);
+});
+
+test("review: the gate's fetches never prompt and keep the configured credential helper", { skip: process.platform === "win32" && "the git wrapper is a POSIX shell script" }, () => {
+  // A git wrapper first on PATH logs each fetch's prompt settings and arguments, then runs the real git.
+  const dir = mkdtempSync(path.join(tmpdir(), "cstack-git-"));
+  const log = path.join(dir, "fetch.log");
+  const realGit = spawnSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).stdout.trim();
+  writeFileSync(
+    path.join(dir, "git"),
+    `#!/bin/sh\ncase " $* " in *" fetch "*) echo "prompt=$GIT_TERMINAL_PROMPT gcm=$GCM_INTERACTIVE args=$*" >> "${log}";; esac\nexec "${realGit}" "$@"\n`,
+    { mode: 0o755 },
+  );
+  const ok = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE) }, env: { PATH: `${dir}${path.delimiter}${FAKE_BIN}${path.delimiter}${process.env.PATH}` } });
+  assert.equal(ok.code, 0, ok.out);
+  const fetches = readFileSync(log, "utf8").trim().split("\n");
+  assert.ok(fetches.length >= 3, `base and head ref fetched before judging, base again after: ${fetches.join(" | ")}`);
+  for (const f of fetches) {
+    assert.match(f, /^prompt=0 gcm=never args=-C \S+ fetch --quiet origin \S+$/);
+    assert.doesNotMatch(f, /credential/, "no -c credential.helper= override: a configured helper (gh auth setup-git) still applies");
+  }
 });
 
 test("review: the gate fetches the PR head ref before it judges a suite-only diff", () => {

@@ -48,22 +48,26 @@ function suiteDiff(repoDir, baseSha, head) {
   }
 }
 
-// A fetch from origin that never prompts and never blocks: no terminal prompt, no credential helper, and a
-// bounded run time. A timed-out fetch reports a non-zero code like any other failed fetch.
+// A fetch from origin that never prompts and never blocks: no terminal prompt (git's own, or Git Credential
+// Manager's), and a bounded run time. Configured credential helpers still apply, so a private HTTPS remote set up
+// with `gh auth setup-git` fetches as usual. A timed-out fetch reports a non-zero code like any failed fetch.
 const FETCH_TIMEOUT_MS = 120_000;
 function fetchRef(repoDir, ref) {
-  return run("git", ["-C", repoDir, "-c", "credential.helper=", "fetch", "--quiet", "origin", ref], {
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+  return run("git", ["-C", repoDir, "fetch", "--quiet", "origin", ref], {
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GCM_INTERACTIVE: "never" },
     timeout: FETCH_TIMEOUT_MS,
   });
 }
 
-// Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local.
-// Fetch errors are ignored: the presence check after them decides.
+// Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local, with
+// each fetch's outcome so a finding says why. The presence check, not the fetch exit code, decides.
 function missingShas(repoDir, forge, pr, p) {
-  fetchRef(repoDir, p.base);
-  fetchRef(repoDir, forge.headRef(pr));
-  return [p.baseSha, p.head].filter((s) => git(repoDir, ["cat-file", "-e", `${s}^{commit}`]).code !== 0);
+  const fetched = [p.base, forge.headRef(pr)].map((ref) => {
+    const r = fetchRef(repoDir, ref);
+    return `fetch ${ref}: ${r.code === 0 ? "ok" : `exit ${r.code}, ${r.stderr.trim()}`}`;
+  });
+  const shas = [p.baseSha, p.head].filter((s) => git(repoDir, ["cat-file", "-e", `${s}^{commit}`]).code !== 0);
+  return shas.length ? { shas, fetched } : null;
 }
 
 function suiteUnit(store, id) {
@@ -105,8 +109,8 @@ await main(async (argv) => {
   // suiteDiff, so a product unit cannot claim the exemption. An unreadable store means a review is required.
   const code = p.files.filter((f) => !isDoc(f));
   const suite = code.length > 0 && suiteUnit(store, args.unit);
-  const missing = suite ? missingShas(repoDir, forge, pr, p) : [];
-  const suiteOnly = suite && !missing.length && suiteDiff(repoDir, p.baseSha, sha);
+  const missing = suite ? missingShas(repoDir, forge, pr, p) : null;
+  const suiteOnly = suite && !missing && suiteDiff(repoDir, p.baseSha, sha);
   if (!code.length) {
     gate.pass("review", "docs-only change; no review round needed");
   } else if (suiteOnly) {
@@ -124,7 +128,7 @@ await main(async (argv) => {
       "review",
       `review-loop approved ${sha.slice(0, 12)}`,
       !approved
-        ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head${missing.length ? `. Review required: the suite-only rule cannot judge the diff, ${missing.join(", ")} not available locally after fetch` : ""}`
+        ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head${missing ? `. Review required: the suite-only rule cannot judge the diff, ${missing.shas.join(", ")} not available locally after fetch (${missing.fetched.join("; ")})` : ""}`
         : `open review findings: ${open.join(", ")}`,
     );
   }
