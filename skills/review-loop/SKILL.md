@@ -45,7 +45,7 @@ Name the diff, the author model, the intent, what is out of scope, and the round
 
 Use one diff command for every round. Run the covering checks when you can (config `test_command`). Do not send code that this change breaks. Note missing or failing checks in the brief.
 
-**Docs-only diffs.** If every changed path is documentation (`*.md`, `*.mdx`, `*.rst`, `*.txt`, `docs/**`, `LICENSE*`), skip the loop. Log `skip: docs only`.
+**Docs-only diffs.** If every changed path in `git diff --name-only --no-renames <base>...HEAD` is documentation, skip the loop. Documentation is a match for config `docs_paths` when set, else `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). Log `skip: docs only`.
 
 ## 2. The ledger
 

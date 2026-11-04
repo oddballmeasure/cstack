@@ -2,7 +2,7 @@
 // The only path to merge (tstack merge gate + Cardinal merge rules).
 // Usage: check-merge.mjs <pr> --unit <id> [--repo-dir <dir>] [--store <dir>] [--merge] [--json]
 // Checks: PR open and not draft; ledger approval for the exact head SHA; a review-loop APPROVE round at that
-// head (not for docs-only diffs, nor for a suite unit, E2E or E2E-<suffix> on track e2e in units.tsv, whose local diff
+// head (not for a docs-only local diff from the merge base, nor for a suite unit, E2E or E2E-<suffix> on track e2e in units.tsv, whose local diff
 // from the merge base touches only the merge base's paths_hidden and the config's e2e_command);
 // required checks green on that SHA;
 // no change requests; GitHub merge state not DIRTY/BEHIND/BLOCKED/UNKNOWN; base has not moved under the PR's files.
@@ -16,7 +16,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
 import { Gate, main, parseArgs, UsageError, loadConfig, run, git, gitOut, matchesAny } from "./lib/common.mjs";
-import { isDoc } from "./lib/repo.mjs";
+import { docTest } from "./lib/repo.mjs";
 import { effectiveAutonomy } from "./lib/run.mjs";
 import { isSuiteUnit, openStore } from "./lib/store.mjs";
 import { openForge } from "./lib/forge.mjs";
@@ -27,22 +27,31 @@ const CONFIG = ".cstack/config.json";
 // The config keys a suite unit may change: set-e2e-command.mjs (cstack:e2e-plan step 4) writes only e2e_command.
 const SUITE_CONFIG_KEYS = ["e2e_command"];
 
-// The suite-only diff rule. The forge's file list is not enough: it shows only the new path of a rename
-// (src/x.js moved into the suite would look suite-only) and may be truncated on a large PR. So the gate diffs
-// locally, with renames split into a delete and an add, from the merge base of the PR's base and head SHAs.
-// Every path on both sides must be under paths_hidden as the MERGE BASE's config sets it (a head that widens
-// paths_hidden cannot hide product code), or be the config with nothing changed but SUITE_CONFIG_KEYS against
-// the merge base. Any git or parse failure (a SHA missing locally, no config at the merge base) returns false,
-// so a review is required. set-e2e-command refuses a missing config, so no suite unit adds one.
-function suiteDiff(repoDir, baseSha, head) {
+// The docs-only and suite-only rules read the PR's diff locally. The forge's file list is not enough: it shows
+// only the new path of a rename (src/x.js moved to docs/x.md would look docs-only) and may be truncated on a
+// large PR. So the gate diffs from the merge base of the PR's base and head SHAs, with renames split into a
+// delete and an add. Any git failure returns null, so a review is required.
+function localDiff(repoDir, baseSha, head) {
   try {
     const fork = gitOut(repoDir, ["merge-base", baseSha, head]);
+    // -z: paths come NUL-separated and unquoted, so a name with a tab, newline or non-ASCII byte still matches.
+    const files = gitOut(repoDir, ["diff", "-z", "--name-only", "--no-renames", fork, head], { trim: false }).split("\0").filter(Boolean);
+    return { fork, files };
+  } catch {
+    return null;
+  }
+}
+
+// The suite-only rule. Every path on both sides of the local diff must be under paths_hidden as the MERGE BASE's
+// config sets it (a head that widens paths_hidden cannot hide product code), or be the config with nothing
+// changed but SUITE_CONFIG_KEYS against the merge base. A parse failure or no config at the merge base returns
+// false, so a review is required. set-e2e-command refuses a missing config, so no suite unit adds one.
+function suiteDiff(repoDir, diff, head) {
+  try {
     const configAt = (rev) => JSON.parse(gitOut(repoDir, ["show", `${rev}:${CONFIG}`]));
     const rest = (c) => JSON.stringify(Object.entries(c).filter(([k]) => !SUITE_CONFIG_KEYS.includes(k)).sort(([x], [y]) => x.localeCompare(y)));
-    const base = configAt(fork);
-    // -z: paths come NUL-separated and unquoted, so a name with a tab, newline or non-ASCII byte still matches.
-    const files = gitOut(repoDir, ["diff", "-z", "--name-only", "--no-renames", fork, head]).split("\0").filter(Boolean);
-    return files.every((f) => (f === CONFIG ? rest(configAt(head)) === rest(base) : !!matchesAny(f, base.paths_hidden)));
+    const base = configAt(diff.fork);
+    return diff.files.every((f) => (f === CONFIG ? rest(configAt(head)) === rest(base) : !!matchesAny(f, base.paths_hidden)));
   } catch {
     return false;
   }
@@ -69,7 +78,7 @@ function fetchError(r) {
     .slice(0, 300);
 }
 
-// Fetch the PR's base branch and head ref, then list the SHAs suiteDiff needs that are still not local, with
+// Fetch the PR's base branch and head ref, then list the SHAs localDiff needs that are still not local, with
 // each fetch's outcome so a finding says why. The presence check, not the fetch exit code, decides.
 function missingShas(repoDir, forge, pr, p) {
   const fetched = [p.base, forge.headRef(pr)].map((ref) => {
@@ -113,15 +122,20 @@ await main(async (argv) => {
   // Review loop (unit stage 10b): a diff that touches more than docs needs an APPROVE round at this exact
   // head and no open blocker or should finding. The files come from cstack:review-loop.
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
+  // A docs-only diff needs no review. Docs are config docs_paths when it is a list ([] means none), else isDoc. The forge's list can only
+  // rule the exemption out; the local diff decides it.
   // A suite unit (PR #0, or a later amendment that adds lanes) holds only the hidden suite and the config
   // line that runs it. A reviewer may not read paths_hidden, so check-e2e, the red check and the mutation
   // spot-check judge it instead. It needs the id, the units.tsv row on track e2e, and a diff that passes
   // suiteDiff, so a product unit cannot claim the exemption. An unreadable store means a review is required.
-  const code = p.files.filter((f) => !isDoc(f));
-  const suite = code.length > 0 && suiteUnit(store, args.unit);
-  const missing = suite ? missingShas(repoDir, forge, pr, p) : null;
-  const suiteOnly = suite && !missing && suiteDiff(repoDir, p.baseSha, sha);
-  if (!code.length) {
+  const isDocFile = docTest(config);
+  const forgeDocs = p.files.every(isDocFile);
+  const suite = suiteUnit(store, args.unit);
+  const missing = forgeDocs || suite ? missingShas(repoDir, forge, pr, p) : null;
+  const diff = (forgeDocs || suite) && !missing ? localDiff(repoDir, p.baseSha, sha) : null;
+  const docsOnly = forgeDocs && !!diff && diff.files.every(isDocFile);
+  const suiteOnly = !docsOnly && suite && !!diff && suiteDiff(repoDir, diff, sha);
+  if (docsOnly) {
     gate.pass("review", "docs-only change; no review round needed");
   } else if (suiteOnly) {
     gate.pass("review", "hidden e2e suite change on track e2e; judged by check-e2e, not a reviewer");
@@ -138,7 +152,7 @@ await main(async (argv) => {
       "review",
       `review-loop approved ${sha.slice(0, 12)}`,
       !approved
-        ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head${missing ? `. Review required: the suite-only rule cannot judge the diff, ${missing.shas.join(", ")} not available locally after fetch (${missing.fetched.join("; ")})` : ""}`
+        ? `no review-loop APPROVE round at ${sha.slice(0, 12)}; run cstack:review-loop on this head${missing ? `. Review required: the docs-only and suite-only rules cannot judge the diff, ${missing.shas.join(", ")} not available locally after fetch (${missing.fetched.join("; ")})` : ""}`
         : `open review findings: ${open.join(", ")}`,
     );
   }

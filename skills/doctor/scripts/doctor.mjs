@@ -100,6 +100,7 @@ function schemaErrors(c) {
   need(Array.isArray(c.required_checks), "required_checks must be an array");
   need(Array.isArray(c.paths_off_limits), "paths_off_limits must be an array");
   need(Array.isArray(c.paths_hidden), "paths_hidden must be an array");
+  need(c.docs_paths == null || (Array.isArray(c.docs_paths) && c.docs_paths.every((g) => type(g) === "string" && g.length > 0)), "docs_paths must be null or an array of globs");
   errs.push(...permissionsAllowErrors(c));
   need(type(c.label_prefix) === "string" && /^[a-z][a-z0-9-]*$/.test(c.label_prefix), "label_prefix must be lowercase letters, digits or dashes");
   need(c.autonomy === "stop" || c.autonomy === "send", "autonomy must be stop or send");
@@ -163,13 +164,18 @@ function schemaErrors(c) {
     errs.push(...unknown(h, ["supervisor"], "host."));
   }
 
-  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots", "ci_command"];
+  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "docs_paths", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots", "ci_command"];
   errs.push(...unknown(c, known, ""));
   return errs;
 }
 const errors = schemaErrors(cfg);
 for (const e of errors) fail("config schema", e);
 if (!errors.length) pass("config schema", "all keys valid");
+
+// docs_paths [] is valid but means no file is a doc, which is rarely meant: null keeps the default doc test.
+if (isObj(cfg) && Array.isArray(cfg.docs_paths) && !cfg.docs_paths.length) {
+  warn("docs_paths", "[] means no file is a doc: every change needs a review round and a test change. Set null for the default doc test, or list the doc globs");
+}
 
 // A list-form permissions_allow rule reaches the worker, coordinator and e2e-author alike, so one that opens a
 // network tool widens all three for one role's need.

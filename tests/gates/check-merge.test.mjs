@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { writeFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { makeRepo, commit, gate, git, failChecks, approve, path, FAKE_BIN } from "./helpers.mjs";
@@ -91,15 +91,57 @@ test("review: an open should finding blocks; a docs-only diff needs no review", 
   const res = s.run();
   assert.deepEqual(failChecks(res), ["review"]);
   assert.match(res.out, /open review findings: S2/);
-  const d = setup({ review: false, pr: { files: [{ path: "docs/a.md" }] } });
+  const d = setup({ review: false, headFiles: { "docs/a.md": "x\n" }, pr: { files: [{ path: "docs/a.md" }] } });
   const ok = d.run();
   assert.equal(ok.code, 0, ok.out);
   assert.match(ok.out, /docs-only change/);
 });
 
+// The forge's file list for a set of committed files.
+const listed = (files) => Object.keys(files).map((p) => ({ path: p }));
+
+test("review: the docs-only rule reads the local diff, not the forge's file list", () => {
+  const docs = (opts) => setup({ review: false, ...opts });
+  // git mv of product code into docs/: the forge lists only the new path.
+  const moved = docs({ headFiles: {}, prepare: (root) => (mkdirSync(path.join(root, "docs")), git(root, "mv", "src/app.js", "docs/app.md")), pr: { files: [{ path: "docs/app.md" }] } }).run();
+  assert.deepEqual(failChecks(moved), ["review"], "a rename out of src/ needs a review");
+  // A large PR whose forge list is truncated to its docs: the local diff still holds the product file.
+  const truncated = docs({ headFiles: { "docs/a.md": "x\n", "src/f.js": "1\n" }, pr: { files: [{ path: "docs/a.md" }] } }).run();
+  assert.deepEqual(failChecks(truncated), ["review"], "a truncated list does not hide product code");
+  // A git failure means a review: a base SHA with no common history with the head has no merge base.
+  const s = docs({ headFiles: { "docs/a.md": "x\n" }, pr: { files: [{ path: "docs/a.md" }] } });
+  const orphan = git(s.root, "commit-tree", git(s.root, "rev-parse", "main^{tree}"), "-m", "orphan");
+  const scenario = JSON.parse(readFileSync(s.scenario, "utf8"));
+  scenario.rules.find((r) => r.match === "^pr view 5").responses[0].json.baseRefOid = orphan;
+  writeFileSync(s.scenario, JSON.stringify(scenario));
+  assert.deepEqual(failChecks(s.run()), ["review"], "no merge base means a review");
+});
+
+test("review: a first path that starts with a space is matched as git wrote it", () => {
+  const lead = { " notes.md": "x\n" };
+  const ok = setup({ cfg: { docs_paths: [" notes.md"] }, review: false, headFiles: lead, pr: { files: listed(lead) } }).run();
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /docs-only change/);
+});
+
+test("review: config docs_paths replaces the default doc test", () => {
+  const cfg = { docs_paths: ["docs/**", "README.md"] };
+  const skill = { "skills/x/SKILL.md": "x\n" };
+  const product = setup({ cfg, review: false, headFiles: skill, pr: { files: listed(skill) } }).run();
+  assert.deepEqual(failChecks(product), ["review"], "markdown outside docs_paths is product and needs a review");
+  const readme = { "README.md": "x\n", "docs/a.md": "x\n" };
+  const ok = setup({ cfg, review: false, headFiles: readme, pr: { files: listed(readme) } }).run();
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /docs-only change/);
+  const none = { "docs/a.md": "x\n" };
+  const empty = setup({ cfg: { docs_paths: [] }, review: false, headFiles: none, pr: { files: listed(none) } }).run();
+  assert.deepEqual(failChecks(empty), ["review"], "docs_paths [] means no file is a doc");
+  const unset = setup({ review: false, headFiles: skill, pr: { files: listed(skill) } }).run();
+  assert.equal(unset.code, 0, "unset docs_paths keeps today's default: any .md is docs");
+});
+
 // A commit that touches only the hidden suite, and the forge's file list for it.
 const SUITE = { "tests/acceptance/a.test.mjs": "x\n" };
-const listed = (files) => Object.keys(files).map((p) => ({ path: p }));
 
 test("review: a suite unit touching only the hidden suite and config needs no review round; anything else does", () => {
   // unit: the id to gate; track: its units.tsv track, or null for no row. A suite unit records its pass by hand;

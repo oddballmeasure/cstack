@@ -259,6 +259,19 @@ test("forge gitlab: glab auth, the project, its base branch and labels; nested g
   for (const line of [/FAIL glab auth/, /FAIL gitlab project/, /FAIL base branch/, /FAIL labels/]) assert.match(missing.out, line);
 });
 
+test("docs_paths is null or a list of globs", () => {
+  for (const docs_paths of [["docs/**", "README.md"], null]) {
+    assert.match(doctor(target({ docs_paths }), ["--offline"]).out, /PASS config schema/, JSON.stringify(docs_paths));
+  }
+  const empty = doctor(target({ docs_paths: [] }), ["--offline"]).out;
+  assert.match(empty, /PASS config schema/);
+  assert.match(empty, /WARN docs_paths: \[\] means no file is a doc/);
+  assert.doesNotMatch(doctor(target({ docs_paths: null }), ["--offline"]).out, /WARN docs_paths/);
+  for (const docs_paths of ["docs/**", [""], [1]]) {
+    assert.match(doctor(target({ docs_paths }), ["--offline"]).out, /FAIL config schema: docs_paths must be null or an array of globs/, JSON.stringify(docs_paths));
+  }
+});
+
 test("forge keys are validated; a nested path is GitLab-only; local needs no forge CLI", () => {
   const bad = doctor(target({ forge: "gitea", forge_host: "not a host", review_bots: [""], repo: "a/b/c" }), ["--offline"]);
   assert.equal(bad.code, 1);
