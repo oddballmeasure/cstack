@@ -85,8 +85,31 @@ test("permissions_allow takes permission rules only", () => {
   for (const bad of ["Bash(make lint)", ["make lint"], [3], ["Bash()"]]) {
     const r = doctor(target({ permissions_allow: bad }));
     assert.equal(r.code, 1, JSON.stringify(bad));
-    assert.match(r.out, /permissions_allow must be an array of permission rules/);
+    assert.match(r.out, /FAIL config schema: permissions_allow must be a list of permission rules/);
   }
+});
+
+test("permissions_allow keyed by role: known roles pass, an unknown role fails", () => {
+  const ok = doctor(target({ permissions_allow: { "e2e-author": ["Bash(agent-browser *)"], worker: ["Bash(make lint)"] } }));
+  assert.equal(ok.code, 0, ok.out);
+  assert.doesNotMatch(ok.out, /WARN permissions_allow/, "a role-keyed network rule is the fix, not a warning");
+  for (const [bad, msg] of [
+    [{ e2e_author: ["Bash(agent-browser *)"] }, /FAIL config schema: permissions_allow has unknown role e2e_author; roles are worker, coordinator, e2e-author, grader/],
+    [{ all: ["Bash(make lint)"] }, /FAIL config schema: permissions_allow has unknown role all/],
+    [{ worker: "Bash(make lint)" }, /FAIL config schema: permissions_allow.worker must be a list of permission rules/],
+  ]) {
+    const r = doctor(target({ permissions_allow: bad }));
+    assert.equal(r.code, 1, JSON.stringify(bad));
+    assert.match(r.out, msg);
+  }
+});
+
+test("a list-form permissions_allow rule that opens a network tool warns with the role-keyed fix", () => {
+  const r = doctor(target({ permissions_allow: ["Bash(make lint)", "Bash(agent-browser *)", "Bash(npx playwright *)"] }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /WARN permissions_allow: Bash\(agent-browser \*\) opens a network tool to the worker, coordinator and e2e-author roles \(network tools: curl, wget, nc, ssh, scp, rsync, agent-browser, playwright, gh api, glab api, WebFetch, WebSearch\)\. Move it under the role that needs it, for example "permissions_allow": \{"e2e-author": \["Bash\(agent-browser \*\)"\]\}/);
+  assert.match(r.out, /WARN permissions_allow: Bash\(npx playwright \*\)/);
+  assert.doesNotMatch(r.out, /WARN permissions_allow: Bash\(make lint\)/);
 });
 
 test("optional retry_after_hours, scout and deploy are checked when present", () => {

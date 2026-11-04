@@ -436,6 +436,17 @@ test("role-deny: an allow rule more specific than a broad deny wins", () => {
   assert.equal(codex("rm -rf /", { CSTACK_UNIT: "U1" }).status, 2);
 });
 
+test("role-deny under Codex: a role-keyed permissions_allow rule reaches only its role", () => {
+  const r = repo({ paths_hidden: [], permissions_allow: { "e2e-author": ["Bash(curl https://api.example.com *)"] } });
+  const codex = (command, env) =>
+    spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd4-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "", CSTACK_COORDINATOR: "", ...env } });
+  const cmd = "curl https://api.example.com -s";
+  assert.equal(codex(cmd, { CSTACK_ROLE: "e2e-author" }).status, 0, "the named role");
+  assert.equal(codex(cmd, { CSTACK_UNIT: "U1" }).status, 2, "a worker still has curl denied");
+  assert.equal(codex(cmd, { CSTACK_COORDINATOR: "1" }).status, 2, "so does the coordinator");
+  assert.equal(codex("curl https://other.example.com", { CSTACK_ROLE: "e2e-author" }).status, 2, "only the named command");
+});
+
 test("no-admin-merge covers GitLab: glab mr merge, auto-merge and the merge endpoint", () => {
   const r = repo();
   for (const command of ["glab mr merge 3", "glab mr merge 3 --sha abc --auto-merge=false", "glab mr update 3 --auto-merge", "glab mr create --fill --auto-merge", "glab api -X PUT projects/1/merge_requests/3/merge", "glab api -X PUT projects%2Fg%2Fapp%2Fmerge_requests%2F3%2Fmerge"]) {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import { makeRepo, gate, path, ROOT } from "./helpers.mjs";
-import { ROLES, permissionSettings, worktreeRoot, deniedCalls } from "../../gates/lib/permissions.mjs";
+import { ROLES, NETWORK_COMMANDS, opensNetwork, permissionSettings, permissionsAllowErrors, worktreeRoot, deniedCalls } from "../../gates/lib/permissions.mjs";
 
 // permissions.mjs builds its rules from POSIX paths. On Windows a drive path needs its own rule form, not built yet.
 const WIN_PERMS = { skip: process.platform === "win32" && "permissions.mjs builds rules from POSIX paths; Windows needs its own rule form" };
@@ -111,6 +111,42 @@ test("repo commands: setup and e2e commands, other package managers, non-JS tool
   assert.ok(!perms("worker", { test_command: [] }).allow.some((r) => r.startsWith("Bash(npm")));
 });
 
+test("permissions_allow as a list reaches the worker, coordinator and e2e-author; as an object, only the named role", WIN_PERMS, () => {
+  const all = (role, allow) => perms(role, { permissions_allow: allow }, { worktree: "/wt/e2e" }).allow;
+  for (const role of ["worker", "coordinator", "e2e-author"]) assert.ok(all(role, ["Bash(make lint)"]).includes("Bash(make lint)"), role);
+  assert.ok(!all("grader", ["Bash(make lint)"]).includes("Bash(make lint)"), "the list form never reached the grader");
+  const keyed = { "e2e-author": ["Bash(agent-browser *)"], grader: ["Bash(make report)"] };
+  assert.ok(all("e2e-author", keyed).includes("Bash(agent-browser *)"));
+  assert.ok(all("e2e-author", keyed).includes("Bash(CSTACK_ROLE=e2e-author agent-browser *)"), "behind the author's role prefix too");
+  for (const role of ["worker", "coordinator", "grader"]) assert.ok(!all(role, keyed).some((r) => r.includes("agent-browser")), role);
+  assert.ok(all("grader", keyed).includes("Bash(make report)") && all("grader", keyed).includes("Bash(CSTACK_ROLE=grader make report)"));
+  assert.ok(!all("worker", keyed).includes("Bash(make report)"));
+  assert.ok(!all("worker", { worker: "nope" }).includes("nope"), "a malformed list adds nothing");
+});
+
+test("permissionsAllowErrors accepts a rule list or a role-keyed object, and names unknown roles", () => {
+  assert.deepEqual(permissionsAllowErrors({}), []);
+  assert.deepEqual(permissionsAllowErrors({ permissions_allow: null }), []);
+  assert.deepEqual(permissionsAllowErrors({ permissions_allow: ["Bash(make lint)", "Monitor"] }), []);
+  assert.deepEqual(permissionsAllowErrors({ permissions_allow: { worker: [], "e2e-author": ["Bash(agent-browser *)"], grader: ["Read"] } }), []);
+  for (const bad of ["Bash(make lint)", ["make lint"], [3], ["Bash()"], 3]) {
+    assert.match(permissionsAllowErrors({ permissions_allow: bad }).join(), /must be a list of permission rules .*or an object of such lists keyed by role/, JSON.stringify(bad));
+  }
+  assert.deepEqual(permissionsAllowErrors({ permissions_allow: { e2e_author: ["Bash(x)"], all: [], worker: ["x y"] } }), [
+    "permissions_allow has unknown role e2e_author; roles are worker, coordinator, e2e-author, grader",
+    "permissions_allow has unknown role all; roles are worker, coordinator, e2e-author, grader",
+    "permissions_allow.worker must be a list of permission rules such as Bash(make check)",
+  ]);
+});
+
+test("opensNetwork flags rules for network tools, directly or through a package runner", () => {
+  for (const r of ["Bash(curl *)", "Bash(wget https://x)", "Bash(agent-browser *)", "Bash(npx playwright *)", "Bash(pnpm exec playwright test)", "Bash(gh api *)", "Bash(glab api projects)", "Bash(CSTACK_ROLE=e2e-author agent-browser open x)", "Bash(ssh)", "WebFetch", "WebSearch"]) {
+    assert.ok(opensNetwork(r), r);
+  }
+  for (const r of ["Bash(make lint)", "Bash(gh pr view *)", "Bash(curling *)", "Bash", "Monitor", "Read(//x/**)", "Bash(npx tsc)"]) assert.ok(!opensNetwork(r), r);
+  assert.ok(NETWORK_COMMANDS.includes("agent-browser") && NETWORK_COMMANDS.includes("gh api"));
+});
+
 test("unknown roles are refused, and worktreeRoot follows the skills' layout", WIN_PERMS, () => {
   assert.throws(() => perms("admin"), /unknown role admin/);
   assert.equal(worktreeRoot("/home/u", "o/app"), "/home/u/.local/state/cstack/worktrees/o-app");
@@ -176,5 +212,9 @@ test("run-settings --permissions usage errors exit 2", () => {
   assert.match(gate("run-settings.mjs", ["--permissions", "e2e-author", "--repo-dir", r.root]).err, /needs --worktree/);
   assert.equal(gate("run-settings.mjs", ["--permissions", "worker", "extra"]).code, 2);
   assert.equal(gate("run-settings.mjs", []).code, 2, "neither --store nor --permissions");
+  const typo = makeRepo({ permissions_allow: { e2e_author: ["Bash(agent-browser *)"] } });
+  const refused = gate("run-settings.mjs", ["--permissions", "worker", "--repo-dir", typo.root]);
+  assert.equal(refused.code, 2);
+  assert.match(refused.err, /permissions_allow has unknown role e2e_author; roles are worker, coordinator, e2e-author, grader/);
   assert.equal(existsSync(path.join(r.root, ".cstack/permissions")), false);
 });

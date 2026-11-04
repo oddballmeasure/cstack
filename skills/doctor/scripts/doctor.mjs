@@ -9,6 +9,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, git, which } from "../../../gates/lib/common.mjs";
 import { workerPath } from "../../../gates/lib/workers.mjs";
+import { NETWORK_COMMANDS, opensNetwork, permissionsAllowErrors } from "../../../gates/lib/permissions.mjs";
 
 const argv = process.argv.slice(2);
 const offline = argv[0] === "--offline";
@@ -99,10 +100,7 @@ function schemaErrors(c) {
   need(Array.isArray(c.required_checks), "required_checks must be an array");
   need(Array.isArray(c.paths_off_limits), "paths_off_limits must be an array");
   need(Array.isArray(c.paths_hidden), "paths_hidden must be an array");
-  need(
-    c.permissions_allow == null || (Array.isArray(c.permissions_allow) && c.permissions_allow.every((r) => type(r) === "string" && /^[A-Za-z]+(\(.+\))?$/.test(r))),
-    "permissions_allow must be an array of permission rules such as Bash(make check)",
-  );
+  errs.push(...permissionsAllowErrors(c));
   need(type(c.label_prefix) === "string" && /^[a-z][a-z0-9-]*$/.test(c.label_prefix), "label_prefix must be lowercase letters, digits or dashes");
   need(c.autonomy === "stop" || c.autonomy === "send", "autonomy must be stop or send");
   need(num(c.parallel) && c.parallel >= 1 && c.parallel <= 8, "parallel must be 1 to 8");
@@ -172,6 +170,14 @@ function schemaErrors(c) {
 const errors = schemaErrors(cfg);
 for (const e of errors) fail("config schema", e);
 if (!errors.length) pass("config schema", "all keys valid");
+
+// A list-form permissions_allow rule reaches the worker, coordinator and e2e-author alike, so one that opens a
+// network tool widens all three for one role's need.
+if (isObj(cfg) && Array.isArray(cfg.permissions_allow)) {
+  for (const rule of cfg.permissions_allow.filter((r) => type(r) === "string" && opensNetwork(r))) {
+    warn("permissions_allow", `${rule} opens a network tool to the worker, coordinator and e2e-author roles (network tools: ${NETWORK_COMMANDS.join(", ")}, WebFetch, WebSearch). Move it under the role that needs it, for example "permissions_allow": {"e2e-author": [${JSON.stringify(rule)}]}`);
+  }
+}
 
 // Commands resolve. A repo-relative path (contains /) must be an executable file under the repo root.
 const executable = (p) => {

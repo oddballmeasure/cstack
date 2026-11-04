@@ -18,6 +18,13 @@ import path from "node:path";
 const SYSTEM_ROOTS = ["/bin", "/boot", "/dev", "/etc", "/home", "/lib", "/media", "/mnt", "/opt", "/proc", "/root", "/run", "/sbin", "/srv", "/sys", "/usr", "/var", "/Applications", "/Library", "/System", "/Users", "/Volumes", "/private"];
 
 export const ROLES = ["worker", "coordinator", "e2e-author", "grader"];
+// Config permissions_allow in list form reaches every role that runs the repo's commands; the grader gets config
+// rules only when the role-keyed form names it.
+const LIST_ROLES = ["worker", "coordinator", "e2e-author"];
+// Commands and tools that reach the network on their own. A list-form rule for one of these opens it to every role.
+export const NETWORK_COMMANDS = ["curl", "wget", "nc", "ssh", "scp", "rsync", "agent-browser", "playwright", "gh api", "glab api"];
+const NETWORK_TOOLS = ["WebFetch", "WebSearch"];
+const RULE = /^[A-Za-z]+(\(.+\))?$/;
 const JS_PMS = new Set(["npm", "pnpm", "yarn", "bun"]);
 
 const abs = (p) => `/${path.resolve(p)}`;
@@ -47,6 +54,38 @@ function repoCommands(config) {
   return out;
 }
 
+// The config permissions_allow rules for one role: a list applies to the worker, coordinator and e2e-author roles,
+// an object adds only the list under the role's own key. Anything else adds nothing; doctor reports it.
+export function configAllow(config, role) {
+  const a = config.permissions_allow;
+  if (Array.isArray(a)) return LIST_ROLES.includes(role) ? a : [];
+  return a && typeof a === "object" && Array.isArray(a[role]) ? a[role] : [];
+}
+
+// Why config permissions_allow is malformed, one message each; empty when it is valid or absent.
+export function permissionsAllowErrors(config) {
+  const a = config.permissions_allow;
+  const rules = (v) => Array.isArray(v) && v.every((r) => typeof r === "string" && RULE.test(r));
+  if (a == null || rules(a)) return [];
+  if (typeof a !== "object" || Array.isArray(a)) return ["permissions_allow must be a list of permission rules such as Bash(make check), or an object of such lists keyed by role"];
+  const errs = [];
+  for (const [k, v] of Object.entries(a)) {
+    if (!ROLES.includes(k)) errs.push(`permissions_allow has unknown role ${k}; roles are ${ROLES.join(", ")}`);
+    else if (!rules(v)) errs.push(`permissions_allow.${k} must be a list of permission rules such as Bash(make check)`);
+  }
+  return errs;
+}
+
+// True when a permission rule opens a network tool: a NETWORK_COMMANDS command (directly, or through npx, pnpm exec
+// or bunx), or WebFetch or WebSearch.
+export function opensNetwork(rule) {
+  if (NETWORK_TOOLS.includes(rule)) return true;
+  const m = /^Bash\((.+)\)$/.exec(rule);
+  if (!m) return false;
+  const cmd = m[1].replace(/^(?:\w+=\S*\s+)+/, "").replace(/^(?:npx|bunx|pnpm exec|pnpm dlx)\s+/, "");
+  return NETWORK_COMMANDS.some((c) => cmd === c || cmd.startsWith(`${c} `));
+}
+
 // Read-only git (log, show, diff, status, rev-parse) is already allowed by Claude Code in every mode.
 const READ_ONLY_GH = ["Bash(gh pr view *)", "Bash(gh pr checks *)", "Bash(gh pr diff *)", "Bash(gh issue view *)", "Bash(gh run view *)"];
 
@@ -64,12 +103,12 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
   const shell = ["Bash(printenv CSTACK_*)", "Bash(command -v *)", "Bash(jq *)", "Bash(column *)", "Bash(sort *)", "Bash(printf *)", "Bash(date *)", "Bash(sleep *)", "Bash(mkdir *)", "Bash(touch *)"];
   const build = [
     "Bash(git *)", "Bash(gh *)", "Bash(glab *)", "Bash(node *)", "Bash(cp *)", "Bash(mv *)", "Bash(chmod +x *)", "Bash(rm -f *)",
-    "Bash(rm -rf /tmp/cstack-*)", ...repoCommands(config), ...(Array.isArray(config.permissions_allow) ? config.permissions_allow : []),
+    "Bash(rm -rf /tmp/cstack-*)", ...repoCommands(config), ...configAllow(config, role),
   ];
 
   let allow;
   if (role === "grader") {
-    allow = [...reads, "Monitor", "TodoWrite", "ToolSearch", ...store, ...scripts, ...shell, ...READ_ONLY_GH, ...repoCommands(config)];
+    allow = [...reads, "Monitor", "TodoWrite", "ToolSearch", ...store, ...scripts, ...shell, ...READ_ONLY_GH, ...repoCommands(config), ...configAllow(config, role)];
     allow.push(...prefixed(allow, "CSTACK_ROLE=grader"));
   } else if (role === "e2e-author") {
     const hidden = Array.isArray(config.paths_hidden) ? config.paths_hidden : [];

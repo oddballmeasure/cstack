@@ -45,7 +45,7 @@ The deny list covers four groups:
 
 All roles but coordinator also deny `systemd-run`. cstack's ssh deploy and the merge gate's `gh pr merge` run as subprocesses of gate scripts, which permission rules do not see.
 
-`permissions_allow` in `.cstack/config.json` adds rules to every role. Only a person edits the config, because both the guard and the deny list protect it.
+`permissions_allow` in `.cstack/config.json` adds rules. A list adds them to the worker, coordinator and e2e-author roles. An object keyed by role (`{"e2e-author": [...]}`) adds each list to that role only, so a rule one role needs does not widen the others. Only a person edits the config, because both the guard and the deny list protect it.
 
 ## Failing loudly
 

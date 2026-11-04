@@ -40,7 +40,7 @@ import { RUNNER, clearEntry, pickBackend, startRunner, writeEntry } from "./lib/
 import { BILLING_VARS, COORDINATOR_SANDBOX, codexArgv, codexBillingProblem, codexModel, codexText, pickHarness } from "./lib/harness.mjs";
 import { openStore } from "./lib/store.mjs";
 import { effectiveParallel, readRun } from "./lib/run.mjs";
-import { callSummary, deniedCalls, permissionSettings } from "./lib/permissions.mjs";
+import { callSummary, deniedCalls, permissionSettings, permissionsAllowErrors } from "./lib/permissions.mjs";
 import {
   IN_FLIGHT_STATES,
   TERMINAL_STATES,
@@ -91,6 +91,8 @@ function launch(store, unit, args) {
   // Codex reports no billing source in its stream, so its login is checked before anything is written.
   const billing = harness === "codex" && !args["dry-run"] ? codexBillingProblem() : null;
   if (billing) throw new UsageError(billing);
+  const badAllow = permissionsAllowErrors(config);
+  if (badAllow.length) throw new UsageError(badAllow.join("; "));
   const home = os.homedir();
   const PATH = workerPath();
   // A store that cstack:program started resumes the whole program, not just its execute step.
