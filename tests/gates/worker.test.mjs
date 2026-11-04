@@ -31,6 +31,12 @@ test("worker usage errors exit 2", () => {
   assert.equal(p.worker(["launch", "next", "--store", p.store]).code, 2);
   assert.match(p.worker(["exit", "--store", p.store]).err, /exit needs --unit/);
   assert.match(p.worker(["launch", "--store", p.store, "--unit", "U9"]).err, /unit U9 not found/);
+  const typo = program({ permissions_allow: { workers: ["Bash(make lint)"] } });
+  typo.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  const refused = typo.worker(["launch", "--store", typo.store, "--unit", "U1", "--dry-run"]);
+  assert.equal(refused.code, 2);
+  assert.match(refused.err, /permissions_allow has unknown role workers/);
+  assert.equal(existsSync(typo.files("U1.settings.json")), false, "no settings written");
 });
 
 test("launch --dry-run builds the systemd-run command with PATH, prompt and exit hook", { skip: process.platform === "win32" && "its settings come from permissions.mjs, which builds rules from POSIX paths" }, () => {
