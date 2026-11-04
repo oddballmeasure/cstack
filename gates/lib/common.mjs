@@ -147,10 +147,14 @@ export class Gate {
   get approved() {
     return this.findings.length === 0;
   }
+  // The report as --json prints it.
+  jsonText(extra = {}) {
+    return JSON.stringify({ gate: this.name, approved: this.approved, findings: this.findings, passes: this.passes, ...extra }, null, 2) + "\n";
+  }
   // Prints the report and returns the exit code (0 approved, 1 rejected).
   finish(extra = {}) {
     if (this.json) {
-      process.stdout.write(JSON.stringify({ gate: this.name, approved: this.approved, findings: this.findings, passes: this.passes, ...extra }, null, 2) + "\n");
+      process.stdout.write(this.jsonText(extra));
     } else {
       for (const p of this.passes) process.stdout.write(`PASS ${p.check}: ${p.detail}\n`);
       for (const f of this.findings) process.stdout.write(`FAIL ${f.check}: ${f.detail}\n`);

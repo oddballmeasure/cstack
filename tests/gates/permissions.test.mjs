@@ -33,6 +33,16 @@ test("every role runs in dontAsk with bypass disabled and the shared deny list",
   }
 });
 
+test("every role may save the final e2e report with run-e2e --out, and no rule denies it", WIN_PERMS, () => {
+  const command = "node /opt/cstack/gates/run-e2e.mjs /src/app --sha abc --json --out /src/app/.cstack/runs/p/final-e2e-0123456789ab.json";
+  const matches = (rule) => rule.startsWith("Bash(") && new RegExp(`^${rule.slice(5, -1).replace(/[.+?^${}()|[\]\\]/g, "\\$&").replaceAll("*", ".*")}$`).test(command);
+  for (const role of ROLES) {
+    const p = perms(role, {}, { worktree: "/wt/e2e" });
+    assert.ok(p.allow.some(matches), `${role} allows ${command}`);
+    assert.ok(!p.deny.some(matches), `${role} denies nothing in ${command}`);
+  }
+});
+
 test("worker edits only the repo's worktrees and the run store, and runs the configured commands", WIN_PERMS, () => {
   const p = perms("worker");
   assert.ok(p.allow.includes(`Edit(${WT}/**)`));

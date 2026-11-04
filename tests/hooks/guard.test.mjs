@@ -444,6 +444,16 @@ test("role-deny under Codex: rm -rf anywhere under / stays refused, except the r
   assert.equal(codex("rm -rf /tmp/cstack-x").status, 0);
 });
 
+test("role-deny: every role may save the final e2e report with run-e2e --out under Codex", () => {
+  const r = repo();
+  const gates = path.resolve(GUARD, "../../../gates");
+  const command = `node ${gates}/run-e2e.mjs ${r} --sha abc --json --out ${r}/.cstack/runs/p/final-e2e-0123456789ab.json`;
+  for (const env of [{ CSTACK_UNIT: "U1" }, { CSTACK_COORDINATOR: "1" }, { CSTACK_ROLE: "grader" }]) {
+    const out = spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd5-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_COORDINATOR: "", CSTACK_UNIT: "", ...env } });
+    assert.equal(out.status, 0, `${JSON.stringify(env)}: ${out.stderr}`);
+  }
+});
+
 test("role-deny: a Codex coordinator may check the login, and start no session", () => {
   const r = repo();
   const codex = (command, env) => spawnSync("node", [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command }, cwd: r, turn_id: "t", session_id: `rd4-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_COORDINATOR: "", CSTACK_UNIT: "", ...env } });

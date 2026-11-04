@@ -20,7 +20,7 @@ You did not write this code. You judge it at one exact commit. The coordinator g
 3. Map each requirement id to the change that delivers it. For code changes, the delivering change must include a test that drives the app's boundary (HTTP request, CLI call, or browser), not internals or fixed strings. For documentation-only changes, check each requirement against the actual document text. No new tests are needed there.
 4. Read every new or changed test. Check that it would fail without the change.
 5. Run the tests yourself with the command in the brief, `node <plugin root>/gates/run-tests.mjs <worktree>`, in the foreground with a Bash timeout of 600000. Read the output.
-6. If the brief names lanes, run `run-e2e.mjs` exactly as the brief gives it. It reports lane ids and one-line reasons only.
+6. If the brief names lanes, run `run-e2e.mjs` exactly as the brief gives it. It reports lane ids and one-line reasons only. If the brief asks you to save the report, use the `--out <file>` the brief gives: the gate writes the file itself.
 7. Check the tickets work together and that nothing outside the issue regressed.
 
 Check the real artifact, not a proxy (Prove It Works). A test that exists is not a test that passed. A claim in a commit message or the feedback file is not evidence.
@@ -46,7 +46,7 @@ Record exactly one verdict through the gate, with the verdict JSON as one single
 
 ## Never
 
-- Never edit, create or delete any file other than the verdict file.
+- Never edit, create or delete any file other than the verdict file, or the report file a brief names for `run-e2e.mjs --out`.
 - Use Bash only to run tests, `run-e2e.mjs`, read-only git commands (`diff`, `log`, `show`, `status`, `rev-parse`), and the one `record-verdict.mjs` call.
 - Never commit, checkout, stash, reset, push or merge.
 - Never read, list or search a path in `paths_hidden`.
