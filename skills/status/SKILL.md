@@ -20,7 +20,7 @@ Run these. Take numbers from their output, never from memory.
 - `<orch> ledger summary`
 - `<orch> frontier show`
 - `<orch> gate list`
-- `node <root>/gates/worker.mjs next --store <store>` (what launches next, what waits for a usage reset)
+- `node <root>/gates/worker.mjs next --store <store>` (what launches next, what waits for a usage reset, and each `hold` line: a unit a human gate holds)
 - `node <root>/gates/supervise.mjs status <unit name>` for each in-flight unit's worker, if the store has `workers/`
 - `<store>/post-merge.tsv`, the last row per PR, if it exists
 - issues labelled `<prefix>:needs-human` that the run touched: the unit issues and post-merge follow-ups
@@ -33,7 +33,7 @@ Five parts, in this order:
 2. **Frontier.** The open PRs from the frontier, lowest first, as `#<pr> <state>`.
 3. **Units.** Counts by state, then one line for each unit that is not merged: id, state, PR.
 4. **Ledger.** The verdict counts.
-5. **Waiting on you.** Each item: what to decide, the options, and your recommended choice with one reason. Sources: open gates (they carry a default), `needs-human` units and follow-ups, merge-ready PRs under autonomy stop, and a `setup` (billing) entry. Put this part first when it is not empty.
+5. **Waiting on you.** Each item: what to decide, the options, and your recommended choice with one reason. Sources: open gates (name the units each one holds from the `hold` lines, and give the command the person runs: `node <root>/gates/orch.mjs --store <store> gate resolve <id> --answer approve` or `--answer reject`; headless sessions cannot run it), rejected gates from `hold` lines (the units stay held until a person resolves the gate with `approve`), `needs-human` units and follow-ups, merge-ready PRs under autonomy stop, and a `setup` (billing) entry. Put this part first when it is not empty.
 
 ## Voice
 

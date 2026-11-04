@@ -134,7 +134,9 @@ H2 follows the effective autonomy from `<settings>`, not config:
 
 - **`send`.** H2 is skipped. `cstack:plan` logs it.
 - **`stop`, interactive.** `cstack:plan` asks once.
-- **`stop`, headless.** `cstack:plan` parks H2. The program ends here. Run step 8. Its first line is the H2 question, then: "Resolve it with `node <root>/gates/orch.mjs --store <store> gate resolve H2 --answer approve`, then run `/cstack:program --resume <slug>`."
+- **`stop`, headless.** `cstack:plan` parks H2. The program ends here. Run step 8. Its first line is the H2 question, then: "Resolve it with `node <root>/gates/orch.mjs --store <store> gate resolve H2 --answer approve` in your terminal, then `node <root>/gates/worker.mjs launch --store <store> --coordinator --resume`, which runs `/cstack:program --resume <slug>` headless."
+
+Named gates (`## Gate <id>` in `plan.md`, `gate:<id>` in a unit's `depends_on`) are not H2. Autonomy `send` never skips them. `cstack:orchestrate` asks for each one in step 5 when it is the only thing that holds the run. Headless, it reports the parked gate with the commands the person runs: `node <root>/gates/orch.mjs --store <store> gate resolve <id> --answer approve` (or `--answer reject`), then `node <root>/gates/worker.mjs launch --store <store> --coordinator --resume`.
 
 ### 5. Execute
 
@@ -142,7 +144,7 @@ Run `cstack:orchestrate --run <slug>`. It picks the level, launches units, drain
 
 **Never end your turn while work is pending.** Orchestrate waits under the `Monitor` tool on `node <root>/gates/inbox-wait.mjs --store <store>`. While a unit is in flight, re-arm the watcher on expiry. Never write a sleep loop.
 
-Every unit ends `merged`, `pr-open` (merge-ready under stop), `error` or `needs-human`. Read `<orch> unit counts`.
+Every unit ends `merged`, `pr-open` (merge-ready under stop), `error` or `needs-human`, or stays `planned` behind a named gate that is open or rejected. Read `<orch> unit counts`.
 
 - Every U unit `merged`: go to step 6.
 - Any unit `pr-open` under stop, or blocked behind one: the program waits on the human. Run step 8. Its first line names each PR to merge, then "run `/cstack:program --resume <slug>`".

@@ -423,6 +423,21 @@ test("plan: dependencies exist and have no cycles", () => {
   approves(plan({ units: head + row("U1", "", "E1.1,E1.2,E1.3") + row("U2", "U1", "E2.1,E2.2") + row("U3", "U1,U2", "E1.1") }, { withPlan: false }));
 });
 
+test("plan: a unit may depend on an e2e-track row and on a human gate that plan.md declares", () => {
+  const e2eRow = "E2E\te2e\tmerged\tcstack/1-e2e\t2\tabc\t1\t\t\t\n";
+  const gated = edit(UNITS, "\tU1\t", "\tU1,E2E,gate:PROTO\t") + e2eRow;
+  const gateSection = "\n## Gate PROTO UI prototype approval\n\nQuestion: Approve the UI prototype from U1?\n";
+  approves(plan({ units: gated, plan: PLAN + gateSection }));
+  const undeclared = plan({ units: gated });
+  rejects(undeclared, "depends U2");
+  assert.match(undeclared.json.findings.find((f) => f.check === "depends U2").detail, /gate:PROTO \(no "## Gate PROTO" section in plan.md\)/);
+  rejects(plan({ units: gated, plan: PLAN + gateSection }, { withPlan: false }), "depends U2");
+  rejects(plan({ units: edit(UNITS, "\tU1\t", "\tU1,E2E-ui\t") + e2eRow }), "depends U2");
+  rejects(plan({ units: gated, plan: PLAN + edit(gateSection, "Question: Approve the UI prototype from U1?", "Question:") }), "gate PROTO");
+  rejects(plan({ units: edit(UNITS, "\tU1\t", "\tgate:H2\t"), plan: PLAN + "\n## Gate H2 Plan\n\nQuestion: q\n" }), "gate H2");
+  rejects(plan({ plan: PLAN + "\n## Gate 9x Bad\n\nQuestion: q\n" }), "gate 9x");
+});
+
 test("plan: every unit has known lanes and every lane has a unit", () => {
   rejects(plan({ units: edit(UNITS, "\tE2.1,E2.2\t", "\t\t") }), "lanes U2", "lane-assignment", "requirement-coverage");
   rejects(plan({ units: edit(UNITS, "\tE2.1,E2.2\t", "\tE2.1,E2.2,E5.1\t") }), "lanes U2");

@@ -9,13 +9,17 @@ units.tsv is the source of truth for units. It is tab-separated with this header
 - Every unit lists at least one lane from e2e-plan.md. Every lane is assigned to at least one unit.
 - Requirement coverage comes from lanes: a unit covers R when one of its lanes has R in Covers.
   Do not repeat requirement ids here. Every R in the spec must be covered by some unit.
-- depends_on names existing units and has no cycles.
+- depends_on names existing units and has no cycles. It may also name an e2e-track row (E2E, PR #0)
+  and a human gate as gate:<id>, for example gate:PROTO. A gate holds the unit until a person approves it.
 
 plan.md has one "## U<n> <title>" section per unit row, and no section for a unit that is not a row.
 Each section has:
   Files: inline comma list, or "- path" lines below it
   Verify: inline command, or numbered steps below it
   Size: S | M | L
+Each gate:<id> in depends_on needs a "## Gate <id> <title>" section with one field:
+  Question: what the person approves, for example "Approve the UI prototype from U1?"
+A gate id matches [A-Za-z][A-Za-z0-9_-]* and is not H<n>, which names the program's own gates.
 Prose between fields is fine. This example matches templates/spec.md. Replace all of it.
 -->
 

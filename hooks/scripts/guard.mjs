@@ -201,6 +201,9 @@ function ruleRegex(rule) {
 // Codex sessions run without Claude Code's per-session allowlist, so apply the role's Bash deny list here.
 // A broad deny such as `rm -rf /*` must not refuse what the role's allowlist names more precisely
 // (`rm -rf /tmp/cstack-*`): a deny hit stands unless an allow rule with a longer literal prefix also matches.
+// A deny that starts with `*` (`*orch.mjs* gate resolve*`) is absolute: if one matches, no allow overrides it,
+// whatever other deny matched first. Runs of whitespace are folded to one space before matching, so
+// `gate  resolve` cannot slip past a rule written with single spaces.
 function checkRoleDeny(cmd, role, root, cwd, cfg) {
   let perms;
   try {
@@ -213,9 +216,10 @@ function checkRoleDeny(cmd, role, root, cwd, cfg) {
   const denies = compile([...perms.deny, "Bash(rm -rf /*)"]);
   const allows = compile(perms.allow);
   for (const part of cmd.split(/&&|\|\||[;|\n]/)) {
-    const simple = part.trim().replace(/^(?:\w+=\S*\s+)+/, "");
-    const hit = denies.find(([, re]) => re.test(simple));
-    if (hit && !allows.some(([, re, len]) => len > hit[2] && re.test(simple))) block("role-deny", `\`${simple}\` is denied to the ${role} role (${hit[0]}).`);
+    const simple = part.trim().replace(/\s+/g, " ").replace(/^(?:\w+=\S* )+/, "");
+    const hits = denies.filter(([, re]) => re.test(simple));
+    const hit = hits.find(([, , len]) => len === 0) ?? hits.find(([, , len]) => !allows.some(([, re, l]) => l > len && re.test(simple)));
+    if (hit) block("role-deny", `\`${simple}\` is denied to the ${role} role (${hit[0]}).`);
   }
 }
 

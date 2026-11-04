@@ -319,6 +319,26 @@ test("next defaults parallel to 1 and reports a dependency override", () => {
   assert.equal(json.parallel, 1);
 });
 
+test("next holds a unit behind a human gate until the gate is approved, and never overrides past it", () => {
+  const p = program({ parallel: 2 });
+  p.orch("unit", "add", "U1", "--track", "core", "--state", "ready");
+  p.orch("unit", "add", "U2", "--track", "core", "--depends-on", "gate:PROTO");
+  p.orch("unit", "add", "U3", "--track", "core", "--depends-on", "U2");
+  p.orch("unit", "add", "U4", "--track", "core", "--depends-on", "U1,gate:PROTO");
+  assert.equal(p.worker(["next", "--store", p.store]).out, "launch U1\nhold U2 on gate PROTO (unparked)\nhold U4 on gate PROTO (unparked)\nslots 2/2\n");
+  p.orch("unit", "set", "U1", "--state", "merged");
+  p.orch("gate", "park", "PROTO", "--question", "Approve the prototype?", "--options", "approve|reject", "--default", "approve");
+  // Only gated units remain and nothing runs: no dependency override jumps the gate, even through U2.
+  assert.equal(p.worker(["next", "--store", p.store]).out, "hold U2 on gate PROTO (open)\nhold U4 on gate PROTO (open)\nslots 2/2\n");
+  p.orch("gate", "resolve", "PROTO", "--answer", "reject");
+  const json = JSON.parse(p.worker(["next", "--store", p.store, "--json"]).out);
+  assert.deepEqual(json.launch, []);
+  assert.deepEqual(json.hold[0], { unit: "U2", gate: "PROTO", status: "rejected", answer: "reject" });
+  assert.match(p.worker(["next", "--store", p.store]).out, /^hold U2 on gate PROTO \(rejected: reject\)\n/);
+  p.orch("gate", "resolve", "PROTO", "--answer", "Approve");
+  assert.equal(p.worker(["next", "--store", p.store]).out, "launch U2\nlaunch U4\nslots 2/2\n");
+});
+
 test("workers lib: names, liveness, reset times, holds", () => {
   assert.equal(workerName("o/my repo", "/x/runs/p 1", "U1"), "cstack-my-repo-p-1-U1");
   assert.equal(workerName("solo", "/x/runs/p", "U2"), "cstack-solo-p-U2");

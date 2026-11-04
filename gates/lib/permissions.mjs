@@ -120,6 +120,14 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     const writes = ["change create", "change edit", "change ready", "change comment", "checks rerun", "thread reply", "thread resolve", "issue create", "issue edit", "issue comment", "labels ensure"];
     deny.push(...writes.map((v) => `Bash(node ${plugin}/gates/forge.mjs ${v} *)`));
   }
+  // Only a person resolves a human gate (H2, a plan's gate:<id>). A session cstack launches has no one to ask, so
+  // it may park a gate but never answer one. The literal forms name orch.mjs through a prefix longer than the
+  // `node <plugin>/*` allow rule. The catch-all starts with `*`, which the Codex guard never lets an allow override,
+  // and still needs orch.mjs before `gate resolve`, so a commit message or PR body that only mentions it passes.
+  // Known gaps: `bash -c`, `node -e`, and in Claude Code (which does not fold whitespace) `gate  resolve`.
+  const orch = [`${plugin}/gates/orch.mjs`, "gates/orch.mjs", "./gates/orch.mjs", "*/orch.mjs", "orch.mjs"];
+  const launchers = ["node ", "node * ", ""];
+  deny.push(...orch.flatMap((o) => launchers.flatMap((l) => [`Bash(${l}${o} gate resolve *)`, `Bash(${l}${o} * gate resolve *)`])), "Bash(*orch.mjs* gate resolve*)");
   // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor.
   if (role !== "coordinator") {
     deny.push("Bash(systemd-run *)", ...["start", "stop", "daemon-run"].map((c) => `Bash(node ${plugin}/gates/supervise.mjs ${c} *)`));

@@ -59,6 +59,7 @@ Each unit is one change with its own evidence (`sequence-verifiable-units`).
 - **One PR each.** Size S, M or L. Split an L that touches more than one module boundary.
 - **Lanes, not requirements.** Every unit lists at least one lane id from `e2e-plan.md`. Every lane belongs to some unit. A unit covers R when one of its lanes has R in `Covers`. Do not repeat R ids in `units.tsv`.
 - **Dependencies are context relays.** `U2 depends on U1` means U2 starts only after U1 merges, and U2's brief names what U1 built. Prefer independent units. Add a dependency only when the code needs it.
+- **Human checkpoints are gates.** When the guideline or the human asks for a sign-off before later work starts (for example a UI prototype approved before any feature unit), declare a named gate. Give it an id such as `PROTO` and put `gate:PROTO` in each held unit's `depends_on`. The held units start only after a person approves the gate. A unit may also depend on the `E2E` row (PR #0). Never use a gate for a product call that a default settles.
 - **Disjoint files.** Two units that run in parallel should not edit the same files. When they must, make one depend on the other.
 - **The scaffold first.** A one-way door's sketch from step 2 ships as the first unit. Every later unit builds on it.
 
@@ -68,10 +69,10 @@ Each unit is one change with its own evidence (`sequence-verifiable-units`).
 2. For each unit, write its brief to `<store>/units/U<n>.md` with the Write tool. Use the headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT. CONTEXT names the requirement ids with their text, the lane ids, the dependency units and what each one provides, and any architect sketch path. VERIFY names `test_command` and the lane ids through `gates/run-e2e.mjs`.
 3. Add each unit in dependency order:
    ```sh
-   <orch> unit add U<n> --track <track> --state planned --brief units/U<n>.md --lanes <E ids> [--depends-on <U ids>]
+   <orch> unit add U<n> --track <track> --state planned --brief units/U<n>.md --lanes <E ids> [--depends-on <U ids, gate:<id>>]
    ```
    `<track>` is a short name for the area (`core`, `cli`, `api`). Units with no dependencies may start as `--state ready`. If a row already exists from an earlier attempt, fix it with `<orch> unit set` instead.
-4. Write `<store>/plan.md` per the template: a short intro with the order, then one `## U<n> <title>` section per unit with `Files`, `Verify` and `Size`. Add the appendices from **Plan appendices**.
+4. Write `<store>/plan.md` per the template: a short intro with the order, then one `## U<n> <title>` section per unit with `Files`, `Verify` and `Size`, and one `## Gate <id> <title>` section per named gate with a `Question` line. Add the appendices from **Plan appendices**.
 
 ### 5. Gate
 
@@ -79,14 +80,14 @@ Each unit is one change with its own evidence (`sequence-verifiable-units`).
 node <root>/gates/check-plan.mjs --units <store>/units.tsv --spec <store>/spec.md --e2e <store>/e2e-plan.md --plan <store>/plan.md --json
 ```
 
-The gate skips the `E2E` row (track `e2e`). On rejection, fix the store from the findings and run it again. Allow 2 retries. A third rejection is failure `invalid_output`: stop and report the findings.
+The gate skips the `E2E` row (track `e2e`). It rejects a `gate:<id>` dependency with no `## Gate <id>` section in `plan.md`. On rejection, fix the store from the findings and run it again. Allow 2 retries. A third rejection is failure `invalid_output`: stop and report the findings.
 
 ### 6. Human gate H2
 
 Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`. It is config `autonomy`, overridden by `<store>/run.json` when `cstack:program` ran with `--autonomy`.
 
-- **`send`.** Skip H2. Log `"H2" "skipped" "autonomy send"`. Go to step 7.
-- **`stop`.** Ask once with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it, run the gate again, and ask again. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. A later session resumes after `<orch> gate resolve H2 --answer <a>`.
+- **`send`.** Skip H2. Log `"H2" "skipped" "autonomy send"`. Go to step 7. Named gates are not skipped: they are checkpoints the guideline asked for, and `cstack:orchestrate` asks for each one under any autonomy.
+- **`stop`.** Ask once with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it, run the gate again, and ask again. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. The person resolves it by running `<orch> gate resolve H2 --answer <a>` in their own terminal. Never run it yourself: the mode skill's rule is that only a human's answer resolves a gate. The deny rule on headless sessions is a second layer behind that rule, not the reason for it. A later session resumes after the person resolves it.
 
 ### 7. File the issues
 
@@ -113,7 +114,7 @@ node <root>/gates/forge.mjs issue create --title "<unit title>" --body-file <sto
 <orch> unit set U<n> --issue <number it prints> --state ready
 ```
 
-Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state open`). Reuse it when it exists, so a resumed plan never files twice.
+Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A `gate:<id>` dependency is not met until the gate is approved. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state open`). Reuse it when it exists, so a resumed plan never files twice.
 
 ### 8. Log
 
@@ -135,4 +136,5 @@ Write them under `cstack:technical-writing`, then `cstack:unslop`.
 - The plan path and the gate's last line.
 - Units: id, title, size, depends on, lanes, issue.
 - H2: approved, skipped (send), or parked with the question first.
+- Named gates: each id, its question, and the units it holds.
 - Forks: each with its class and evidence.

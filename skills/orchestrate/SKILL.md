@@ -37,7 +37,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 
 1. `node <root>/skills/doctor/scripts/doctor.mjs <repo>` exits 0.
 2. `node <root>/gates/check-plan.mjs --units <store>/units.tsv --spec <store>/spec.md --e2e <store>/e2e-plan.md --plan <store>/plan.md` exits 0. If not, run `cstack:plan`.
-3. `<orch> gate list` shows no open `H2`. An open H2 means the plan waits on the human: report it and stop.
+3. `<orch> gate list` shows no open `H2`. An open H2 means the plan waits on the human: report it and stop. Other open gates do not block the start: they hold only the units that name them (**Human gates**).
 4. Every U unit has an issue (`<orch> unit list`). If not, finish `cstack:plan` step 7.
 
 ## The coordinator session
@@ -67,17 +67,31 @@ Log the choice: `<log> "orchestrate" "level <A|B>" "<n> units, parallel <p>" "<s
 1. `<orch> init` (idempotent).
 2. Write standing orders once, before any launch: `<orch> standing add "<line>"` for each run-wide constraint (autonomy, forbidden paths, anything the human said). Workers read them through `cstack:unit`.
 3. `<orch> frontier set --repo <repo>`.
-4. Create the TodoWrite list: `Launch`, `Drain`, `Land`, `Close`.
+4. Park each named gate that is not parked yet: for every `hold <unit> on gate <id> (unparked)` line from `<worker> next --store <store>`, run `<orch> gate park <id> --question "<Question line of ## Gate <id> in plan.md>" --options "approve|reject" --default reject`. The default is reject, so no default ever releases a checkpoint. H2 keeps its default approve: it is a recommendation, and headless sessions cannot resolve either gate. Park each id once. Never park a gate that is already resolved: that would reopen it.
+5. Create the TodoWrite list: `Launch`, `Drain`, `Land`, `Close`.
 
 ## Level A loop
 
-Repeat until `<worker> next --store <store>` prints no `launch` line:
+Repeat until `<worker> next --store <store>` prints no `launch` line, then handle any `hold` line per **Human gates**:
 
 1. Take the first `launch U<n>` line. Run `cstack:unit <issue> --run <slug> --unit U<n>` with the `Skill` tool. It runs in this session and ends with a final report.
 2. Run `<orch> inbox drain` (the unit pushed its result there). Read `<orch> unit get U<n>` and handle the state as the **Drain** table says. A unit that stopped in `in-progress` without settling gets one more `cstack:unit` run, which resumes it, then fails with kind `crash`.
 3. `<orch> status`.
 
 Then go to **Close**.
+
+## Human gates
+
+A unit whose `depends_on` names `gate:<id>` waits for a person. Only the human's answer resolves a gate. `<worker> next` and `<orch> unit ready` never pick it, not even as a dependency override, until `<orch> gate resolve <id> --answer approve`. `next` prints one `hold <unit> on gate <id> (<status>)` line per held unit. Autonomy `send` does not skip these gates: the guideline asked for the checkpoint.
+
+| Status | Do |
+|---|---|
+| `unparked` | Park it as in **Install the runtime** step 4. |
+| `open`, and a unit is in flight or `next` printed a `launch` or `defer` line | Nothing yet. Keep running the loop. Never stop to ask while a unit is in flight. |
+| `open`, and nothing else can move | Ask the human the way H2 asks. Interactive: one `AskUserQuestion` with the gate's question, options "Approve" and "Reject", and the units it holds. Run `<orch> gate resolve <id> --answer <the human's choice>`, log it, and start a new pass. Never pick the answer yourself. Headless (`claude -p`, no `AskUserQuestion`): the gate stays parked, and the role's allowlist denies `gate resolve`. Go to **Close**. |
+| `rejected: <answer>` | The units stay held in `planned`. Ask nothing more about it. Report it as needs-human: the gate, the answer and the units it holds. A person who changes their mind resolves it again with `approve` and resumes the run. |
+
+After an approval, add `<prefix>:ready` to the issue of each released unit whose other dependencies are met, as in **Land** step 4.
 
 ## Level B loop
 
@@ -108,7 +122,7 @@ Units land bottom-up. A unit starts only after every unit it depends on has merg
 1. Confirm `<orch> unit get <unit>` holds the merge SHA in the `sha` column. If it holds the head SHA, read `mergeSha` from `node <root>/gates/forge.mjs change view <pr> --json` and run `<orch> unit set <unit> --sha <merge sha>`.
 2. Run `cstack:post-merge-ci`. It judges the merge commit's checks and files at most one follow-up issue.
 3. **Sync siblings.** For each `pr-open` unit with no active worker, read `merge` from `node <root>/gates/forge.mjs change view <pr> --json`. On `conflict` or `behind`, relaunch its worker with `<worker> launch`. It resumes at its merge gate, sees the base moved, and syncs (stage 7). Running workers sync on their own in `cstack:babysit-pr`. This relaunch is not a restart. Log it as `sync <unit>`.
-4. **Unblock dependents.** For each `planned` unit whose dependencies are now all merged, add the ready label to its issue: `node <root>/gates/forge.mjs issue edit <issue> --add-label <prefix>:ready`. The plan left it unlabelled so no standalone run could start it early.
+4. **Unblock dependents.** For each `planned` unit whose dependencies are now all met (units merged, gates approved), add the ready label to its issue: `node <root>/gates/forge.mjs issue edit <issue> --add-label <prefix>:ready`. The plan left it unlabelled so no standalone run could start it early.
 5. `<orch> frontier set --repo <repo>`.
 
 ### Launch
@@ -119,7 +133,7 @@ If `<orch> standing show` has a line that starts with `STOP` (written by `cstack
 <worker> next --store <store>
 ```
 
-It prints `launch <unit>` lines for the free slots (the run's `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` follows Cardinal's rule: nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset.
+It prints `launch <unit>` lines for the free slots (the run's `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` follows Cardinal's rule: nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset. `hold <unit> on gate <id> (<status>)` names a unit a human gate holds: handle it per **Human gates**.
 
 For each `launch` line:
 
@@ -133,25 +147,25 @@ It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, a
 
 Run `<orch> status` and end the pass with its three lines. Then arm the `Monitor` tool:
 
-- command: `node <root>/gates/inbox-wait.mjs --store <store>`. When no worker is running and `next` printed only `defer` lines, add `--until <earliest defer time>`.
+- command: `node <root>/gates/inbox-wait.mjs --store <store>`. When no worker is running and `next` printed only `defer` lines, add `--until <earliest defer time>`. When no worker is running and `next` printed only `hold` lines, do not arm it: the watcher would never fire. Interactive, go to **Human gates**. Headless, go to **Close**.
 - timeout_ms: `3600000`. Re-arm on expiry.
 
 The watcher prints one line per new inbox entry and per worker state change. It exits with `done: all units terminal`, `idle: no live worker`, or `deadline: <iso>`. On any line, finish what you are doing, then start a new pass at Drain. While the Monitor runs, you may end your turn. Never use `sleep` or a polling loop: the guard hook blocks both.
 
 ## Close
 
-The run is closed when `<worker> next --store <store>` prints no `launch` or `defer` line and no worker is active. Then:
+The run is closed when `<worker> next --store <store>` prints no `launch` or `defer` line, no worker is active, and each `hold` line is a rejected gate or, under `claude -p`, a parked open gate. Then:
 
 1. Run `cstack:post-merge-ci` with `--wait` under the Monitor tool until no merge is waiting.
-2. Reconcile every unit to a final row: merged, merge-ready (`pr-open`), error, needs-human, or blocked (planned with an unmerged dependency). Account for every launch in `workers/*.launches`.
-3. Run `cstack:status` and use it as the top of your report.
+2. Reconcile every unit to a final row: merged, merge-ready (`pr-open`), error, needs-human, blocked (planned with an unmerged dependency), or held (planned behind an open or rejected gate). Account for every launch in `workers/*.launches`.
+3. Run `cstack:status` and use it as the top of your report. For each parked open gate, put its question first, then the commands the person runs in their own terminal: `node <root>/gates/orch.mjs --store <store> gate resolve <id> --answer approve` (or `--answer reject`), then `node <root>/gates/worker.mjs launch --store <store> --coordinator --resume`.
 4. Audit the trail per `cstack:show-me-your-work`.
 
 Leave the store intact. It is the postmortem.
 
 ## Escalation
 
-Reaches the human, batched into the final report: a hard stop from the mode skill, a `setup` (billing) entry, a unit in `needs-human`, a post-merge follow-up labelled `needs-human`, an open gate in `<orch> gate list`, and a program-level dead end.
+Reaches the human, batched into the final report: a hard stop from the mode skill, a `setup` (billing) entry, a unit in `needs-human`, a post-merge follow-up labelled `needs-human`, an open gate in `<orch> gate list`, a rejected named gate, and a program-level dead end.
 
 Never reaches the human: retries, restarts, usage-limit waits, base syncs, CI flakes, and "should I keep going". When in doubt, act and log.
 

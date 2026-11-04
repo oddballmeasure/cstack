@@ -27,6 +27,7 @@ import {
 import path from "node:path";
 import { UsageError, run, loadConfig } from "./common.mjs";
 import { openForge } from "./forge.mjs";
+import { GATE_DEP } from "./docs.mjs";
 
 export { UsageError };
 
@@ -44,6 +45,10 @@ export const PASSING_VERDICTS = ["approved", "live-ui-verified", "unit-test-veri
 const SATISFIED_STATES = ["merged", "done"];
 // Units in these states are still moving; while any exists, `ready` never overrides dependencies.
 const IN_FLIGHT_STATES = ["in-progress", "verifying", "pr-open"];
+// A depends_on entry `gate:<id>` names a human gate in gates.md. It is met only once the gate is resolved
+// with the answer `approve`. A gate that is not parked yet, open, or resolved any other way holds the unit.
+export { GATE_DEP };
+export const GATE_APPROVE = "approve";
 
 // Exit 2 like any usage error, but callers can tell "missing" apart.
 export class NotFoundError extends UsageError {}
@@ -590,6 +595,36 @@ export function openStore(directory, options = {}) {
     if (clean.includes(",")) throw new UsageError("unit id must not contain a comma");
     return clean;
   };
+  // Status of each gate the rows depend on: approved, unparked, open, or rejected (with its answer).
+  // gates.md is read only when some row names a gate, so older stores keep working.
+  const gateStatus = (rows) => {
+    const names = new Set(rows.flatMap((u) => splitList(u.depends_on)).filter((d) => d.startsWith(GATE_DEP)).map((d) => d.slice(GATE_DEP.length)));
+    const parked = names.size > 0 ? new Map(readGates(dir).map((g) => [g.id, g])) : new Map();
+    const status = (g) => {
+      if (!g) return { status: "unparked" };
+      if (g.kind === "open") return { status: "open" };
+      return g.answer.toLowerCase() === GATE_APPROVE ? { status: "approved" } : { status: "rejected", answer: g.answer };
+    };
+    return new Map([...names].map((n) => [n, status(parked.get(n))]));
+  };
+  // met(dep) says whether one depends_on entry is satisfied. gated holds the units behind an unapproved
+  // gate, directly or through a unit that has not merged.
+  const dependencyView = (rows) => {
+    const state = new Map(rows.map((u) => [u.id, u.state]));
+    const gates = gateStatus(rows);
+    const isGate = (d) => d.startsWith(GATE_DEP);
+    const met = (d) => (isGate(d) ? gates.get(d.slice(GATE_DEP.length)).status === "approved" : SATISFIED_STATES.includes(state.get(d)));
+    const gated = new Set();
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const u of rows) {
+        if (gated.has(u.id) || !splitList(u.depends_on).some((d) => !met(d) && (isGate(d) || gated.has(d)))) continue;
+        gated.add(u.id);
+        grew = true;
+      }
+    }
+    return { met, gated, gates };
+  };
 
   const units = {
     add(p) {
@@ -649,19 +684,35 @@ export function openStore(directory, options = {}) {
       ensureOpen();
       return countValues(readUnits(dir).map((u) => u.state));
     },
-    // Units whose dependencies are all merged or done, in id order. When nothing is in flight and nothing
-    // qualifies but planned units remain, the lowest-id planned unit is returned with override: true
-    // (Cardinal's cycle-breaking rule).
+    // Units whose dependencies are all merged or done and whose gates are approved, in id order. When
+    // nothing is in flight and nothing qualifies but planned units remain, the lowest-id planned unit is
+    // returned with override: true (Cardinal's cycle-breaking rule). The override never passes a human
+    // gate: a unit behind an unapproved gate, directly or through another unit, is never picked.
     ready() {
       ensureOpen();
       const rows = readUnits(dir).sort((a, b) => compareIds(a.id, b.id));
-      const state = new Map(rows.map((u) => [u.id, u.state]));
+      const { met, gated } = dependencyView(rows);
       const open = rows.filter((u) => u.state === "planned" || u.state === "ready");
-      const ready = open.filter((u) => splitList(u.depends_on).every((d) => SATISFIED_STATES.includes(state.get(d))));
+      const ready = open.filter((u) => splitList(u.depends_on).every(met));
       if (ready.length > 0) return ready.map((u) => ({ ...u, override: false }));
       if (rows.some((u) => IN_FLIGHT_STATES.includes(u.state))) return [];
-      const planned = open.find((u) => u.state === "planned");
+      const planned = open.find((u) => u.state === "planned" && !gated.has(u.id));
       return planned ? [{ ...planned, override: true }] : [];
+    },
+    // Units not started yet that a human gate holds, in id order: one row per (unit, gate) whose gate is
+    // unparked (not in gates.md), open, or rejected (resolved with an answer other than approve).
+    held() {
+      ensureOpen();
+      const rows = readUnits(dir).sort((a, b) => compareIds(a.id, b.id));
+      const { met, gates } = dependencyView(rows);
+      return rows
+        .filter((u) => u.state === "planned" || u.state === "ready")
+        .flatMap((u) =>
+          splitList(u.depends_on)
+            .filter((d) => d.startsWith(GATE_DEP) && !met(d))
+            .map((d) => d.slice(GATE_DEP.length))
+            .map((gate) => ({ unit: u.id, gate, ...gates.get(gate) })),
+        );
     },
   };
 

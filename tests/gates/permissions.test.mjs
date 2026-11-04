@@ -43,6 +43,30 @@ test("every role may save the final e2e report with run-e2e --out, and no rule d
   }
 });
 
+test("no headless role may resolve a human gate, in any command form; parking and listing stay allowed", WIN_PERMS, () => {
+  // Claude Code's own matching: a deny beats every allow, `*` matches anything, and leading assignments are skipped.
+  const matches = (rule, cmd) => new RegExp(`^${rule.slice(5, -1).split("*").map((t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`).test(cmd);
+  const resolve = [
+    "node /opt/cstack/gates/orch.mjs --store /s gate resolve PROTO --answer approve",
+    "node /opt/cstack/gates/orch.mjs gate resolve H2 --answer approve",
+    "node --no-warnings /opt/cstack/gates/orch.mjs --run r gate resolve PROTO --answer approve",
+    "/opt/cstack/gates/orch.mjs --store /s gate resolve PROTO --answer approve",
+    "node gates/orch.mjs --store /s gate resolve PROTO --answer approve",
+    "node ./gates/orch.mjs gate resolve PROTO --answer approve",
+    "node /home/x/other-cstack/gates/orch.mjs --store /s gate resolve PROTO --answer approve",
+    "node ../cstack/gates/orch.mjs gate resolve PROTO --answer approve",
+    "node orch.mjs gate resolve PROTO --answer approve",
+    "node orch.mjs --store /s gate resolve PROTO --answer approve",
+  ];
+  for (const role of ROLES) {
+    const deny = perms(role, {}, { worktree: "/wt/e2e" }).deny.filter((r) => r.includes("gate resolve"));
+    for (const cmd of resolve) assert.ok(deny.some((r) => matches(r, cmd)), `${role} refuses ${cmd}`);
+    for (const cmd of ['git commit -m "Hold units until a person runs gate resolve"', 'gh pr create --body "run gate resolve <id> --answer approve"', "node /opt/cstack/gates/orch.mjs --store /s gate list", "node /opt/cstack/gates/orch.mjs --store /s gate park PROTO --question q --options approve|reject --default reject"]) {
+      assert.ok(!deny.some((r) => matches(r, cmd)), `${role} may run ${cmd}`);
+    }
+  }
+});
+
 test("worker edits only the repo's worktrees and the run store, and runs the configured commands", WIN_PERMS, () => {
   const p = perms("worker");
   assert.ok(p.allow.includes(`Edit(${WT}/**)`));

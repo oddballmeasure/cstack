@@ -59,6 +59,8 @@ A unit is orphaned when its state is `in-progress` or `verifying` (or `pr-open` 
 - **Level B** (the unit has `<store>/workers/<unit>.launches`): `node <root>/gates/supervise.mjs status <unit name>` is not `active` or `activating`. A live worker is never an orphan, however old its last row.
 - **Level A** (no launches file): the unit ran inside a coordinator session, which has no systemd unit. It is orphaned when no row in `<store>/decisions.tsv` that names the unit, its issue or its branch is newer than 10 minutes.
 
+A unit held by a human gate is never an orphan. It stays `planned` and no session runs it, by design, while `<worker> next --store <store>` prints `hold <unit> on gate <id> (open)` or `(rejected: ...)`. Leave it and its gate alone. Never resolve the gate: `cstack:orchestrate` reports it to the person.
+
 Log each orphan: `<log> "resume" "orphan <unit>" "<state>, worker <is-active output>, last row <ts>" "<exit line or none>" "found"`.
 
 ### 5. Settle each orphan

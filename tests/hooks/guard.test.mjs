@@ -392,6 +392,26 @@ test("role-deny: a Codex session cstack launched gets its role's Bash deny rules
     assert.match(out.stderr, /cstack role-deny: .* is denied to the worker role/);
   }
   for (const cmd of ["git push origin x", "gh pr view 3", "npm test", "ls -la"]) assert.equal(codex(cmd, worker).status, 0, cmd);
+  // Only a person resolves a human gate: a worker and a headless coordinator are refused, whatever the form.
+  const orch = path.resolve(GUARD, "../../../gates/orch.mjs");
+  const resolve = process.platform === "win32" ? [] : [`node ${orch} --store /s gate resolve PROTO --answer approve`, `node ${orch} gate resolve H2 --answer approve`, `node --no-warnings ${orch} --store /s gate resolve PROTO --answer approve`, `FOO=1 ${orch} --store /s gate resolve PROTO --answer approve`, "node gates/orch.mjs --store /s gate resolve PROTO --answer approve", "node /home/x/other-cstack/gates/orch.mjs gate resolve PROTO --answer approve", "node ../cstack/gates/orch.mjs --store /s gate resolve PROTO --answer approve", "cd gates && node orch.mjs gate resolve PROTO --answer approve"];
+  for (const env of [worker, { CSTACK_COORDINATOR: "1" }]) {
+    for (const cmd of resolve) {
+      const out = codex(cmd, env);
+      assert.equal(out.status, 2, cmd);
+      assert.match(out.stderr, /cstack role-deny: .*gate resolve.* is denied to the (worker|coordinator) role/);
+    }
+    if (resolve.length) assert.equal(codex(`node ${orch} --store /s gate park PROTO --question q --options approve|reject --default reject`, env).status, 0, "parking a gate stays allowed");
+    for (const cmd of ['git commit -m "Hold units until a person runs gate resolve"', 'gh pr create --title t --body "the human runs gate resolve <id>"']) assert.equal(codex(cmd, env).status, 0, cmd);
+  }
+  if (resolve.length) {
+    assert.equal(codex(`node ${orch} --store /s gate  resolve PROTO --answer approve`, worker).status, 2, "extra spaces are folded");
+    // A config allow longer than the literal plugin-path deny does not override the absolute orch.mjs catch-all.
+    const lr = repo({ permissions_allow: [`Bash(node ${orch} --store /s gate *)`] });
+    const out = spawnSync(process.execPath, [GUARD], { input: JSON.stringify({ tool_name: "Bash", tool_input: { command: `node ${orch} --store /s gate resolve PROTO --answer approve` }, cwd: lr, turn_id: "t", session_id: `rd2-${process.pid}` }), encoding: "utf8", env: { ...process.env, CSTACK_ROLE: "", CSTACK_RUN: "", CSTACK_UNIT: "U1", CSTACK_COORDINATOR: "" } });
+    assert.equal(out.status, 2, out.stderr);
+    assert.match(out.stderr, /\(Bash\(\*[^)]*gate resolve/, "an absolute `*`-leading rule blocked it");
+  }
   assert.equal(codex("systemd-run --user x", { CSTACK_COORDINATOR: "1" }).status, 0, "a coordinator may start sessions");
   assert.equal(codex("sudo ls", {}).status, 0, "no role marker: not a cstack-launched session");
   assert.equal(codex("sudo ls", { CSTACK_ROLE: "nobody" }).status, 0, "an unknown role has no deny list");
