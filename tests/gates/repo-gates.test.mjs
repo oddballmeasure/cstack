@@ -33,6 +33,44 @@ test("isolate reuses an existing branch and works with no hidden paths", () => {
   assert.match(res.out, /no paths_hidden configured/);
 });
 
+test("isolate starts a new branch from the fetched origin base, not a stale local one", () => {
+  const r = makeRepo({ paths_hidden: [] });
+  const other = path.join(r.base, "other");
+  git(r.base, "clone", "-q", r.origin, other);
+  const tip = commit(other, { "src/new.js": "export const n = 1;\n" }, "Land on origin");
+  git(other, "push", "-q", "origin", "main");
+  const res = gate("isolate.mjs", [r.root, "cstack/u3", path.join(r.base, "wt3"), "--json"]);
+  assert.equal(res.code, 0, res.out + res.err);
+  const out = JSON.parse(res.out);
+  assert.equal(out.start, "origin/main");
+  assert.equal(out.sha, tip);
+  assert.ok(existsSync(path.join(r.base, "wt3/src/new.js")));
+  assert.match(out.passes[0].detail, new RegExp(`from origin/main at ${tip.slice(0, 12)}`));
+  assert.notEqual(git(r.root, "rev-parse", "main"), tip, "local main stays as it was");
+});
+
+test("isolate uses the local base with no origin remote, and honours an explicit --base", () => {
+  const r = makeRepo({ paths_hidden: [] });
+  const first = git(r.root, "rev-parse", "HEAD");
+  git(r.root, "remote", "remove", "origin");
+  const second = commit(r.root, { "src/local.js": "export const l = 1;\n" }, "Local only");
+  const res = gate("isolate.mjs", [r.root, "cstack/u4", path.join(r.base, "wt4")]);
+  assert.equal(res.code, 0, res.out + res.err);
+  assert.match(res.out, new RegExp(`from main at ${second.slice(0, 12)}`));
+  const pinned = gate("isolate.mjs", [r.root, "cstack/u5", path.join(r.base, "wt5"), "--base", first, "--json"]);
+  assert.equal(pinned.code, 0, pinned.out + pinned.err);
+  assert.equal(JSON.parse(pinned.out).sha, first);
+});
+
+test("isolate stops when origin has no copy of the base branch", () => {
+  const r = makeRepo({ paths_hidden: [], base_branch: "trunk" });
+  git(r.root, "branch", "trunk");
+  const res = gate("isolate.mjs", [r.root, "cstack/u6", path.join(r.base, "wt6")]);
+  assert.equal(res.code, 2, res.out + res.err);
+  assert.match(res.err, /git fetch origin trunk failed/);
+  assert.ok(!existsSync(path.join(r.base, "wt6")));
+});
+
 test("isolate refuses bad input", () => {
   const r = makeRepo();
   assert.equal(gate("isolate.mjs", [r.root]).code, 2);

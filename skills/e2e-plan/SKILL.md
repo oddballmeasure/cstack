@@ -78,7 +78,7 @@ Log the choice.
    git -C <wt> sparse-checkout disable
    <orch> unit set E2E --branch <branch>
    ```
-   `isolate.mjs` hides `paths_hidden` with a sparse checkout, as it does for implementers. This worktree belongs to the author, who must write there, so turn sparse checkout off. No implementer ever uses this worktree.
+   The branch starts at the fetched `origin/<base_branch>` (the local base branch when there is no `origin` remote). `isolate.mjs` hides `paths_hidden` with a sparse checkout, as it does for implementers. This worktree belongs to the author, who must write there, so turn sparse checkout off. No implementer ever uses this worktree.
 
 ### 4. Set the e2e command (when config had none)
 
