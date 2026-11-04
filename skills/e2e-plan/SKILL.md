@@ -198,7 +198,7 @@ The author's tables are model claims. Check them yourself:
 2. `node <root>/gates/run-e2e.mjs <wt> --json` at the branch head. Every lane in the plan is reported and fails, and no lane passes. Compare the lane ids with the plan's lanes. The exit code is non-zero by design: the red result is the pass condition here.
 3. `git -C <wt> diff --name-only origin/<base_branch>...HEAD` lists only files under `paths_hidden` and `.cstack/config.json`. Run it without naming the hidden prefix in the command.
 
-All three pass: record the approval for the head and the lanes, and log it.
+All three pass: record the approval for the head and the lanes, and log it. `E2E` is one of two units whose pass `orch ledger record` accepts by hand, because no single gate judges it. It accepts it only for the unit step 3 registered with track `e2e`. Record it only after all three checks passed, each read on its own.
 
 ```sh
 <orch> ledger record E2E <head sha> approved --evidence <store>/e2e-plan.md --verifier check-e2e
@@ -213,7 +213,7 @@ PR #0 goes through the ship stages of `docs/unit-flow.md` with unit id `E2E`, is
 
 | Stage | Owner | Note for E2E |
 |---|---|---|
-| 8 Publish | `cstack:unit` | `<orch> ledger check E2E <head>` must exit 0 first. Then `node <root>/gates/publish.mjs <wt>`. |
+| 8 Publish | `cstack:unit` | `node <root>/gates/publish.mjs <wt> --store <store> --unit E2E`. It pushes only when `units.tsv` records `<branch>` for `E2E` (step 3) and for no other unit and the ledger holds step 7's approval for the head. A `ledger` finding: run step 7 again on this head. |
 | 9 PR | `cstack:file-pr` | The body starts `Closes #<N>`. It lists the lanes by id and title (from the plan, not the suite source), the red-check summary and the mutation summary. If step 4 ran, add a section "Config change for review" that names the `e2e_command` it set. |
 | 10 Babysit | `cstack:babysit-pr` | DIRTY or BEHIND: run `cstack:sync-base`, then step 7 again on the new head. A failed check: read it with `gates/ci-log.mjs`. A suite fix goes back to the author (step 5), never to an implementer. Skip step 10b (`cstack:review-loop`): a reviewer may not read the hidden suite, and you must not print its diff. `check-e2e`, the red check and the mutation spot-check judge it, and `check-merge.mjs` accepts that for unit `E2E` when the diff touches only `paths_hidden` and `.cstack/config.json`. Log `skip: hidden suite`. |
 | 11 Merge gate | `cstack:merge-gate` | Merges only under the run's effective autonomy `send` (`gates/run-settings.mjs`), as for any unit. |

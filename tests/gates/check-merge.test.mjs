@@ -2,10 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { makeRepo, commit, gate, git, failChecks, path } from "./helpers.mjs";
+import { makeRepo, commit, gate, git, failChecks, approve, path } from "./helpers.mjs";
 
 // A repo whose origin has a PR branch, plus a ledger store and a fake gh scenario.
-function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [], extraRules = [], runJson, env = {} } = {}) {
+function setup({ cfg = {}, approve: approved = true, review = true, pr = {}, checkRuns = [], extraRules = [], runJson, env = {} } = {}) {
   const r = makeRepo(cfg);
   const baseSha = git(r.root, "rev-parse", "HEAD");
   git(r.root, "checkout", "-q", "-b", "cstack/u1");
@@ -17,7 +17,7 @@ function setup({ cfg = {}, approve = true, review = true, pr = {}, checkRuns = [
   if (runJson !== undefined) writeFileSync(path.join(store, "run.json"), typeof runJson === "string" ? runJson : JSON.stringify(runJson));
   const orch = (...a) => gate("orch.mjs", ["--store", store, ...a]);
   assert.equal(orch("init").code, 0);
-  if (approve) assert.equal(orch("ledger", "record", "U1", head, "approved", "--pr", "5", "--evidence", "check-verdict approved", "--verifier", "fable").code, 0, "ledger record");
+  if (approved) approve(store, "U1", head, { pr: 5 });
   if (review) {
     writeFileSync(path.join(store, "review-U1-rounds.tsv"), `round\thead\tmodel\tverdict\tusage\n1\t${head}\tsonnet\tAPPROVE\tnot exposed\n`);
     writeFileSync(path.join(store, "review-U1.tsv"), "id\tround\tseverity\tlocation\tclaim\toutcome\treplies\tevidence\nS1\t1\tnit\tsrc/f.js:1\tname\topen\t0\tx\n");
@@ -93,7 +93,10 @@ test("review: an open should finding blocks; a docs-only diff needs no review", 
 
 test("review: unit E2E touching only the hidden suite and config needs no review round; anything else does", () => {
   const suite = setup({ review: false, pr: { files: [{ path: "tests/acceptance/a.test.mjs" }, { path: ".cstack/config.json" }, { path: "docs/e2e.md" }] } });
-  const ledger = (s) => gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E", s.head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e"]);
+  const ledger = (s) => {
+    assert.equal(gate("orch.mjs", ["--store", s.store, "unit", "add", "E2E", "--track", "e2e"]).code, 0);
+    return gate("orch.mjs", ["--store", s.store, "ledger", "record", "E2E", s.head, "approved", "--evidence", "e2e-plan.md", "--verifier", "check-e2e"]);
+  };
   assert.equal(ledger(suite).code, 0);
   const e2e = (s) => gate("check-merge.mjs", ["5", "--unit", "E2E", "--repo-dir", s.root, "--store", s.store, "--json"], { env: { FAKE_GH_SCENARIO: s.scenario } });
   const ok = e2e(suite);
@@ -202,7 +205,7 @@ test("a merge error still counts when GitHub shows it merged at the head; otherw
 test("defaults: repo dir is the cwd and the store comes from CSTACK_RUN", () => {
   const s = setup();
   assert.equal(gate("orch.mjs", ["--run", "r1", "init"], { cwd: s.root }).code, 0);
-  assert.equal(gate("orch.mjs", ["--run", "r1", "ledger", "record", "U1", s.head, "approved", "--pr", "5", "--evidence", "x"], { cwd: s.root }).code, 0);
+  approve(path.join(s.root, ".cstack/runs/r1"), "U1", s.head, { pr: 5, evidence: "x" });
   writeFileSync(path.join(s.root, ".cstack/runs/r1/review-U1-rounds.tsv"), `1\t${s.head}\tsonnet\tAPPROVE\tnot exposed\n`);
   const res = gate("check-merge.mjs", ["5", "--unit", "U1"], { cwd: s.root, env: { FAKE_GH_SCENARIO: s.scenario, CSTACK_RUN: "r1" } });
   assert.equal(res.code, 0, res.out + res.err);

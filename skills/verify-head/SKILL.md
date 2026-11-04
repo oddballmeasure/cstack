@@ -1,6 +1,6 @@
 ---
 name: verify-head
-description: "Use when a cstack unit has passed check-commit and needs a verdict at its exact HEAD. Spawns one read-only verifier subagent on a different model than the coder, gates its verdict file with check-verdict.mjs, and records only the gate's result in the ledger keyed by (unit, sha). A rejected verdict goes to cstack:repair."
+description: "Use when a cstack unit has passed check-commit and needs a verdict at its exact HEAD. Spawns one read-only verifier subagent on a different model than the coder, gates its verdict file with check-verdict.mjs, which records its own result in the ledger keyed by (unit, sha). A rejected verdict goes to cstack:repair."
 ---
 
 <!-- Adapted from pstack skills/principle-prove-it-works/SKILL.md @ 519d36a (MIT, Lauren Tan). -->
@@ -90,21 +90,27 @@ After it finishes:
 ### 5. Gate the verdict
 
 ```sh
-node <root>/gates/check-verdict.mjs <worktree> --verdict <verdict path> --base origin/<base> --requirements <R1,R2> [--lanes <ids>] --json
+node <root>/gates/check-verdict.mjs <worktree> --verdict <verdict path> --base origin/<base> --requirements <R1,R2> [--lanes <ids>] \
+  --store <store> --unit <unit> --json
 ```
+
+With `--store` and `--unit`, the gate writes the ledger row itself, keyed by (unit, HEAD), before it exits: `approved` on exit 0, `rejected` on exit 1. The row names the verdict path as evidence and the verdict's `by` as the verifier.
 
 - Exit 0. The verdict is `approved`.
 - Exit 1. The verdict is `rejected`.
-- Exit 2 (the file is missing or does not parse). Spawn one fresh verifier with the gate's error in the brief. A second exit 2 is `verifier-failed`, and the unit stops with failure `invalid_output`.
+- Exit 2 (the file is missing or does not parse). The gate records nothing. Spawn one fresh verifier with the gate's error in the brief. A second exit 2 is `verifier-failed`, and the unit stops with failure `invalid_output`.
 
-### 6. Record the gate's result
+Run the gate as its own Bash call. Read its result before the next command. Never chain it with a ledger write or a publish.
+
+### 6. Record a failure the gate could not judge
+
+The gate already recorded `approved` or `rejected`. Record by hand only `verifier-failed` (step 4, or a second exit 2):
 
 ```sh
-node <root>/gates/orch.mjs --store <store> ledger record <unit> <sha> <approved|rejected|verifier-failed> \
-  --evidence <verdict path> [--pr <n>] --verifier <model used>
+node <root>/gates/orch.mjs --store <store> ledger record <unit> <sha> verifier-failed --evidence <verdict path> [--pr <n>] --verifier <model used>
 ```
 
-Record only the gate's result. Never record `approved` on the verifier's word. Log one row with `cstack:show-me-your-work`: the verdict, the SHA, the verdict path.
+`orch ledger record` refuses a passing verdict for every unit except `E2E` (registered with track `e2e`) and `program-final`, so an approval can come only from the gate. Log one row with `cstack:show-me-your-work`: the verdict, the SHA, the verdict path.
 
 ### 7. Route
 
@@ -113,4 +119,4 @@ Record only the gate's result. Never record `approved` on the verifier's word. L
 
 ## The verdict is void after any new commit
 
-The ledger key is `(unit, sha)`. Any later commit (a repair, a SYNC merge, a CI fix) leaves the new HEAD with no verdict. Before publish, the caller runs `node <root>/gates/orch.mjs --store <store> ledger check <unit> <HEAD>`. Exit 0 is the only pass. Anything else means run this skill again.
+The ledger key is `(unit, sha)`. Any later commit (a repair, a SYNC merge, a CI fix) leaves the new HEAD with no verdict. `gates/publish.mjs <wt> --store <store> --unit <unit>` refuses to push a HEAD the ledger does not approve, and `check-merge.mjs` refuses to merge one. A `ledger` finding from either means run this skill again.

@@ -634,7 +634,8 @@ describe("orch CLI", () => {
     assert.equal(o("unit", "counts"), "planned=5, pr-open=1\n");
 
     assert.equal(o("ledger", "summary"), "none\n");
-    assert.equal(o("ledger", "record", "u1", "abc", "approved", "--evidence", "e.md", "--verifier", "sonnet"), "u1\tabc\tapproved\n");
+    o("unit", "add", "E2E", "--track", "e2e");
+    assert.equal(o("ledger", "record", "E2E", "abc", "approved", "--evidence", "e.md", "--verifier", "sonnet"), "E2E\tabc\tapproved\n");
     assert.equal(o("ledger", "summary"), "approved=1\n");
 
     assert.equal(o("inbox", "drain"), "(empty)\n");
@@ -661,7 +662,7 @@ describe("orch CLI", () => {
     writeFileSync(path.join(dir, "frontier.json"), JSON.stringify({ generation: 1, prs: [{ pr: 7, branches: "cstack/u1", sha: "abc", state: "OPEN" }], lowestUnmerged: 7 }));
     assert.equal(o("frontier", "show"), "generation=1 prs=cstack/u1#7@abc:OPEN lowest-unmerged=7\n");
 
-    assert.equal(o("status"), "counts: units=6; states=planned=5, pr-open=1; ledger=approved=1\nchanged: first render\ngates open: 5; ids=g1,g2,g3,g4,+1 more\n");
+    assert.equal(o("status"), "counts: units=7; states=planned=6, pr-open=1; ledger=approved=1\nchanged: first render\ngates open: 5; ids=g1,g2,g3,g4,+1 more\n");
     assert.ok(existsSync(path.join(dir, "status.md")));
     o("gate", "resolve", "g1", "--answer", "a");
     assert.match(o("status"), /changed: open gates 5->4\ngates open: 4; ids=g2,g3,g4,g5\n$/);
@@ -710,30 +711,52 @@ describe("orch CLI", () => {
     const dir = tmp();
     const o = (...args) => cli(["--store", dir, ...args]);
     o("init");
-    o("unit", "add", "u1", "--track", "t");
-    o("unit", "set", "u1", "--pr", "184530");
+    o("unit", "add", "E2E", "--track", "e2e");
+    o("unit", "set", "E2E", "--pr", "184530");
 
-    const missing = o("--json", "ledger", "check", "u1", "abc123");
+    const missing = o("--json", "ledger", "check", "E2E", "abc123");
     assert.equal(missing.code, 1);
-    assert.deepEqual(JSON.parse(missing.stdout), { unit: "u1", sha: "abc123", verdict: "NOT-VERIFIED", approved: false });
+    assert.deepEqual(JSON.parse(missing.stdout), { unit: "E2E", sha: "abc123", verdict: "NOT-VERIFIED", approved: false });
     assert.equal(missing.stderr, "");
-    assert.equal(o("ledger", "check", "u1", "abc123").stdout, "NOT-VERIFIED\n");
+    assert.equal(o("ledger", "check", "E2E", "abc123").stdout, "NOT-VERIFIED\n");
 
     const expect = { approved: 0, "live-ui-verified": 0, "unit-test-verified": 0, "type-check-only": 1, rejected: 1, "verifier-blocked": 1, "verifier-failed": 1 };
     for (const [verdict, code] of Object.entries(expect)) {
-      assert.equal(o("ledger", "record", "u1", "abc123", verdict, "--evidence", `${verdict}.md`).code, 0);
-      const r = o("ledger", "check", "u1", "abc123");
+      assert.equal(o("ledger", "record", "E2E", "abc123", verdict, "--evidence", `${verdict}.md`).code, 0);
+      const r = o("ledger", "check", "E2E", "abc123");
       assert.equal(r.code, code, verdict);
-      assert.match(r.stdout, new RegExp(`^u1\\t184530\\tabc123\\t${verdict}\\t${verdict}\\.md\\t\\t\\d{4}-`));
+      assert.match(r.stdout, new RegExp(`^E2E\\t184530\\tabc123\\t${verdict}\\t${verdict}\\.md\\t\\t\\d{4}-`));
     }
     // A verdict on an older SHA does not carry over to a new head.
-    o("ledger", "record", "u1", "abc123", "approved", "--evidence", "e.md");
-    assert.equal(o("ledger", "check", "u1", "abc123").code, 0);
-    assert.equal(o("ledger", "check", "u1", "def456").code, 1);
-    const ok = JSON.parse(o("--json", "ledger", "check", "u1", "abc123").stdout);
+    o("ledger", "record", "E2E", "abc123", "approved", "--evidence", "e.md");
+    assert.equal(o("ledger", "check", "E2E", "abc123").code, 0);
+    assert.equal(o("ledger", "check", "E2E", "def456").code, 1);
+    const ok = JSON.parse(o("--json", "ledger", "check", "E2E", "abc123").stdout);
     assert.equal(ok.approved, true);
     assert.equal(ok.verdict, "approved");
     assert.equal(o("ledger", "summary").stdout, "approved=1\n");
+  });
+
+  test("ledger record refuses a hand-recorded pass for a unit check-verdict judges", () => {
+    const dir = tmp();
+    const o = (...args) => cli(["--store", dir, ...args]);
+    o("init");
+    for (const verdict of ["approved", "live-ui-verified", "unit-test-verified"]) {
+      const r = o("ledger", "record", "U7", "32854ae", verdict, "--evidence", "verdict-U7.json");
+      assert.equal(r.code, 2, verdict);
+      assert.match(r.stderr, /passing verdict for U7 comes only from check-verdict\.mjs --store/);
+    }
+    assert.equal(o("ledger", "check", "U7", "32854ae").code, 1, "nothing was recorded");
+    assert.equal(o("ledger", "record", "U7", "32854ae", "rejected", "--evidence", "verdict-U7.json").code, 0, "a non-passing row is still recorded by hand");
+    // E2E's hand-recorded pass needs the unit cstack:e2e-plan registers, with track e2e.
+    let r = o("ledger", "record", "E2E", "32854ae", "approved", "--evidence", "e2e-plan.md");
+    assert.equal(r.code, 2);
+    assert.match(r.stderr, /needs unit E2E registered with track e2e/);
+    o("unit", "add", "E2E", "--track", "issue");
+    assert.equal(o("ledger", "record", "E2E", "32854ae", "approved", "--evidence", "e2e-plan.md").code, 2, "a renamed issue unit");
+    assert.equal(o("ledger", "check", "E2E", "32854ae").code, 1);
+    assert.equal(o("ledger", "record", "program-final", "f1", "approved", "--evidence", "final.json").code, 0);
+    assert.equal(o("ledger", "check", "program-final", "f1").code, 0);
   });
 
   test("rejects invalid states, verdicts and values with exit 2", () => {
@@ -747,7 +770,7 @@ describe("orch CLI", () => {
       [["unit", "list", "--state", "open"], /state must be one of/],
       [["ledger", "record", "u1", "abc", "lgtm", "--evidence", "e"], /verdict must be one of: approved, rejected, live-ui-verified/],
       [["ledger", "record", "u1", "abc", "approved"], /ledger record needs --evidence/],
-      [["ledger", "record", "u1", "abc", "approved", "--evidence", "e", "--pr", "-3"], /PR must be a positive integer/],
+      [["ledger", "record", "u1", "abc", "rejected", "--evidence", "e", "--pr", "-3"], /PR must be a positive integer/],
       [["unit", "set", "u1", "--issue", "x"], /issue must be a positive integer/],
       [["unit", "get", "missing"], /unit missing not found/],
       [["gate", "resolve", "nope", "--answer", "a"], /gate nope not found/],

@@ -43,9 +43,9 @@ Each stage names the skill that owns it, the gate that decides it, and where it 
 | 3 | Profile | `cstack:profile-repo` | profile covers all tracked files | 4 | stop, failure `setup` |
 | 4 | Intake | `cstack:intake` | `check-intake.mjs` (one corrective retry) | 5 if feature/bug/chore | settle `needs-human` (question, needs_human, reject) or failure `invalid_output` |
 | 5 | Implement | `cstack:implement-ticket`, one ticket at a time in dependency order | `check-commit.mjs` | next ticket, then 6 | `cstack:repair` up to `coder_attempts` per ticket, then failure `tests_failed` or `no_change` |
-| 6 | Verify | `cstack:verify-head` | `check-verdict.mjs`, recorded with `orch ledger record` | 7 | REPAIR ticket → 5, up to `verify_rounds`, then failure `verification` |
+| 6 | Verify | `cstack:verify-head` | `check-verdict.mjs --store --unit`, which records its own result in the ledger | 7 | REPAIR ticket → 5, up to `verify_rounds`, then failure `verification` |
 | 7 | Sync | `cstack:sync-base` | `gates/sync-base.mjs` | 8 (unchanged), or re-run 5's gate then 6 (merged) | conflict → SYNC ticket → 5, up to `base_sync_rounds`, then failure `base_conflict` |
-| 8 | Publish | `cstack:unit` | `gates/publish.mjs` (remote SHA equals verified SHA) | 9 | failure `git` |
+| 8 | Publish | `cstack:unit` | `gates/publish.mjs` (ledger approves HEAD; remote SHA equals verified SHA) | 9 | `ledger` finding → 6; else failure `git` |
 | 9 | PR | `cstack:file-pr` | PR exists for the branch, body starts `Closes #N` | 10 | failure `github` |
 | 10 | Babysit | `cstack:babysit-pr` | `pr-wait.mjs --until green` under Monitor | 10b | failed check → `gates/ci-log.mjs` → CI-REPAIR ticket → 5, up to `ci_repair_rounds`, then failure `ci_failed`. DIRTY → 7. |
 | 10b | Review (sub-step of 10, once per new head; skipped for docs-only diffs) | `cstack:review-loop` | ledger: an `APPROVE` round at HEAD, no open blocker or should | 11 | agreed finding → REPAIR ticket (`cstack:repair` source `review`) → 5, up to `review_rounds` rounds (5 for security, auth, data loss, concurrency). Dispute after two replies or budget end → settle `needs-human`. |
@@ -91,7 +91,7 @@ Every comment and PR body ends with the badge line from `templates/footer.md`. R
 |---|---|
 | `gates/settle.mjs <issue> --state <state> [--comment-file f]` | One state label on the issue. Posts the comment unless a comment with the same first line already exists. |
 | `gates/sync-base.mjs <worktree>` | Fetch, then merge `origin/<base>` with `--no-ff`. Reports `up-to-date`, `merged`, or `conflict` with the conflicted files. Conflict markers stay in the tree for the SYNC ticket. |
-| `gates/publish.mjs <worktree>` | Push with `--force-with-lease` pinned to the observed remote head, then confirm the remote SHA equals local HEAD. |
+| `gates/publish.mjs <worktree> --store <dir> --unit <id>` | Refuse unless `units.tsv` records the branch for the unit and for no other unit, and the ledger approves HEAD. Unit `E2E` must have track `e2e`. `program-final` is never published. Then push with `--force-with-lease` pinned to the observed remote head, and confirm the remote SHA equals local HEAD. |
 | `gates/ci-log.mjs <pr>` | Failed required or other checks on the PR head with a bounded log tail each (Actions job logs, else the check's output summary). |
 | `gates/profile-diff.mjs <repo> [--write]` | Tracked files whose sha256 changed against `.cstack/profile.json`. |
 

@@ -229,6 +229,40 @@ test("check-verdict rejects each failure mode", () => {
   }
 });
 
+test("check-verdict --store records the gate's own result in the ledger, never the verifier's", () => {
+  const { wt, base } = isolated();
+  const store = path.join(base, "store");
+  assert.equal(gate("orch.mjs", ["--store", store, "init"]).code, 0);
+  const ledger = (sha) => gate("orch.mjs", ["--store", store, "--json", "ledger", "check", "U1", sha]);
+  const args = (v) => [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--store", store, "--unit", "U1", "--json"];
+  const good = commit(wt, { "src/f.js": "1\n", "test/f.test.js": "t\n" }, "F" + trailers("U1"));
+  const v = verdictFile(base, { unit: "U1", head_sha: good, requirements: [{ id: "R1", delivered: true, evidence: "ran it" }], findings: [], by: "opus" });
+  let res = gate("check-verdict.mjs", args(v));
+  assert.equal(res.code, 0, res.out);
+  assert.match(res.json.passes.find((p) => p.check === "ledger").detail, /recorded approved for U1/);
+  let row = ledger(good).json;
+  assert.equal(row.verdict, "approved");
+  assert.equal(row.verifier, "opus");
+  assert.equal(row.evidence, v);
+
+  // The verifier approves, but the gate finds a problem: the ledger holds the gate's rejection.
+  const bad = commit(wt, { "src/g.js": "1\n" }, "G" + trailers("U1"));
+  const v2 = verdictFile(base, { unit: "U2", head_sha: bad, requirements: [{ id: "R1", delivered: true, evidence: "ran it" }], findings: [] });
+  res = gate("check-verdict.mjs", args(v2));
+  assert.equal(res.code, 1);
+  assert.match(res.json.findings.find((f) => f.check === "unit").detail, /verdict names unit U2, not U1/);
+  row = ledger(bad).json;
+  assert.equal(row.verdict, "rejected");
+  assert.equal(row.verifier, "cstack-verifier");
+  assert.equal(ledger(bad).code, 1);
+
+  res = gate("check-verdict.mjs", args(verdictFile(base, { head_sha: bad, requirements: [] })));
+  assert.match(res.json.findings.find((f) => f.check === "unit").detail, /verdict names unit nothing/);
+  assert.equal(gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--store", store]).code, 2);
+  assert.equal(gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--unit", "U1"]).code, 2);
+  assert.equal(gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--store", path.join(base, "none"), "--unit", "U1"]).code, 2, "an uninitialized store");
+});
+
 test("check-verdict exempts docs-only changes and handles bad input", () => {
   const { wt, base } = isolated({ e2e_command: ["sh", "-c", "exit 1"] });
   const sha = commit(wt, { "docs/guide.md": "x\n" }, "Docs" + trailers("U1"));
