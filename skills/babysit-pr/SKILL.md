@@ -114,7 +114,7 @@ pr-wait exited 0. Before you leave the stage:
 
 A sub-step of stage 10. It runs once per new head, after pr-wait exited 0 on that head and before the merge gate.
 
-1. List the changed paths: `git -C <worktree> diff --name-only <base>...HEAD`. If every path is documentation (`*.md`, `*.mdx`, `*.rst`, `*.txt`, `docs/**`, `LICENSE*`), skip it. Log `skip: docs only`.
+1. List the changed paths: `git -C <worktree> diff --name-only --no-renames <base>...HEAD`, so a rename lists its old path too. If every path is documentation, skip it: a match for config `docs_paths` when set, else `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). The merge gate applies the same test. Log `skip: docs only`.
 2. If the review ledger already has a round at this HEAD, do not run another. Use that round's result.
 3. Otherwise run `cstack:review-loop` for one round on the PR diff, with the author model `models.code`. It keeps its ledger in `<store>/review-<unit>.tsv` and `<store>/review-<unit>-rounds.tsv`.
 4. Act on its result:

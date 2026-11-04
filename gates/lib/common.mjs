@@ -65,10 +65,11 @@ export function git(cwd, args) {
   return run("git", ["-C", cwd, ...args]);
 }
 
-export function gitOut(cwd, args) {
+// trim: false keeps the output as git wrote it, for -z lists whose first path may start with a space.
+export function gitOut(cwd, args, { trim = true } = {}) {
   const r = git(cwd, args);
   if (r.code !== 0) throw new UsageError(`git ${args.join(" ")} failed: ${r.stderr.trim()}`);
-  return r.stdout.trim();
+  return trim ? r.stdout.trim() : r.stdout;
 }
 
 // Find .cstack/config.json from dir upward. In a sparse implementer worktree the config is still present.

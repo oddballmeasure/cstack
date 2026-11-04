@@ -23,6 +23,10 @@ This is stage 11 of the unit flow (`docs/unit-flow.md`). The unit coordinator ru
 - GitHub's merge state is not DIRTY, BEHIND, BLOCKED or UNKNOWN;
 - the base has not moved under the PR's files.
 
+The gate judges the docs-only and suite exemptions on its own `git diff --no-renames` from the merge base, not on the forge's file list. A rename out of `src/` counts on both sides, and a truncated list hides nothing. If the gate cannot fetch the PR's SHAs or run that diff, a review is required.
+
+A doc is a file that matches config `docs_paths`, a list of globs, when it is a list. `check-verdict` uses the same test to decide whether a change needs a test change. An empty list, `[]`, means no file is a doc, so every change needs a review round. When `docs_paths` is `null` or unset, a doc is any `.md`, `.mdx`, `.txt`, `.rst` or `.adoc` file anywhere, any file under `docs/`, and any `LICENSE`, `NOTICE` or `CHANGELOG` file. In a repo where markdown is product (skills, prompts, a content site), that default lets a product change merge with no review. Set `docs_paths` in such a repo, for example `["docs/**", "README.md"]`.
+
 Never run `gh pr merge`, or any forge's merge command, yourself. The guard hook blocks it. Never use `--admin`, auto-merge, a merge queue, a push to the base branch, or any other bypass. Under both autonomy levels.
 
 ## Run it

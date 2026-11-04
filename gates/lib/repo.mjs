@@ -1,11 +1,12 @@
-// Repo-state helpers shared by check-commit and check-verdict.
+// Repo-state helpers shared by check-commit, check-verdict and check-merge.
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { run, gitOut, matchesAny } from "./common.mjs";
 
+// Renames split into a delete and an add, so a file moved out of src/ still shows its old path. -z: paths come
+// NUL-separated and unquoted, so a name with a tab, newline or non-ASCII byte is listed as it is.
 export function changedFiles(wt, base) {
-  const out = gitOut(wt, ["diff", "--name-only", `${base}...HEAD`]);
-  return out ? out.split("\n") : [];
+  return gitOut(wt, ["diff", "-z", "--name-only", "--no-renames", `${base}...HEAD`], { trim: false }).split("\0").filter(Boolean);
 }
 
 const TEST_RE = [/(^|\/)(tests?|__tests__|spec|specs|e2e)\//, /\.(test|spec|e2e)\.[^/]+$/, /_test\.[^/]+$/, /(^|\/)test_[^/]+\.py$/];
@@ -13,6 +14,11 @@ const DOC_RE = [/\.(md|mdx|txt|rst|adoc)$/i, /^docs\//, /(^|\/)(LICENSE|NOTICE|C
 
 export const isTest = (f) => TEST_RE.some((r) => r.test(f));
 export const isDoc = (f) => DOC_RE.some((r) => r.test(f));
+
+// The doc test for the docs-only exemptions (check-merge's review round, check-verdict's tests-changed check):
+// config docs_paths (globs) when it is a list, else isDoc. [] means no file is a doc. A repo whose markdown is
+// product (skills, prompts, a content site) sets docs_paths so those files need a review and a test.
+export const docTest = (config) => (Array.isArray(config.docs_paths) ? (f) => !!matchesAny(f, config.docs_paths) : isDoc);
 
 // Files that break the hidden or off-limits rules.
 export function pathViolations(files, config) {

@@ -358,6 +358,32 @@ test("check-verdict --store records the gate's own result in the ledger, never t
   assert.equal(gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--store", path.join(base, "none"), "--unit", "U1"]).code, 2, "an uninitialized store");
 });
 
+test("check-verdict counts a rename out of src/ as a code change that needs a test", () => {
+  const { wt, base } = isolated();
+  mkdirSync(path.join(wt, "docs"));
+  git(wt, "mv", "src/app.js", "docs/app.md");
+  const sha = commit(wt, {}, "Move" + trailers("U1"));
+  const v = verdictFile(base, { unit: "U1", head_sha: sha, requirements: [{ id: "R1", delivered: true, evidence: "read it" }] });
+  const res = gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--json"]);
+  assert.deepEqual(failChecks(res), ["tests changed"]);
+  assert.match(res.out, /code changed \(src\/app\.js\) with no test change/);
+});
+
+test("check-verdict reads config docs_paths: a listed .html file is a doc, an unlisted .md file is code", () => {
+  const verdict = (files) => {
+    const { wt, base } = isolated({ docs_paths: ["site/**"] });
+    const sha = commit(wt, files, "Change" + trailers("U1"));
+    const v = verdictFile(base, { unit: "U1", head_sha: sha, requirements: [{ id: "R1", delivered: true, evidence: "read it" }] });
+    return gate("check-verdict.mjs", [wt, "--verdict", v, "--base", "main", "--requirements", "R1", "--json"]);
+  };
+  const site = verdict({ "site/index.html": "<p>x</p>\n" });
+  assert.equal(site.code, 0, site.out);
+  assert.match(site.out, /docs or tests only/);
+  const skill = verdict({ "skills/x/SKILL.md": "x\n" });
+  assert.deepEqual(failChecks(skill), ["tests changed"]);
+  assert.match(skill.out, /code changed \(skills\/x\/SKILL\.md\) with no test change/);
+});
+
 test("check-verdict exempts docs-only changes and handles bad input", () => {
   const { wt, base } = isolated({ e2e_command: ["sh", "-c", "exit 1"] });
   const sha = commit(wt, { "docs/guide.md": "x\n" }, "Docs" + trailers("U1"));

@@ -10,7 +10,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Gate, main, parseArgs, UsageError, loadConfig, gitOut, run } from "./lib/common.mjs";
-import { changedFiles, pathViolations, runTests, isTest, isDoc } from "./lib/repo.mjs";
+import { changedFiles, pathViolations, runTests, isTest, docTest } from "./lib/repo.mjs";
 import { openStore } from "./lib/store.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -57,7 +57,8 @@ await main(async (argv) => {
   gate.check(!modelFindings.length, "verifier findings", "none", modelFindings.join("; "));
 
   const files = changedFiles(wt, args.base);
-  const code = files.filter((f) => !isTest(f) && !isDoc(f));
+  const isDocFile = docTest(config);
+  const code = files.filter((f) => !isTest(f) && !isDocFile(f));
   const tests = files.filter(isTest);
   gate.check(!code.length || tests.length > 0, "tests changed", code.length ? `${tests.length} test files changed` : "docs or tests only", `code changed (${code.join(", ")}) with no test change`);
 
