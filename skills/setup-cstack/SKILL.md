@@ -1,6 +1,6 @@
 ---
 name: setup-cstack
-description: Set up a repo for cstack on GitHub, GitLab or plain git. Writes .cstack/config.json with the chosen forge, creates the cstack labels, ignores the run store, and ends with a passing doctor run. Use for /cstack:setup-cstack [--forge github|gitlab|local] or "set up cstack in this repo".
+description: Set up a repo for cstack on GitHub, GitLab or plain git. Writes .cstack/config.json with the chosen forge, creates the cstack labels, ignores the run store, and commits the config on a branch with a change request for the human to merge. Doctor passes once it is merged. Use for /cstack:setup-cstack [--forge github|gitlab|local] or "set up cstack in this repo".
 disable-model-invocation: true
 argument-hint: "[--forge github|gitlab|local] [--forge-host <host>]"
 ---
@@ -29,11 +29,18 @@ Setup prepares one target repo. Run it from inside that repo. `<root>` is the pl
 6. **Write the config.** Start from `templates/config.json` in the plugin root (two directories up from this skill). Set `forge` to the choice from step 0, and `forge_host` when there is one. Write `.cstack/config.json` with 2-space JSON. Show the user the final file. Leave `permissions_allow` empty. It adds permission rules, such as `Bash(make lint)`, to the allowlist of every headless session cstack launches. The configured commands are already allowed, so a person adds rules here only when a worker reports a refused call it needs.
 7. **Ignore local state.** Make sure `.gitignore` has the two lines `.cstack/*` and `!.cstack/config.json`, so the run store and the repo profile stay local and only the config is committed.
 8. **Create the labels.** Skip this on `local`, where labels are plain strings on the local records. For each state in `ready`, `in-progress`, `done`, `error`, `needs-human`, `investigate`, `proposed`, run `node <root>/gates/forge.mjs labels ensure "<prefix>:<state>" --repo <repo> <forge flags> --color <color> --description "<text>"`. It creates the label or updates it. Colors: ready `0e8a16`, in-progress `fbca04`, done `5319e7`, error `b60205`, needs-human `d93f0b`, investigate `1d76db`, proposed `c5def5`.
-9. **Verify.** Run `cstack:doctor` on the repo. Setup is done only when doctor exits 0. Report the WARN lines. In Codex, a `FAIL hooks (codex)` line means Codex has not trusted cstack's hooks yet, so the guard does not run. Codex asks for that trust once, in `/hooks`, and only the user can give it. Ask them to open `/hooks`, trust the cstack hooks, and run doctor again. Never work around it with `--dangerously-bypass-hook-trust`.
-10. **Commit.** Do not commit. Tell the user which files changed (`.cstack/config.json`, `.gitignore`) so they can review and commit them.
+9. **Verify.** Run `cstack:doctor` on the repo. Before step 10 the only FAIL it may report is `config committed`, and `gitignore committed` may WARN: unit worktrees are cut from the base branch, so they get the config only once it is merged there. Fix any other FAIL first. Report the WARN lines. In Codex, a `FAIL hooks (codex)` line means Codex has not trusted cstack's hooks yet, so the guard does not run. Codex asks for that trust once, in `/hooks`, and only the user can give it. Ask them to open `/hooks`, trust the cstack hooks, and run doctor again. Never work around it with `--dangerously-bypass-hook-trust`.
+10. **Commit on a branch.** Skip this step when doctor printed `PASS config committed` and no `gitignore committed` line other than PASS. `<ref>` is `origin/<base>` (run `git fetch -q origin <base>` first), or `<base>` on `local` with no `origin` remote. Never commit to or push the base branch: the guard blocks it, and the human merges.
+    1. If the branch `cstack/setup` already exists, locally or on origin, an earlier setup change is still waiting. Tell the user to merge or delete it, and stop.
+    2. Run `git switch -c cstack/setup <ref>`. Git carries the uncommitted config and `.gitignore` over. If the switch refuses because the current branch's `.gitignore` differs from `<ref>`'s, stash the two files and carry them by hand: `git stash push -u -- .cstack/config.json .gitignore`, `git switch -c cstack/setup <ref>`, `git stash pop`. If the pop conflicts on `.gitignore`, keep `<ref>`'s lines plus `.cstack/*` and `!.cstack/config.json`, run `git add .gitignore`, then `git stash drop`. If the switch refuses for any other reason, report its error and stop.
+    3. Run `git add .cstack/config.json .gitignore` and `git commit -m "Set up cstack"`. Add no other file.
+    4. With an `origin` remote, run `git push -u origin cstack/setup`.
+    5. On `github` or `gitlab`, write a short body (what the config sets, and that worktrees need it on the base) to a temporary file outside the repo. Run `node <root>/gates/forge.mjs change create --head cstack/setup --base <base> --title "Set up cstack" --body-file <file> --json <forge flags>`. On `local` there is no change request: the branch is the proposal.
+    6. Run `git switch -` to go back to the branch the user was on. The switch-back is deliberate: a config left here untracked would make the later pull refuse with "untracked working tree files would be overwritten". The config and the `.gitignore` change leave this checkout until the merge.
+    7. Tell the user, in these words or close to them: cstack is dormant in this checkout until the change merges. Doctor reports `FAIL config`, the guard does not act here, and `.cstack/runs/` is not ignored. Launch no cstack work before the merge. Review and merge the change (on `local`, `git merge cstack/setup` into `<base>`, then push it if there is a remote). Then `git pull` on `<base>` (or `git fetch` and switch to `<base>`) brings the config back. Run `cstack:doctor`: setup is done when it exits 0.
 
 ## Rules
 
 - Never overwrite a value the user set. Show a diff if a value would change and ask.
-- Never create a branch or push in setup.
-- Label creation is the only write to the forge.
+- Never commit to, push or merge the base branch. The only branch setup creates and pushes is `cstack/setup`.
+- The only writes to the forge are the labels and the one setup change request.

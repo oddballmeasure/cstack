@@ -7,7 +7,7 @@ import { readFileSync, existsSync, statSync, accessSync, mkdirSync, constants } 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { run, which } from "../../../gates/lib/common.mjs";
+import { run, git, which } from "../../../gates/lib/common.mjs";
 import { workerPath } from "../../../gates/lib/workers.mjs";
 
 const argv = process.argv.slice(2);
@@ -51,7 +51,9 @@ pass("git repo", root);
 
 const cfgPath = path.join(root, ".cstack", "config.json");
 if (!existsSync(cfgPath)) {
-  fail("config", ".cstack/config.json not found (run the setup-cstack skill)");
+  // setup-cstack moves the config onto the cstack/setup branch and leaves this checkout without it until the merge.
+  const pending = git(root, ["rev-parse", "--verify", "--quiet", "refs/heads/cstack/setup"]).code === 0;
+  fail("config", pending ? ".cstack/config.json not found: it is on the open cstack/setup change; merge it, then git pull" : ".cstack/config.json not found (run the setup-cstack skill)");
   done();
 }
 let cfg;
@@ -268,6 +270,30 @@ if (forge === "local") {
     fail("local forge", `cannot create ${store}: ${err.message}`);
   }
   if (!(isObj(cfg) && (cfg.required_checks ?? []).includes("ci"))) warn("required checks", "add \"ci\" to required_checks so the merge gate waits for ci_command");
+}
+
+// Unit worktrees are cut from the base as the forge sees it: origin's copy, or the local branch under
+// forge local with no remote. A config that is only in this checkout is missing from every worktree.
+const base = isObj(cfg) && typeof cfg.base_branch === "string" && cfg.base_branch ? cfg.base_branch : null;
+if (base) {
+  const hasOrigin = git(root, ["remote"]).stdout.split(/\r?\n/).includes("origin");
+  const ref = forge !== "local" || hasOrigin ? `origin/${base}` : base;
+  const show = (f) => git(root, ["show", `${ref}:${f}`]);
+  // A checkout with core.autocrlf has CRLF on disk and LF in the commit.
+  const lf = (s) => s.replace(/\r\n/g, "\n");
+  const fix = `commit .cstack/config.json and .gitignore on a branch and merge it into ${base} (the last step of setup-cstack)${ref === base ? "" : `, then git fetch origin ${base}`}`;
+  const committed = show(".cstack/config.json");
+  if (committed.code !== 0) fail("config committed", `.cstack/config.json is not on ${ref}, so worktrees cut from it have no config: ${fix}`);
+  else if (lf(committed.stdout) !== lf(readFileSync(cfgPath, "utf8"))) warn("config committed", `.cstack/config.json differs from the copy on ${ref}; worktrees get the committed copy`);
+  else pass("config committed", `.cstack/config.json is on ${ref}`);
+  const gitignore = path.join(root, ".gitignore");
+  const lines = (existsSync(gitignore) ? readFileSync(gitignore, "utf8") : "").split(/\r?\n/).map((l) => l.trim()).filter((l) => l.includes(".cstack"));
+  if (lines.length) {
+    const onBase = new Set(show(".gitignore").stdout.split(/\r?\n/).map((l) => l.trim()));
+    const missing = lines.filter((l) => !onBase.has(l));
+    if (missing.length) warn("gitignore committed", `${missing.join(" ")} not in .gitignore on ${ref}: ${fix}`);
+    else pass("gitignore committed", `the cstack lines are in .gitignore on ${ref}`);
+  }
 }
 if (!offline && cli) {
   const { repo, base_branch: base, label_prefix: prefix, forge_host: host } = isObj(cfg) ? cfg : {};

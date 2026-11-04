@@ -90,7 +90,7 @@ Each step names its owner skill, its gate, and where it goes on failure. Run eac
 
 ### 0. Preflight
 
-1. Run `cstack:doctor` on `<repo>`. Any FAIL is failure `setup`: report it and stop. Without `.cstack/config.json`, ask the human to run `/cstack:setup-cstack`, and stop.
+1. Run `cstack:doctor` on `<repo>`. Any FAIL is failure `setup`: report it and stop. Without `.cstack/config.json`, ask the human to run `/cstack:setup-cstack`, and stop. A `FAIL config committed` means the config is not on the base branch yet, so PR #0's worktree would have none: ask the human to merge setup's `cstack/setup` change (or run setup again to open it), and stop.
 2. Check that no other coordinator owns the run: `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it prints `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, report the unit name and stop.
 3. Create `<store>` with `mkdir -p`. Run `<orch> init`. Write `run.json` (see **The run record**).
 4. Run `<settings>`. Log its lines.

@@ -128,7 +128,7 @@ Any install scope works. cstack's hooks act only inside a cstack context: a repo
 
 ## Quickstart
 
-1. In the target repo, run `/cstack:setup-cstack`, with `--forge gitlab` or `--forge local` if you are not on GitHub. It writes `.cstack/config.json`, creates the labels, ignores the run store, and ends with `/cstack:doctor`.
+1. In the target repo, run `/cstack:setup-cstack`, with `--forge gitlab` or `--forge local` if you are not on GitHub. It writes `.cstack/config.json`, creates the labels, ignores the run store, and opens a change request from the `cstack/setup` branch with the config and `.gitignore`. The config then leaves your checkout: cstack is dormant there (doctor fails, the guard does not act, the run store is not ignored) until the change merges, so launch nothing before then. Merge it and `git pull`: the config comes back and `/cstack:doctor` passes.
 2. Write a guideline: the problem, who it is for, goals and non-goals, and the end-to-end behaviour you expect (commands or requests with exact results, including failure paths).
 3. Run it:
    ```
@@ -307,7 +307,7 @@ Before reporting done, check:
 
 | You type | What happens |
 |---|---|
-| `/cstack:setup-cstack` | Chooses the forge, detects the base branch and test command, writes `.cstack/config.json`, creates the `cstack:*` labels (not on plain git), gitignores the run store, then runs the read-only `/cstack:doctor`. |
+| `/cstack:setup-cstack` | Chooses the forge, detects the base branch and test command, writes `.cstack/config.json`, creates the `cstack:*` labels (not on plain git), gitignores the run store, runs the read-only `/cstack:doctor`, then commits the config on a `cstack/setup` branch and opens a change request for you to merge. |
 | `/cstack:unit 42` | Takes issue #42 end to end: claims it, builds it in its own worktree, has a separate verifier and reviewer check it, opens a PR or MR, watches CI, and merges through the merge gate (or leaves it merge-ready under `autonomy: stop`). |
 | `/cstack:program docs/idea.md` | Turns a written guideline into a spec, a hidden end-to-end suite, a plan of units and a series of merged PRs, then has a fresh agent run the hidden suite on the result. |
 | "What could this rename break?" | `cstack:blast-radius` traces every caller and consumer of the change in the repo before it answers, instead of reading only the diff. |
