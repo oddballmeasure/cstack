@@ -63,7 +63,7 @@ function fetchRef(repoDir, ref) {
 // (//user:pass@ or //token@) become //***@, and the text is one line of at most 300 characters.
 function fetchError(r) {
   return r.stderr
-    .replace(/\/\/[^/\s@]+@/g, "//***@")
+    .replace(/\/\/[^/\s]*@/g, "//***@")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 300);

@@ -191,7 +191,7 @@ test("review: the gate's fetches never prompt and keep the configured credential
 
 test("review: a failed fetch's stderr is redacted and capped in every finding", POSIX_ONLY, () => {
   // Every fetch fails and echoes a token URL, a user:pass URL, a bare-token URL, a second line and a long tail.
-  const fail = `printf '%s\\n' "fatal: unable to access 'https://x-access-token:ghs_SECRET1@github.com/o/r.git/': 403" "remote: see https://bob:pw_SECRET2@git.example.com/o and https://glpat_SECRET3@host/x $(printf 'z%.0s' $(seq 1 400))" >&2; exit 128`;
+  const fail = `printf '%s\\n' "fatal: unable to access 'https://x-access-token:ghs_SECRET1@github.com/o/r.git/': 403" "remote: see https://bob:pw@SECRET2@git.example.com/o and https://glpat_SECRET3@host/x $(printf 'z%.0s' $(seq 1 400))" >&2; exit 128`;
   withGitWrapper(fail, (env) => {
     const res = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE), baseRefOid: "0".repeat(40) }, env });
     assert.deepEqual(failChecks(res).sort(), ["base", "review"]);
