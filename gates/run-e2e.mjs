@@ -8,20 +8,10 @@
 // --out also writes the --json report to a new file named final-e2e-<12 hex>.json inside the repo's run store
 // (<repo>/.cstack/runs/), so a verifier without a Write tool can save it. A relative --out resolves against the cwd.
 // It never overwrites a file, so it cannot replace another gate's input. Stdout is unchanged.
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { Gate, main, parseArgs, UsageError, loadConfig, run, gitOut, globPrefix } from "./lib/common.mjs";
-
-// The real path of p, or of its nearest existing ancestor with the rest appended.
-function realish(p) {
-  const rest = [];
-  while (!existsSync(p)) {
-    rest.unshift(path.basename(p));
-    p = path.dirname(p);
-  }
-  return path.join(realpathSync(p), ...rest);
-}
+import { Gate, main, parseArgs, UsageError, loadConfig, run, gitOut, globPrefix, insideDir } from "./lib/common.mjs";
 
 // Parse TAP: lane id -> {ok, reason}. A lane reported more than once fails if any report fails.
 function parseTap(text) {
@@ -67,10 +57,8 @@ await main(async (argv) => {
   const runs = path.join(path.dirname(commonDir), ".cstack", "runs");
   const out = args.out ? path.resolve(args.out) : null;
   if (out) {
-    // Compare real paths, so a symlinked directory under runs/ cannot point the write elsewhere.
-    const rel = path.relative(realish(runs), path.join(realish(path.dirname(out)), path.basename(out)));
-    const inside = rel !== "" && rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel);
-    if (!inside || !/^final-e2e-[0-9a-f]{12}\.json$/.test(path.basename(out))) {
+    // Real paths, so a symlinked directory under runs/ cannot point the write elsewhere.
+    if (!insideDir(runs, out) || !/^final-e2e-[0-9a-f]{12}\.json$/.test(path.basename(out))) {
       throw new UsageError(`--out must be a file named final-e2e-<12 hex>.json inside ${runs}`);
     }
     if (existsSync(out)) throw new UsageError(`${out} already exists; --out never overwrites a report`);
