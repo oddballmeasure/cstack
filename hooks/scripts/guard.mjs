@@ -31,7 +31,7 @@ const PLUGIN_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 
 const VENDOR = ["node_modules/**", "vendor/**", ".venv/**"];
 // The config decides autonomy and hidden paths, so no session may rewrite it through a file tool.
-// setup-cstack writes it with Bash (jq), which a human reviews before committing.
+// setup-cstack writes it with Bash (jq) and commits it on a branch, which a human reviews before merging.
 const ALWAYS_OFF = [".cstack/config.json"];
 const PRIVILEGED_ROLES = new Set(["e2e-author", "grader"]);
 // Set by gates/worker.mjs (workers and coordinators), the daemon unit, run-e2e.mjs and the e2e author launch.

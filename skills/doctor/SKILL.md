@@ -20,6 +20,7 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 | Tools | `git`, `jq`, `node` (22 or later) or `gh` is missing, or `gh` is not logged in. |
 | Worker PATH | A tool this session finds is not on the PATH a detached worker gets: `git`, `jq`, `node`, the harness and forge CLIs, or the first word of a configured command. |
 | Config | `.cstack/config.json` is missing, does not parse, or breaks the schema in `templates/config.json`. Unknown keys fail. |
+| Config committed | `.cstack/config.json` is not on the base branch as the forge sees it: `origin/<base>`, or the local `<base>` under forge `local` with no remote. Unit worktrees are cut from there. A local config that differs from the committed one, or cstack lines in `.gitignore` that are not committed there, is a WARN. |
 | Commands | `test_command[0]` or `e2e_command[0]` does not resolve. A command with a `/` must be an executable file under the repo root. |
 | Run store | `.cstack/runs/` is not writable. A missing `.gitignore` entry is a WARN. |
 | Hooks | A self-test shows the cstack guard no longer blocks a direct `gh pr merge`. |
@@ -28,5 +29,5 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 ## Report
 
 - Show the FAIL and WARN lines to the user. Do not show the PASS lines unless asked.
-- For each FAIL, give the fix in one line. Most fixes are "run `/cstack:setup-cstack`".
+- For each FAIL, give the fix in one line. Most fixes are "run `/cstack:setup-cstack`". For `config committed`, the fix is "commit `.cstack/config.json` and `.gitignore` on a branch and merge it", which the last step of setup does.
 - Exit code 1 means at least one FAIL. Do not start cstack work on a repo that fails doctor.

@@ -12,9 +12,12 @@ const FAKE_BIN = path.resolve(HERE, "../fixtures/bin");
 const TEMPLATE = JSON.parse(readFileSync(path.resolve(HERE, "../../templates/config.json"), "utf8"));
 const LABELS = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"].map((l) => `cstack:${l}`).join("\n");
 
-function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", writeConfig = true } = {}) {
+const git = (root, ...args) => spawnSync("git", ["-C", root, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" });
+
+// By default the config and .gitignore are committed on main, and origin/main points at that commit.
+function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", writeConfig = true, commit = true } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "cstack-doctor-"));
-  spawnSync("git", ["init", "-q", root]);
+  spawnSync("git", ["init", "-q", "-b", "main", root]);
   if (gitignore !== null) writeFileSync(path.join(root, ".gitignore"), gitignore);
   mkdirSync(path.join(root, "scripts"));
   writeFileSync(path.join(root, "scripts/test.sh"), "#!/bin/sh\nexit 0\n");
@@ -23,6 +26,11 @@ function target(cfg = {}, { gitignore = ".cstack/*\n!.cstack/config.json\n", wri
     mkdirSync(path.join(root, ".cstack"));
     const full = { ...TEMPLATE, repo: "o/r", test_command: ["./scripts/test.sh"], ...cfg };
     writeFileSync(path.join(root, ".cstack/config.json"), typeof cfg === "string" ? cfg : JSON.stringify(full));
+  }
+  if (commit) {
+    git(root, "add", "-A");
+    git(root, "commit", "-q", "--allow-empty", "-m", "setup");
+    git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
   }
   return root;
 }
@@ -155,6 +163,7 @@ test("unresolvable test command fails", () => {
 
 test("missing labels and branch fail; offline skips them", () => {
   const root = target({ base_branch: "trunk" });
+  git(root, "update-ref", "refs/remotes/origin/trunk", "HEAD");
   const r = doctor(root, [], { FAKE_GH_LABELS: "cstack:ready" });
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL base branch/);
@@ -241,4 +250,78 @@ test("forge keys are validated; a nested path is GitLab-only; local needs no for
   assert.match(noCi.out, /FAIL config schema: forge local needs ci_command/);
   assert.match(noCi.out, /WARN required checks: add "ci" to required_checks/);
   assert.match(doctor(target({ ci_command: [] }), ["--offline"]).out, /ci_command must be a non-empty array of strings/);
+});
+
+test("a config only in this checkout fails: worktrees cut from origin/<base> would have none (cstack#85)", () => {
+  const root = target({}, { commit: false });
+  git(root, "commit", "-q", "--allow-empty", "-m", "init");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+  const r = doctor(root, ["--offline"]);
+  assert.equal(r.code, 1, r.out);
+  assert.match(r.out, /FAIL config committed: \.cstack\/config\.json is not on origin\/main, .*: commit \.cstack\/config\.json and \.gitignore on a branch and merge it into main .*then git fetch origin main/);
+  assert.match(r.out, /WARN gitignore committed: \.cstack\/\* !\.cstack\/config\.json not in \.gitignore on origin\/main/);
+  // Committed on the local main but not yet on origin: still a FAIL, since worktrees start from origin/main.
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "setup");
+  assert.match(doctor(root, ["--offline"]).out, /FAIL config committed: .*not on origin\/main/);
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+  const ok = doctor(root, ["--offline"]);
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /PASS config committed: \.cstack\/config\.json is on origin\/main/);
+  assert.match(ok.out, /PASS gitignore committed/);
+});
+
+test("a local config that differs from the committed one is a warning", () => {
+  const root = target();
+  const file = path.join(root, ".cstack/config.json");
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, "utf8")), parallel: 2 }));
+  const r = doctor(root, ["--offline"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /WARN config committed: \.cstack\/config\.json differs from the copy on origin\/main/);
+});
+
+test("forge local reads the local base branch when there is no remote, origin's when there is", () => {
+  const cfg = { forge: "local", ci_command: ["./scripts/test.sh"], required_checks: ["ci"] };
+  const root = target(cfg, { commit: false });
+  git(root, "commit", "-q", "--allow-empty", "-m", "init");
+  const bare = doctor(root, ["--offline"]);
+  assert.equal(bare.code, 1, bare.out);
+  assert.match(bare.out, /FAIL config committed: \.cstack\/config\.json is not on main, .*setup-cstack\)$/m);
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "setup");
+  const ok = doctor(root, ["--offline"]);
+  assert.equal(ok.code, 0, ok.out);
+  assert.match(ok.out, /PASS config committed: \.cstack\/config\.json is on main/);
+  git(root, "remote", "add", "origin", root);
+  const remote = doctor(root, ["--offline"]);
+  assert.equal(remote.code, 1, remote.out);
+  assert.match(remote.out, /FAIL config committed: \.cstack\/config\.json is not on origin\/main/);
+});
+
+test("no cstack lines in .gitignore skips the committed-gitignore check", () => {
+  const r = doctor(target({}, { gitignore: null }), ["--offline"]);
+  assert.equal(r.code, 0, r.out);
+  assert.doesNotMatch(r.out, /gitignore committed/);
+});
+
+test("a CRLF copy of the committed config is the same config", () => {
+  const root = target();
+  const file = path.join(root, ".cstack/config.json");
+  const pretty = JSON.stringify(JSON.parse(readFileSync(file, "utf8")), null, 2);
+  writeFileSync(file, pretty + "\n");
+  git(root, "add", "-A");
+  git(root, "commit", "-q", "-m", "pretty");
+  git(root, "update-ref", "refs/remotes/origin/main", "HEAD");
+  writeFileSync(file, pretty.replace(/\n/g, "\r\n") + "\r\n");
+  const r = doctor(root, ["--offline"]);
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /PASS config committed/);
+});
+
+test("a missing config while cstack/setup exists points at the open setup change", () => {
+  const root = target({}, { writeConfig: false });
+  git(root, "branch", "cstack/setup");
+  const r = doctor(root, ["--offline"]);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /FAIL config: .*on the open cstack\/setup change; merge it, then git pull/);
 });
