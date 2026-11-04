@@ -2,7 +2,13 @@
 // gates/pr-wait.mjs runs it when forgeKind(config) is not github, and keeps its flags, exit codes, lock, state
 // file and Stop-hook registration; pr-wait passes those in as `io`. Semantics:
 //   green  every required check passes on the head. Required: config required_checks, else
-//          forge.requiredChecks(base), else every check (bar review bots' own)
+//          forge.requiredChecks(base), else every check (bar review bots' own). Green with "no CI checks" only
+//          when none are required, no check showed on the head for NO_CHECKS_POLLS polls and noCiGrace seconds
+//          from its first sighting, and noCiProof finds no CI: on the local forge, none required is proof
+//          (no ci_command); elsewhere the local checkout must show no CI_PATHS at the head and at origin/<base>,
+//          and the project must use the default CI config path (forge.ciConfigPath, where the forge has one).
+//          The change record carries no base tip, so a stale origin/<base> is not caught here; a CI file added
+//          on the base later still makes its jobs required once a base pipeline has run (forge.requiredChecks)
 //   ready  green, every config review_bots bot finished on the head (none listed: none waited on), and no
 //          unresolved thread; a forge merge state of behind blocks it too
 // Events: a failed check (exit 1 when required), all checks finished (one summary line), a new thread or reply
@@ -13,9 +19,30 @@ import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "no
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { openForge } from "./forge.mjs";
+import { run } from "./common.mjs";
 
 const STALE_STATE_MS = 6 * 3600 * 1000;
 const MAX_FAILED_POLLS = 10;
+// Jobs appear a few seconds after a push. With no required checks, a head without CI config that shows no check
+// for this many polls and the grace period belongs to a repo without CI.
+const NO_CHECKS_POLLS = 3;
+// Files and directories that mean a commit has CI, even before a check registers. CI configured only on the CI
+// server's side, with none of these in the repo, still looks like no CI.
+export const CI_PATHS = [".github/workflows", ".gitlab-ci.yml", ".circleci", "Jenkinsfile", ".travis.yml", "azure-pipelines.yml", "bitbucket-pipelines.yml", ".buildkite", ".drone.yml", "appveyor.yml", ".appveyor.yml", "cloudbuild.yaml", "cloudbuild.yml", ".woodpecker", ".woodpecker.yml", ".semaphore", "bitrise.yml", "codefresh.yml", ".teamcity"];
+
+// Proof from the local checkout at `cwd` that a repo has no CI: each [rev, fetch] resolves to a commit there and
+// holds none of CI_PATHS at its root. Returns null on proof, else the reason there is none. A rev the checkout
+// lacks is no proof; the reason names the `git fetch` that would bring it.
+export function noCiInCheckout(cwd, revs) {
+  for (const [rev, fetch] of revs) {
+    // --full-tree: paths from the repo root, wherever in the checkout pr-wait runs.
+    const r = run("git", ["ls-tree", "--full-tree", "--name-only", `${rev}^{commit}`, "--", ...CI_PATHS], { cwd });
+    if (r.code !== 0) return `cannot read ${rev} in the local checkout, ${fetch} (${r.stderr.trim().split("\n")[0]})`;
+    const found = r.stdout.split("\n").filter(Boolean);
+    if (found.length) return `${rev} has CI config: ${found.join(", ")}`;
+  }
+  return null;
+}
 const ATTEMPTS = 5;
 // glab prints "(HTTP 502)" or "502 Bad Gateway"; network failures come from Go's net stack.
 const TRANSIENT = /HTTP (5\d\d|429)|\b(5\d\d|429) [A-Z]|rate limit|timed? ?out|connection (reset|refused)|EOF|temporar|could not resolve host|TLS handshake/i;
@@ -49,8 +76,8 @@ function parseTarget(raw, explicit, configured, fail) {
 }
 
 export class ChangeWatcher {
-  constructor({ forge, config, id, until, interval, stateDir, lock, timeout, io }) {
-    Object.assign(this, { forge, id, until, interval, lock, timeout, io });
+  constructor({ forge, config, id, until, interval, stateDir, lock, timeout, noCiGrace, cwd, io }) {
+    Object.assign(this, { forge, id, until, interval, lock, timeout, noCiGrace, cwd, io });
     this.requiredFromConfig = strings(config.required_checks);
     this.bots = strings(config.review_bots).map((b) => b.toLowerCase());
     this.path = path.join(stateDir, `${forge.kind}__${forge.repo.replaceAll("/", "__")}__${id}.json`);
@@ -63,6 +90,33 @@ export class ChangeWatcher {
     this.required = null;
     this.me = null;
     this.prevSnapshot = null;
+    this.quietHead = null;
+    this.quietPolls = 0;
+    this.quietSince = 0;
+    this.ciWhy = null;
+  }
+
+  // Whether there is proof that the repo has no CI. Without it the watcher keeps waiting for checks.
+  async noCiProof(head, base) {
+    let why = null;
+    if (this.forge.kind !== "local") {
+      why = noCiInCheckout(this.cwd, [
+        [head, "fetch the change's head"],
+        [`refs/remotes/origin/${base}`, `fetch origin ${base}`],
+      ]);
+      if (!why && this.forge.ciConfigPath) {
+        try {
+          const p = await this.call(() => this.forge.ciConfigPath());
+          if (p === null) why = `cannot see the project's CI config path`;
+          else if (p && p !== ".gitlab-ci.yml") why = `the project's CI config path is ${p}`;
+        } catch (err) {
+          why = `cannot read the project's CI config path: ${err.message}`;
+        }
+      }
+    }
+    if (why && why !== this.ciWhy) this.io.log(`no check on ${head.slice(0, 7)} yet, and no proof the repo has no CI (${why}); waiting for checks`);
+    this.ciWhy = why;
+    return why === null;
   }
 
   load() {
@@ -173,7 +227,13 @@ export class ChangeWatcher {
     const snapshot = JSON.stringify([...checks].map(([n, k]) => [n, k.state]).sort());
     const stable = snapshot === this.prevSnapshot;
     this.prevSnapshot = snapshot;
-    const green = gateDone && stable && failLines.length === 0;
+    // No required checks and no check on this head yet. After NO_CHECKS_POLLS such polls, the repo has no CI.
+    const noCi = gate.size === 0;
+    if (!noCi || head !== this.quietHead) this.quietPolls = 0;
+    if (noCi && this.quietPolls++ === 0) this.quietSince = Date.now();
+    this.quietHead = head;
+    const quiet = this.quietPolls >= NO_CHECKS_POLLS && Date.now() - this.quietSince >= this.noCiGrace * 1000 && (await this.noCiProof(head, c.base));
+    const green = ((gateDone && stable) || quiet) && failLines.length === 0;
 
     // Threads. Edits are never events.
     const unresolved = [];
@@ -215,6 +275,7 @@ export class ChangeWatcher {
     const failedNames = [...checks.values()].filter((k) => k.state === "fail").map((k) => k.name).sort();
     const req = [...this.required];
     const summary = [
+      quiet ? "no CI checks" : "",
       Object.keys(counts).sort().map((s) => `${counts[s]} ${s}`).join(", ") + (failedNames.length ? ` (${failedNames.join(", ")})` : ""),
       req.length ? `required ${req.filter((n) => ["pass", "skipped"].includes(state(n))).length}/${req.length} green` : "",
       botStatus.join(", "),
@@ -267,7 +328,7 @@ export class ChangeWatcher {
 
 // pr-wait's entry for a non-GitHub forge. io: {out, log, fail(message), exit(code), lock(file), register()};
 // fail and exit throw, so this never returns.
-export async function watchChange({ target, repo, config, cwd, until, interval, timeout, stateDir, io }) {
+export async function watchChange({ target, repo, config, cwd, until, interval, timeout, noCiGrace, stateDir, io }) {
   const t = parseTarget(target, repo, config.repo, io.fail);
   // Config required checks and review bots belong to the configured repo only.
   const own = !config.repo || config.repo.toLowerCase() === t.repo.toLowerCase();
@@ -277,7 +338,7 @@ export async function watchChange({ target, repo, config, cwd, until, interval, 
   } catch (err) {
     io.fail(err.message);
   }
-  const watcher = new ChangeWatcher({ forge, config: own ? config : {}, id: t.id, until, interval, timeout, stateDir, io, lock: null });
+  const watcher = new ChangeWatcher({ forge, config: own ? config : {}, id: t.id, until, interval, timeout, noCiGrace, cwd, stateDir, io, lock: null });
   await watcher.probe();
   mkdirSync(stateDir, { recursive: true });
   watcher.lock = io.lock(watcher.path.replace(/\.json$/, ".lock"));

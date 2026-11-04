@@ -188,6 +188,10 @@ export function gitlab(repo, cwd, host = null) {
       const p = json("GET", project);
       return { path: p.path_with_namespace, defaultBranch: p.default_branch, url: p.web_url };
     },
+    // The project's CI config path: "" for the default .gitlab-ci.yml, null when the token cannot see the setting.
+    ciConfigPath() {
+      return json("GET", project).ci_config_path ?? null;
+    },
     currentUser() {
       const u = json("GET", "user");
       return { login: u.username, name: u.name, bot: u.bot === true };

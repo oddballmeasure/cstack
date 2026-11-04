@@ -6,6 +6,7 @@ import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, exist
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { NO_CI_FLOOR, ciRepo } from "./helpers.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.resolve(here, "../../gates/pr-wait.mjs");
@@ -74,12 +75,12 @@ function scenario({ graphql, checks: checkResponses = [checks(check("build", "pa
   };
 }
 
-function watch(dir, scen, args, { cwd = dir, env = {}, name = "scenario", onStderr } = {}) {
+function watch(dir, scen, args, { cwd = dir, env = {}, name = "scenario", onStderr, floor = true } = {}) {
   const file = path.join(dir, `${name}.json`);
   const log = path.join(dir, `${name}.log`);
   writeFileSync(file, JSON.stringify(scen));
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [SCRIPT, "--interval", "1", "--state-dir", path.join(dir, "state"), ...args], {
+    const child = spawn(process.execPath, [...(floor ? ["--import", NO_CI_FLOOR] : []), SCRIPT, "--interval", "1", "--state-dir", path.join(dir, "state"), ...args], {
       cwd,
       env: { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH}`, FAKE_GH_SCENARIO: file, FAKE_GH_LOG: log, ...env },
     });
@@ -485,6 +486,75 @@ describe("pr-wait", { concurrency: true }, () => {
     assert.equal(r.code, 0, r.stderr);
     assert.deepEqual(r.lines, [`#7 merged: ${URL}`]);
     assert.match(r.stderr, /could not compare base commits/);
+  });
+
+  test("no CI: green only with nothing required, no check for three polls and the grace, and proof in the checkout", async () => {
+    const none = { stderr: "no checks reported on the 'feat' branch\n", code: 1 };
+    const green = ["7", "--repo", REPO, "--until", "green"];
+    const wait = [...green, "--no-ci-grace", "0", "--timeout", "15"];
+    const timed = async (run) => {
+      const t = Date.now();
+      return { ...(await run), ms: Date.now() - t };
+    };
+    // Each case runs in a git checkout (or `sub` inside it): `repo` gives its head and base tip, with or without
+    // CI files. at(x) is the PR on that head and base tip.
+    const inRepo = async (files, scen, args, sub = "") => {
+      const d = tmp();
+      const repo = await ciRepo(path.join(d, "checkout"), files);
+      const r = await watch(d, scenario({ checks: [none], ...(await scen(repo)) }), args, { cwd: path.join(d, "checkout", sub) });
+      return { ...r, repo };
+    };
+    const at = (x, o = {}) => pr({ head: x.head, base: x.base, ...o });
+    const [r, moved, late, req, headCi, subdir, baseCi, unknown, staleBase, noBase, bad, floor] = await Promise.all([
+      timed(inRepo({}, (x) => ({ graphql: [at(x)] }), [...green, "--no-ci-grace", "3"])),
+      // A new head restarts the polls.
+      inRepo({}, async (x) => {
+        const h2 = await x.next();
+        return { graphql: [at(x), at(x), at(x, { head: h2 })] };
+      }, [...green, "--no-ci-grace", "0"]),
+      // A check that registers late gates as usual.
+      inRepo({}, (x) => ({ graphql: [at(x)], checks: [none, none, checks(check("build", "pending")), checks(check("build", "fail"))] }), [...green, "--no-ci-grace", "0"]),
+      // With a required check set, no checks means pending, never green.
+      inRepo({}, (x) => ({ graphql: [at(x)], rules: [{ stdout: "build\n" }] }), wait),
+      // CI config on the head (seen from the root or a subdirectory), or on the base only: the repo has CI, so wait
+      // for its checks however long.
+      inRepo({ head: { ".github/workflows/ci.yml": "on: push\n" } }, (x) => ({ graphql: [at(x)] }), wait),
+      inRepo({ head: { ".github/workflows/ci.yml": "on: push\n" } }, (x) => ({ graphql: [at(x)] }), wait, "src"),
+      inRepo({ base: { ".circleci/config.yml": "version: 2\n" } }, (x) => ({ graphql: [at(x)] }), wait),
+      // A head or base tip the checkout does not have proves nothing, nor does a PR without a base tip.
+      inRepo({}, (x) => ({ graphql: [at(x, { head: HEAD })] }), wait),
+      inRepo({}, (x) => ({ graphql: [at(x, { base: BASE1 })] }), wait),
+      inRepo({}, (x) => ({ graphql: [at(x, { base: null })] }), wait),
+      watch(tmp(), scenario({ graphql: [pr()] }), [...green, "--no-ci-grace", "2m"]),
+      // The 30s floor holds without the test preload.
+      watch(tmp(), scenario({ graphql: [pr()] }), [...green, "--no-ci-grace", "10"], { floor: false }),
+    ]);
+    const short = (x) => x.repo.head.slice(0, 7);
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(r.lines, [`#7 green on ${short(r)}: no CI checks; no greptile or macroscope review yet; 0 unresolved threads; merge state CLEAN; 1 commit behind main`]);
+    assert.ok(r.ms >= 3000, `the 3s grace outlasts three polls at a 1s interval (${r.ms}ms)`);
+    assert.equal(moved.code, 0, moved.stderr);
+    assert.match(moved.lines[0], /^#7 green on [0-9a-f]{7}: no CI checks;/);
+    assert.notEqual(moved.lines[0].slice(12, 19), short(moved));
+    assert.equal(moved.calls.filter((c) => c.startsWith("pr checks")).length, 5);
+    assert.equal(late.code, 1, late.stderr);
+    assert.deepEqual(late.lines, ["#7 check failed: build https://ci/build"]);
+    for (const x of [req, headCi, subdir, baseCi, unknown, staleBase, noBase]) {
+      assert.equal(x.code, 3, x.stdout + x.stderr);
+      assert.deepEqual(x.lines, ["#7 timeout: 15s"]);
+    }
+    assert.doesNotMatch(req.stderr, /no proof/, "required checks never look for proof");
+    assert.match(headCi.stderr, new RegExp(`no check on ${short(headCi)} yet, and no proof the repo has no CI \\(${headCi.repo.head} has CI config: \\.github/workflows\\); waiting for checks`));
+    assert.equal(headCi.stderr.match(/no proof/g).length, 1, "logged once while the reason holds");
+    assert.match(subdir.stderr, /has CI config: \.github\/workflows\); waiting for checks/);
+    assert.match(baseCi.stderr, new RegExp(`no proof the repo has no CI \\(${baseCi.repo.base} has CI config: \\.circleci\\)`));
+    assert.match(unknown.stderr, new RegExp(`no proof the repo has no CI \\(cannot read ${HEAD} in the local checkout, fetch origin pull/7/head`));
+    assert.match(staleBase.stderr, new RegExp(`no proof the repo has no CI \\(cannot read ${BASE1} in the local checkout, fetch origin main`));
+    assert.match(noBase.stderr, /no proof the repo has no CI \(GitHub reports no tip for main\)/);
+    assert.equal(bad.code, 2);
+    assert.match(bad.stdout, /--no-ci-grace must be a whole number of seconds, at least 0, not '2m'/);
+    assert.equal(floor.code, 2);
+    assert.match(floor.stdout, /--no-ci-grace must be a whole number of seconds, at least 30, not '10'/);
   });
 
   test("--timeout exits 3 with a timeout line while checks stay pending", async () => {

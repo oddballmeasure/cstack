@@ -1,11 +1,13 @@
 // Test helpers: throwaway git repos with a cstack config, and a runner for gate scripts.
-import { spawnSync } from "node:child_process";
+import { execFile, spawnSync } from "node:child_process";
+import { promisify } from "node:util";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, chmodSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { openStore } from "../../gates/lib/store.mjs";
 
+const execFileP = promisify(execFile);
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT = path.resolve(HERE, "../..");
 export const GATES = path.join(ROOT, "gates");
@@ -66,6 +68,31 @@ done < tests/acceptance/lanes.txt
   git(root, "commit", "-qm", "init");
   git(root, "push", "-q", "origin", "main");
   return { base, root, origin, config };
+}
+
+// A module for `node --import` that lowers pr-wait's --no-ci-grace floor to 0 seconds.
+export const NO_CI_FLOOR = pathToFileURL(path.join(ROOT, "tests/fixtures/no-ci-grace-floor.mjs")).href;
+
+// A plain git repo for pr-wait's no-CI proof: origin/main holds `base` files, and the head, a separate root
+// commit on branch feat, holds `head` files. next() adds a commit on the head. Async, so concurrent tests that
+// read child output are not starved while it runs.
+export async function ciRepo(dir, { base = {}, head = {} } = {}) {
+  const g = async (...args) => (await execFileP("git", ["-c", "user.name=t", "-c", "user.email=t@t", ...args], { cwd: dir })).stdout.trim();
+  const snap = async (files, message) => {
+    for (const [rel, text] of Object.entries(files)) write(dir, rel, text);
+    await g("add", "-A");
+    await g("commit", "-qm", message);
+    return g("rev-parse", "HEAD");
+  };
+  mkdirSync(dir, { recursive: true });
+  await g("init", "-q", "-b", "main");
+  const baseSha = await snap({ "README.md": "base\n", ...base }, "base");
+  await g("update-ref", "refs/remotes/origin/main", baseSha);
+  await g("checkout", "-q", "--orphan", "feat");
+  await g("rm", "-rqf", ".");
+  const headSha = await snap({ "src/a.js": "1\n", ...head }, "head");
+  let n = 0;
+  return { base: baseSha, head: headSha, next: () => snap({ "src/b.js": `${++n}\n` }, "next") };
 }
 
 export function commit(cwd, files, message) {
