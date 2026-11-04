@@ -5,7 +5,7 @@
 //
 //   node gates/pr-wait.mjs <pr|url> [--repo owner/name] [--until ready|green|any-change] [--store <run store>]
 //   While it runs it registers <store>/watchers/<pid> (store from --store, else CSTACK_RUN) for the Stop hook.
-//                          [--interval 20] [--state-dir <dir>] [--timeout <s>]
+//                          [--interval 20] [--state-dir <dir>] [--timeout <s>] [--no-ci-grace 120]
 //
 // <pr> is a PR number or PR URL. Without --repo, the repo comes from the URL or from the
 // current checkout. Stdout carries only events, one line each, so a monitor (the Monitor tool)
@@ -13,7 +13,13 @@
 //
 // --until
 //   green       required checks passed on the current head (every CI check when the base
-//               branch requires none)
+//               branch requires none). The repo has no CI, and the head is green with "no CI
+//               checks", only when none are required, no CI check showed on the head for
+//               NO_CHECKS_POLLS polls and --no-ci-grace seconds (default 120, at least 30) from
+//               its first sighting, and the checkout pr-wait runs in proves it: the head and the
+//               base tip GitHub reports both resolve there and hold none of CI_PATHS at the root
+//               (change-watch.mjs). Anything less, such as a head or base tip never fetched,
+//               waits for checks.
 //   ready       green, a gating review bot (GATING_BOTS) reviewed the current head, and no
 //               review thread is unresolved (default)
 //   any-change  stop after the first poll that prints an event
@@ -60,7 +66,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs, loadConfig, run } from "./lib/common.mjs";
 import { registerWatcher } from "./lib/workers.mjs";
 import { forgeKind } from "./lib/forge.mjs";
-import { watchChange } from "./lib/change-watch.mjs";
+import { watchChange, noCiInCheckout } from "./lib/change-watch.mjs";
 
 // Review bots. A gating bot must review the head before `ready`. An advisory bot is reported only.
 const GATING_BOTS = ["greptile", "macroscope"];
@@ -69,6 +75,13 @@ const ADVISORY_BOTS = ["coderabbit"];
 const STATUS_BOTS = ["github-actions", "vercel", "netlify", "railway", "cloudflare"];
 const STALE_STATE_MS = 6 * 3600 * 1000;
 const MAX_FAILED_POLLS = 10;
+// Checks register a few seconds after a push, or minutes when Actions is slow. With no required checks, a head
+// without CI config that shows no CI check for this many polls and the grace period belongs to a repo without CI.
+const NO_CHECKS_POLLS = 3;
+const NO_CI_GRACE_S = 120;
+// The shortest --no-ci-grace. Only a module preloaded with `node --import` can lower it, as the tests do;
+// pr-wait has no flag or variable for it.
+const NO_CI_GRACE_FLOOR_S = globalThis[Symbol.for("cstack.pr-wait.no-ci-grace-floor")] ?? 30;
 const GH_ATTEMPTS = 5;
 const TRANSIENT =
   /HTTP (5\d\d|429)|rate limit|timed? ?out|connection (reset|refused)|EOF|temporar|could not resolve host|TLS handshake|Something went wrong/i;
@@ -334,8 +347,8 @@ function configRequired(repo, cwd = process.cwd()) {
 }
 
 class Watcher {
-  constructor({ repo, pr, until, interval, stateDir, lock, timeout = null }) {
-    Object.assign(this, { repo, pr, until, interval, lock, timeout });
+  constructor({ repo, pr, until, interval, stateDir, lock, timeout = null, noCiGrace = NO_CI_GRACE_S }) {
+    Object.assign(this, { repo, pr, until, interval, lock, timeout, noCiGrace });
     [this.owner, this.name] = repo.split("/");
     this.path = path.join(stateDir, `${repo.replace("/", "__")}__${pr}.json`);
     const state = this.load();
@@ -347,7 +360,25 @@ class Watcher {
     this.events = 0;
     this.required = null;
     this.prevSnapshot = null;
+    this.quietHead = null;
+    this.quietPolls = 0;
+    this.quietSince = 0;
+    this.ciWhy = null;
     this.prFiles = new Map();
+  }
+
+  // Whether the local checkout proves the repo has no CI, at the head and at the base tip GitHub reports (so a
+  // stale origin/<base> proves nothing). Without proof the watcher keeps waiting for checks.
+  noCiProof(head, base, baseOid) {
+    const why = baseOid
+      ? noCiInCheckout(process.cwd(), [
+          [head, `fetch origin pull/${this.pr}/head`],
+          [baseOid, `fetch origin ${base}`],
+        ])
+      : `GitHub reports no tip for ${base}`;
+    if (why && why !== this.ciWhy) log(`no check on ${head.slice(0, 7)} yet, and no proof the repo has no CI (${why}); waiting for checks`);
+    this.ciWhy = why;
+    return why === null;
   }
 
   load() {
@@ -487,7 +518,13 @@ class Watcher {
     const snapshot = JSON.stringify([...watched].map(([n, c]) => [n, c.bucket]).sort());
     const stable = snapshot === this.prevSnapshot;
     this.prevSnapshot = snapshot;
-    const green = gateDone && stable && failLines.length === 0;
+    // No required checks and no CI check on this head yet. After NO_CHECKS_POLLS such polls, the repo has no CI.
+    const noCi = gate.size === 0;
+    if (!noCi || head !== this.quietHead) this.quietPolls = 0;
+    if (noCi && this.quietPolls++ === 0) this.quietSince = Date.now();
+    this.quietHead = head;
+    const quiet = this.quietPolls >= NO_CHECKS_POLLS && Date.now() - this.quietSince >= this.noCiGrace * 1000 && this.noCiProof(head, base, pr.baseRef?.target?.oid);
+    const green = ((gateDone && stable) || quiet) && failLines.length === 0;
 
     // People and bots talking. Edits are never events.
     for (const c of comments) {
@@ -588,6 +625,7 @@ class Watcher {
     const failedNames = [...watched].filter(([, c]) => FAILED.includes(c.bucket)).map(([n]) => n).sort();
     const req = [...this.required];
     const parts = [
+      quiet ? "no CI checks" : "",
       Object.keys(counts).sort().map((b) => `${counts[b]} ${b}`).join(", ") + (failedNames.length ? ` (${failedNames.join(", ")})` : ""),
       req.length ? `required ${req.filter((n) => ["pass", "skipping"].includes(bucket(n))).length}/${req.length} green` : "",
       [...GATING_BOTS, ...ADVISORY_BOTS].filter((b) => botStatus.has(b)).map((b) => botStatus.get(b)).join(", ") ||
@@ -658,7 +696,7 @@ function watcherStore(explicit) {
 async function main(argv) {
   let args;
   try {
-    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir", "store", "timeout"] });
+    args = parseArgs(argv, { options: ["repo", "until", "interval", "state-dir", "store", "timeout", "no-ci-grace"] });
   } catch (err) {
     fail(err.message);
   }
@@ -670,6 +708,11 @@ async function main(argv) {
   backoffMs = interval * 100;
   const timeout = args.timeout === undefined ? null : Number(args.timeout);
   if (timeout !== null && !(timeout > 0)) fail(`--timeout must be a positive number of seconds, not '${args.timeout}'`);
+  const rawGrace = args["no-ci-grace"] ?? String(NO_CI_GRACE_S);
+  if (!/^\d+$/.test(rawGrace) || Number(rawGrace) < NO_CI_GRACE_FLOOR_S) {
+    fail(`--no-ci-grace must be a whole number of seconds, at least ${NO_CI_GRACE_FLOOR_S}, not '${rawGrace}'`);
+  }
+  const noCiGrace = Number(rawGrace);
   if (args._.length > 1) fail(`expected one PR, got ${args._.length}: ${args._.join(" ")}`);
   const stateDir = path.resolve(args["state-dir"] || path.join(os.homedir(), ".local", "state", "cstack", "pr-wait"));
 
@@ -703,7 +746,7 @@ async function main(argv) {
         if (store) registerWatcher(store, "pr-wait");
       },
     };
-    return watchChange({ target: args._[0], repo: args.repo, config, cwd: process.cwd(), until, interval, timeout, stateDir, io });
+    return watchChange({ target: args._[0], repo: args.repo, config, cwd: process.cwd(), until, interval, timeout, noCiGrace, stateDir, io });
   }
 
   const { repo, pr } = await parseTarget(args._[0], args.repo);
@@ -712,7 +755,7 @@ async function main(argv) {
   process.on("exit", () => lock.release());
   const store = watcherStore(args.store);
   if (store) registerWatcher(store, "pr-wait");
-  await new Watcher({ repo, pr, until, interval, stateDir, lock, timeout }).run();
+  await new Watcher({ repo, pr, until, interval, stateDir, lock, timeout, noCiGrace }).run();
 }
 
 process.on("SIGINT", () => process.exit(130));

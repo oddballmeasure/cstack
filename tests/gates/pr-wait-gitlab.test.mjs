@@ -7,6 +7,7 @@ import { readdirSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, exist
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { NO_CI_FLOOR, ciRepo } from "./helpers.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SCRIPT = path.resolve(here, "../../gates/pr-wait.mjs");
@@ -37,9 +38,10 @@ const BUILD_OK = jobs(job(1, "build", "success"));
 
 // A scenario for MR !7 of grp/app. Rules match in order; each walks its responses across calls. The probe before
 // the first poll reads the MR once more, so mrs[0] answers it too unless `raw`.
-function scenario({ raw = false, mrs = [mr()], jobs: jobResponses = [BUILD_OK], threads = [discussions()], pipelines = [{ json: [{ id: 1 }] }], base = [{ json: [] }], baseJobs = [jobs()], view = [mr()], user = [{ json: { username: "me" } }] } = {}) {
+function scenario({ raw = false, mrs = [mr()], jobs: jobResponses = [BUILD_OK], threads = [discussions()], pipelines = [{ json: [{ id: 1 }] }], base = [{ json: [] }], baseJobs = [jobs()], view = [mr()], user = [{ json: { username: "me" } }], project = [{ json: { ci_config_path: "" } }] } = {}) {
   return {
     rules: [
+      { match: "-X GET projects/grp%2Fapp$", responses: project },
       { match: "merge_requests/7\\?include_diverged_commits_count=true$", responses: raw ? mrs : [mrs[0], ...mrs] },
       { match: "pipelines\\?sha=", responses: pipelines },
       { match: "pipelines/1/jobs", responses: jobResponses },
@@ -62,7 +64,7 @@ function watch(dir, scen, args, { config = {}, env = {}, name = "scenario", onSt
   mkdirSync(path.join(cwd, ".cstack"), { recursive: true });
   if (config !== null) writeFileSync(path.join(cwd, ".cstack", "config.json"), JSON.stringify({ forge: "gitlab", repo: "grp/app", ...config }));
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [SCRIPT, "--interval", "1", "--state-dir", path.join(dir, "state"), ...args], {
+    const child = spawn(process.execPath, ["--import", NO_CI_FLOOR, SCRIPT, "--interval", "1", "--state-dir", path.join(dir, "state"), ...args], {
       cwd,
       env: { ...process.env, PATH: `${BIN}${path.delimiter}${process.env.PATH}`, CSTACK_FORGE: "", CSTACK_RUN: "", FAKE_GLAB_SCENARIO: file, FAKE_GLAB_LOG: log, ...env },
     });
@@ -315,6 +317,58 @@ describe("pr-wait on GitLab", { concurrency: true }, () => {
     assert.equal(r.code, 0, r.stderr);
     assert.equal(during?.length, 1, "a mark exists while watching");
     assert.deepEqual(readdirSync(path.join(store, "watchers")), [], "the mark is gone after exit");
+  });
+
+  test("no CI: green only with nothing required, no pipeline for three polls and the grace, and proof in the checkout", async () => {
+    const empty = { json: [] };
+    const wait = ["7", "--until", "green", "--no-ci-grace", "0", "--timeout", "15"];
+    const timed = async (run) => {
+      const t = Date.now();
+      return { ...(await run), ms: Date.now() - t };
+    };
+    // Each case runs in a git checkout (watch's cwd): `repo` gives its head and origin/main, with or without CI files.
+    const inRepo = async (files, scen, args) => {
+      const d = tmp();
+      const repo = await ciRepo(path.join(d, "scenario-cwd"), files);
+      const r = await watch(d, scenario({ pipelines: [empty], ...(await scen(repo)) }), args);
+      return { ...r, repo };
+    };
+    const [r, moved, late, req, headCi, custom, hidden, unreadable] = await Promise.all([
+      timed(inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })] }), ["7", "--until", "green", "--no-ci-grace", "3"])),
+      // A new head restarts the polls; ready asks no more than green here. The default path may also be spelled out.
+      inRepo({}, async (x) => {
+        const [h1, h2] = [x.head, await x.next()];
+        return { mrs: [mr({ sha: h1 }), mr({ sha: h1 }), mr({ sha: h2 })], project: [{ json: { ci_config_path: ".gitlab-ci.yml" } }] };
+      }, ["7", "--no-ci-grace", "0"]),
+      // A pipeline that appears late gates as usual.
+      inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })], pipelines: [empty, empty, { json: [{ id: 1 }] }], jobs: [jobs(job(1, "build", "failed"))] }), ["7", "--until", "green", "--no-ci-grace", "0"]),
+      // Required jobs from the base pipeline: no pipeline on the head means pending, never green.
+      inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })], base: [{ json: [{ id: 2 }] }], baseJobs: [BUILD_OK] }), wait),
+      // A .gitlab-ci.yml on the head, a custom CI config path, or one the token cannot see: wait for checks.
+      inRepo({ head: { ".gitlab-ci.yml": "test: {script: [true]}\n" } }, (x) => ({ mrs: [mr({ sha: x.head })] }), wait),
+      inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })], project: [{ json: { ci_config_path: "ci/pipeline.yml" } }] }), wait),
+      inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })], project: [{ json: { path_with_namespace: "grp/app" } }] }), wait),
+      inRepo({}, (x) => ({ mrs: [mr({ sha: x.head })], project: [{ stderr: "403 Forbidden\n", code: 1 }] }), wait),
+    ]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.deepEqual(r.lines, [`#7 green on ${r.repo.head.slice(0, 7)}: no CI checks; 0 unresolved threads; merge state mergeable`]);
+    assert.ok(r.ms >= 3000, `the 3s grace outlasts three polls at a 1s interval (${r.ms}ms)`);
+    assert.equal(moved.code, 0, moved.stderr);
+    assert.match(moved.lines[0], /^#7 ready on [0-9a-f]{7}: no CI checks; 0 unresolved threads; merge state mergeable$/);
+    assert.notEqual(moved.lines[0].slice(12, 19), moved.repo.head.slice(0, 7));
+    assert.equal(moved.calls.filter((c) => c.includes("pipelines?sha=")).length, 5);
+    assert.equal(late.code, 1, late.stderr);
+    assert.deepEqual(late.lines, ["#7 check failed: build https://gitlab.com/grp/app/-/jobs/1"]);
+    for (const x of [req, headCi, custom, hidden, unreadable]) {
+      assert.equal(x.code, 3, x.stdout + x.stderr);
+      assert.deepEqual(x.lines, ["#7 timeout: 15s"]);
+    }
+    assert.doesNotMatch(req.stderr, /no proof/);
+    assert.match(headCi.stderr, /no proof the repo has no CI \([0-9a-f]{40} has CI config: \.gitlab-ci\.yml\); waiting for checks/);
+    assert.ok(headCi.calls.every((c) => !/GET projects\/grp%2Fapp$/.test(c)), "the checkout's answer comes first");
+    assert.match(custom.stderr, /no proof the repo has no CI \(the project's CI config path is ci\/pipeline\.yml\)/);
+    assert.match(hidden.stderr, /no proof the repo has no CI \(cannot see the project's CI config path\)/);
+    assert.match(unreadable.stderr, /no proof the repo has no CI \(cannot read the project's CI config path: glab api GET projects\/grp%2Fapp failed: 403 Forbidden\)/);
   });
 
   test("--timeout exits 3 while checks stay pending", async () => {

@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, writeFi
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { local } from "../../gates/lib/forge-local.mjs";
-import { git, makeRepo, commit, sh } from "./helpers.mjs";
+import { git, makeRepo, commit, sh, gate, NO_CI_FLOOR } from "./helpers.mjs";
 
 const CI = [process.execPath, "-e", "process.exit(require('fs').existsSync('src/broken') ? 1 : 0)"];
 
@@ -200,4 +200,13 @@ test("the id lock: a held lock is waited on, then reported", () => {
   const r = withRemote();
   mkdirSync(path.join(r.root, ".cstack/forge/.lock"), { recursive: true });
   assert.throws(() => r.forge.createIssue({ title: "x", bodyFile: body(r.base, "x") }), /\.lock is held; remove it if no cstack session is running/);
+});
+
+test("pr-wait on a local repo without ci_command: green with no CI checks after the grace polls", () => {
+  const r = withRemote({ ci_command: undefined, required_checks: [] });
+  r.forge.createChange({ head: "feat", base: "main", title: "Feature", bodyFile: body(r.base, "x") });
+  const w = gate("pr-wait.mjs", ["1", "--until", "green", "--interval", "1", "--no-ci-grace", "0", "--state-dir", path.join(r.base, "state")], { cwd: r.root, env: { CSTACK_FORGE: "", CSTACK_RUN: "", NODE_OPTIONS: `--import ${NO_CI_FLOOR}` } });
+  assert.equal(w.code, 0, w.err);
+  assert.equal(w.out, `#1 green on ${r.head.slice(0, 7)}: no CI checks; 0 unresolved threads; merge state clean\n`);
+  assert.match(w.err, /required checks: none set/);
 });
