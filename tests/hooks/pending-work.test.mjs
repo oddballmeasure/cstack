@@ -128,3 +128,53 @@ test("a headless unit worker may not end its turn before its unit opens a PR or 
   assert.equal(j.decision, "block");
   assert.match(j.reason, /unit U1 is still in-progress.*wait_agent/);
 });
+
+// A Codex rollout as codex exec 0.166.0 writes it: spawn_agent adds a SubAgentActivity item with kind "started",
+// and the child's end adds one with kind "completed" for the same agent_thread_id.
+function rollout(dir, items) {
+  const file = path.join(dir, "rollout.jsonl");
+  const activity = ([kind, id, agentPath]) =>
+    JSON.stringify({ type: "event_msg", payload: { type: "item_completed", item: { type: "SubAgentActivity", kind, agent_thread_id: id, ...(agentPath ? { agent_path: agentPath } : {}) } } });
+  writeFileSync(file, items.map((i) => (typeof i === "string" ? i : activity(i))).join("\n") + "\n");
+  return file;
+}
+
+test("a headless Codex session may not end its turn while a child it spawned still runs", () => {
+  const { root } = repo({ states: ["done"] });
+  const headless = { CSTACK_COORDINATOR: "", CSTACK_RUN: "", CSTACK_HEADLESS: "1" };
+  const live = rollout(root, [
+    '{"type":"session_meta","payload":{}}',
+    '{"type":"response_item","payload":{"type":"message","content":"mentions \\"SubAgentActivity\\" in text"}}',
+    '"SubAgentActivity" not json',
+    '{"type":"event_msg","note":"SubAgentActivity","payload":null}',
+    JSON.stringify({ payload: { item: { type: "SubAgentActivity", kind: "started" } } }),
+    ["started", "c1", "/root/probe"],
+    ["started", "c2"],
+    ["completed", "c2"],
+    ["started", "c3"],
+  ]);
+  const out = stop({ cwd: root, turn_id: "t1", transcript_path: live }, headless);
+  assert.equal(out.code, 0);
+  const j = JSON.parse(out.out);
+  assert.equal(j.decision, "block");
+  assert.match(j.reason, /^cstack pending-work: child agents still running \(\/root\/probe, c3\)\..*wait_agent/);
+  assert.equal(stop({ cwd: root, turn_id: "t1", transcript_path: live, stop_hook_active: true }, headless).out, "", "the second stop in a row is allowed");
+  assert.equal(stop({ cwd: root, transcript_path: live }, headless).out, "", "Claude Code payload: background agents are the guard's job");
+  assert.equal(stop({ cwd: root, turn_id: "t1", transcript_path: live }, { ...headless, CSTACK_HEADLESS: "" }).out, "", "interactive: children outlive the turn");
+  const done = rollout(root, [["started", "c1", "/root/probe"], ["completed", "c1", "/root/probe"]]);
+  assert.equal(stop({ cwd: root, turn_id: "t1", transcript_path: done }, headless).out, "", "every child finished");
+  assert.equal(stop({ cwd: root, turn_id: "t1", transcript_path: path.join(root, "missing.jsonl") }, headless).out, "", "unreadable rollout");
+  assert.equal(stop({ cwd: root, turn_id: "t1" }, headless).out, "", "no transcript_path");
+});
+
+test("a live child blocks a headless Codex unit worker even after its PR opens; a child session is not the unit worker", () => {
+  const { root } = repo({ states: ["in-progress", "pr-open"] });
+  const worker = (unit, input) => stop({ cwd: root, turn_id: "t1", ...input }, { CSTACK_COORDINATOR: "", CSTACK_UNIT: unit, CSTACK_HEADLESS: "1" });
+  const live = rollout(root, [["started", "c1", "/root/reviewer"]]);
+  assert.match(JSON.parse(worker("U2", { transcript_path: live }).out).reason, /child agents still running \(\/root\/reviewer\)/);
+  assert.match(JSON.parse(worker("U1", { transcript_path: live }).out).reason, /child agents still running/, "the live child is named before the unit row");
+  assert.equal(worker("U2", {}).out, "", "pr-open with no child may stop");
+  assert.match(JSON.parse(worker("U1", {}).out).reason, /unit U1 is still in-progress/);
+  assert.equal(worker("U1", { agent_id: "a1" }).out, "", "a child inherits CSTACK_UNIT but does not own the unit");
+  assert.equal(stop({ cwd: root, turn_id: "t1", agent_id: "a1" }, { CSTACK_HEADLESS: "1" }).out, "", "nor does a coordinator's child own the run");
+});
