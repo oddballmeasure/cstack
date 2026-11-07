@@ -88,6 +88,15 @@ test("worker edits only the repo's worktrees and the run store, and runs the con
   assert.ok(!p.allow.some((r) => r.startsWith("Bash(systemctl --user stop")));
 });
 
+test("every role gets the repo's unit worktrees as a working directory, so shell commands there are not refused", WIN_PERMS, () => {
+  const root = "/home/u/.local/state/cstack/worktrees/o-app";
+  for (const role of ROLES) {
+    const extra = role === "e2e-author" ? { worktree: "/wt/e2e" } : {};
+    const dirs = permissionSettings(role, opts({}, extra)).permissions.additionalDirectories;
+    assert.deepEqual(dirs, role === "e2e-author" ? [root, "/wt/e2e"] : [root], role);
+  }
+});
+
 test("coordinator adds the e2e author launch and stopping cstack units, and may run systemd-run", () => {
   const p = perms("coordinator");
   assert.ok(p.allow.includes("Bash(systemd-run --user --collect --quiet --unit=cstack-e2e-*)"));

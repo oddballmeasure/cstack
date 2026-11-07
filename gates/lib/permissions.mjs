@@ -178,6 +178,9 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
       disableBypassPermissionsMode: "disable",
       allow: [...new Set(allow)],
       deny,
+      // A session starts in the main checkout, and Claude Code refuses even read-only shell commands (wc, ls, cat)
+      // outside its working directories. The unit worktrees are where every role actually works.
+      additionalDirectories: [path.resolve(wtRoot), ...(worktree ? [path.resolve(worktree)] : [])],
     },
   };
 }
