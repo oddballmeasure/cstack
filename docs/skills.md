@@ -100,6 +100,6 @@ Every cstack skill, by stage. **User** skills are started only by a person (`/cs
 
 | Skill | Started by | What it does |
 |---|---|---|
-| [`unslop`](../skills/unslop/SKILL.md) | Chained | Use when writing or editing any prose (replies, docs, PR text, commit messages, skill files) to cut AI tells. … |
+| [`unslop`](../skills/unslop/SKILL.md) | Chained | Use when editing or reviewing prose that will be published or committed (docs, PR text, commit messages, skill files), or when the user asks to de-slop text. … |
 | [`technical-writing`](../skills/technical-writing/SKILL.md) | Chained | Use when writing or reviewing docs, ADRs, READMEs, PR descriptions, commit messages or skill files. Layered … |
 | [`no-comments`](../skills/no-comments/SKILL.md) | Chained | Use this skill whenever the user asks to strip, cut, clean up or remove comments from code or a diff, or says … |

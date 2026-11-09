@@ -10,11 +10,11 @@ argument-hint: "[<pr-number> | <path> | <question>]"
 
 Bring in three delegates for review or feedback. Each one runs on a different Claude model in fresh context. Model diversity is the signal. Their agreement is strong evidence. Their disagreement is a finding.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory.
+Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` and `limits` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
 
 ## Members
 
-- Default members: `fable`, `opus`, `sonnet`. If the human names members, use those.
+- Default members: config `models.judge`, `models.review` and `models.code`. If two resolve to the same model, replace the second with the first model from the same harness's list not in use yet (Claude Code: `fable`, `opus`, `sonnet`), and say so. Under Codex, read `models_codex` (see the Codex notes) and take replacements from Codex models only. If the human names members, use those.
 - The three must be three different models. If a named member is unavailable or the `Agent` tool rejects its model, report it. Do not substitute silently. Run with the members you have only if the human agrees, or under `claude -p`, where you say so first in the reply.
 - Each member is the plugin's `cstack-reviewer` agent with `model` set to that member. Claude Code lists the agent with the plugin prefix. For a design question with no diff, use `subagent_type: "Explore"` and say "do not edit files" in the brief.
 
@@ -53,7 +53,7 @@ You are the lead, not a vote counter.
 
 For a code review, every member scores out of 10. One full pass of all three is one round. A fresh review after fixes starts a new round with fresh agents.
 
-If you agree with the recommendations, make the changes (inside a unit, through `cstack:repair` with source `review`), then convene a new round. Continue until all three members are satisfied, or until `limits.review_rounds` rounds are spent. Budget end is not approval.
+When the caller says the diff is already merged (the final council of `cstack:program`), run one round and fix nothing: the caller files the follow-ups. Otherwise, if you agree with the recommendations, make the changes (inside a unit, through `cstack:repair` with source `review`), then convene a new round. Continue until all three members are satisfied, or until `limits.review_rounds` rounds are spent. Budget end is not approval.
 
 ## 5. Fight scope
 

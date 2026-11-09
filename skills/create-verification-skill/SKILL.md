@@ -55,12 +55,16 @@ Fix what fails. Run the generated cleanup after every failed iteration too, so b
 
 If you proved it in a stand-in for the real target (a container instead of a fresh VM, a local stack instead of a remote one), list every setup step the stand-in did that the target will not. Those steps stay unverified until a run on the real target covers them.
 
-## 5. Offer the maintenance loop
+## 5. Ship it
+
+Inside a cstack unit, hand the generated files back to the coordinator, which ships them through the unit stages. Otherwise, commit the generated skill and feature map on a new branch and open one PR. Write its title and body in the style of `cstack:file-pr`. Never commit to the default branch directly.
+
+## 6. Offer the maintenance loop
 
 Point the user at `cstack:maintain-verification-skill` to keep the map honest as the app changes. Suggest a cadence only if they ask.
 
 ## Report
 
-- The skill path and the features mapped.
+- The skill path, the features mapped, and the PR or the hand-back.
 - The proof run: the feature driven, the evidence path, and the cleanup result.
 - Setup steps that stay unverified on the real target, if any.

@@ -45,7 +45,7 @@ Name the diff, the author model, the intent, what is out of scope, and the round
 
 Use one diff command for every round. Run the covering checks when you can (config `test_command`). Do not send code that this change breaks. Note missing or failing checks in the brief.
 
-**Docs-only diffs.** If every changed path in `git diff --name-only --no-renames <base>...HEAD` is documentation, skip the loop. Documentation is a match for config `docs_paths` when set, else `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). Log `skip: docs only`.
+**Docs-only diffs.** If every changed path in `git diff --name-only --no-renames <base>...HEAD` is documentation, skip the loop. A path is documentation when it passes `docTest(config)` in `gates/lib/repo.mjs`, the same test the merge gate uses. When config `docs_paths` is a list, a path is documentation only if it matches one of its globs, and `[]` means no path is. Otherwise the default list applies: `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). A repo whose markdown is product (skills, prompts) sets `docs_paths`, or its skill edits skip review. Log `skip: docs only`.
 
 ## 2. The ledger
 

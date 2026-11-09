@@ -14,7 +14,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first. Its **Comments in code**
 
 ## Scope
 
-Use the caller's files, diff, or pasted text. Otherwise use the current diff against the base branch, default `main`, including the working tree.
+Use the caller's files, diff, or pasted text. Otherwise use the current diff against the base branch, including the working tree. The base branch is config `base_branch`, else the remote's default branch (`git symbolic-ref refs/remotes/origin/HEAD`), else ask the caller.
 
 ## Steps
 
