@@ -33,7 +33,7 @@ Read `outcome` from the JSON.
 The old verdict is void because HEAD changed. Run the commit gate on the new HEAD:
 
 ```bash
-node <root>/gates/check-commit.mjs <worktree> --base origin/<base_branch> --unit <unit> --issue <N>
+node <root>/gates/check-commit.mjs <worktree> --base origin/<base_branch> --unit <unit> --issue <N> [--inherited <sha>]
 ```
 
 - Pass. Go to stage 6, `cstack:verify-head`, on the new HEAD. Then come back here. The second sync normally reports `up-to-date`.

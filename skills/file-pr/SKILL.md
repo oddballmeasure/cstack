@@ -7,7 +7,7 @@ description: "Use when a cstack unit has a published, verified branch and needs 
 
 # File PR
 
-This is stage 9 of the unit flow (`docs/unit-flow.md`). `cstack:unit` calls it after `gates/publish.mjs` passed. The gate for this stage: an open PR exists for the branch, its head is the verified SHA, and its body starts `Closes #N`.
+This is stage 9 of the unit flow (`docs/unit-flow.md`). `cstack:unit` calls it after `gates/publish.mjs` passed. The gate for this stage: an open PR exists for the branch, its head is the verified SHA, and its body starts with `Closes #<N>`, or `Takes over #<pr>` for a takeover with no issue.
 
 `<root>` is the plugin root, two directories up from this skill's base directory. Take `repo`, `base_branch` and `label_prefix` from `.cstack/config.json` with `jq`.
 
@@ -27,7 +27,7 @@ node <root>/gates/forge.mjs change find --head <branch> --base <base_branch> --s
 
 Each PR record has `id`, `url`, `head` (the head SHA), `draft` and `body`.
 
-- One PR found. Reuse it. Do not open a second one. If its body does not start `Closes #N`, rewrite the body (step 3) and update it with `node <root>/gates/forge.mjs change edit <n> --body-file <file>`.
+- One PR found. Reuse it. Do not open a second one. If its body does not start with the first line, rewrite the body (step 3) and update it with `node <root>/gates/forge.mjs change edit <n> --body-file <file>`.
 - The reused PR is a draft (`draft` is true). Mark it ready with `node <root>/gates/forge.mjs change ready <n>`. cstack never leaves a PR in draft, because review bots skip drafts. On a forge without drafts, `draft` is always false.
 - A PR from the same branch into another base is not this unit's PR. Do not reuse it and do not touch it.
 
@@ -58,7 +58,7 @@ Created with <model> in cstack.
 <the footer line from <root>/templates/footer.md>
 ```
 
-- The first line is exactly `Closes #<N>`. Nothing comes before it.
+- The first line is exactly `Closes #<N>`. Nothing comes before it. A `cstack:takeover` with no issue gets the original PR number instead of `N`: its first line is exactly `Takes over #<pr>`. The `orch.mjs unit set --pr` call in step 5 takes this unit's new PR number in both cases.
 - Lead with the problem, not an inventory of changed functions.
   - Bad: "Removed implicit workspace carry-over from every new-thread entry point. Deleted buildContextualThreadOptions and the seed-context machinery."
   - Good: "My new-worktree default was ignored when starting new threads on existing worktrees. Now your preferences always apply."
@@ -90,7 +90,7 @@ Confirm the result. `change find` reads through REST on GitHub, so the check wor
 node <root>/gates/forge.mjs change find --head <branch> --base <base_branch> --state open --json
 ```
 
-Pass only when exactly one PR comes back, `draft` is false, `head` equals the verified SHA, and `body` starts with `Closes #<N>`. Then record it:
+Pass only when exactly one PR comes back, `draft` is false, `head` equals the verified SHA, and `body` starts with `Closes #<N>`, or `Takes over #<pr>` for a takeover with no issue. Then record it:
 
 ```bash
 node <root>/gates/orch.mjs --store <store> unit set <unit> --pr <number> --state pr-open

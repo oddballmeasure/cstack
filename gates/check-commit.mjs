@@ -1,19 +1,20 @@
 #!/usr/bin/env node
 // Gate after an implementer attempt. The implementer's own account never counts; this checks the commits.
-// Usage: check-commit.mjs <worktree> --base <ref> --unit <id> [--issue <n>] [--no-cache] [--json]
+// Usage: check-commit.mjs <worktree> --base <ref> --unit <id> [--issue <n>] [--inherited <sha>] [--no-cache] [--json]
 // Checks: clean tree, non-empty diff, no conflict markers, trailers on every commit,
 // no hidden or off-limits paths, test_command green at HEAD.
+// --inherited: a takeover's original head, a full sha strictly behind HEAD. Commits it already holds need no trailers.
 import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
-import { Gate, main, parseArgs, UsageError, loadConfig, gitOut } from "./lib/common.mjs";
+import { Gate, main, parseArgs, UsageError, loadConfig, git, gitOut } from "./lib/common.mjs";
 import { changedFiles, pathViolations, runTests } from "./lib/repo.mjs";
 
 const MARKER = /^(<{7}|>{7})( |$)/m;
 
 await main(async (argv) => {
-  const args = parseArgs(argv, { flags: ["json", "no-cache"], options: ["base", "unit", "issue"] });
+  const args = parseArgs(argv, { flags: ["json", "no-cache"], options: ["base", "unit", "issue", "inherited"] });
   const [wt] = args._;
-  if (!wt || !args.base || !args.unit) throw new UsageError("usage: check-commit.mjs <worktree> --base <ref> --unit <id> [--issue <n>]");
+  if (!wt || !args.base || !args.unit) throw new UsageError("usage: check-commit.mjs <worktree> --base <ref> --unit <id> [--issue <n>] [--inherited <sha>]");
   const { config } = loadConfig(wt);
   const gate = new Gate("check-commit", { json: args.json });
 
@@ -29,7 +30,16 @@ await main(async (argv) => {
   });
   gate.check(!marked.length, "conflict markers", "none", `markers in: ${marked.join(", ")}`);
 
-  const commits = gitOut(wt, ["rev-list", "--no-merges", `${args.base}..HEAD`]).split("\n").filter(Boolean);
+  const exempt = [];
+  if (args.inherited !== undefined) {
+    const want = args.inherited;
+    const sha = git(wt, ["rev-parse", "--verify", "--quiet", `${want}^{commit}`]).stdout.trim();
+    const head = gitOut(wt, ["rev-parse", "HEAD"]);
+    const ok = /^[0-9a-f]{40}$/.test(want) && sha === want && sha !== head && git(wt, ["merge-base", "--is-ancestor", sha, "HEAD"]).code === 0;
+    gate.check(ok, "inherited head", `commits up to ${want.slice(0, 12)} are inherited`, `--inherited ${JSON.stringify(want)} is not a full commit sha strictly behind HEAD`);
+    if (ok) exempt.push(`^${sha}`);
+  }
+  const commits = gitOut(wt, ["rev-list", "--no-merges", `${args.base}..HEAD`, ...exempt]).split("\n").filter(Boolean);
   const missing = [];
   for (const c of commits) {
     // The whole message, not git's last-paragraph trailers: a blank line there cannot be fixed by a new commit.

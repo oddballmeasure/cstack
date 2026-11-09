@@ -105,8 +105,10 @@ Method line by classification:
 The worker's claims never count (non-negotiable 1). Run the gate on the worktree:
 
 ```sh
-node <root>/gates/check-commit.mjs <worktree> --base origin/<base> --unit <unit> --issue <N> --json
+node <root>/gates/check-commit.mjs <worktree> --base origin/<base> --unit <unit> --issue <N> [--inherited <sha>] --json
 ```
+
+Only this run decides. A worker that runs `check-commit.mjs` itself decides nothing. On a takeover branch, add `--inherited <sha>`. Take `<sha>` only from the forge (`forge.mjs change view <taken-over pr> --json`, field `head`), or after a modernize rebase from the patch-id match the coordinator computes itself (`cstack:takeover`, step 2). Never take it from a file in the store or the worktree, or from a worker's report.
 
 Then apply two checks the gate cannot make, because it sees the whole branch and not this ticket:
 

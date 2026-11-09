@@ -169,8 +169,10 @@ For each ticket, spawn the plugin's `cstack-worker` agent with the `Agent` tool.
 Gate after each ticket:
 
 ```bash
-node <root>/gates/check-commit.mjs <wt> --base <base> --unit <unit> --issue <N>
+node <root>/gates/check-commit.mjs <wt> --base <base> --unit <unit> --issue <N> [--inherited <sha>]
 ```
+
+On a takeover branch, `--inherited <sha>` exempts the original commits from the trailer rule. Take `<sha>` only from the forge (`forge.mjs change view <taken-over pr> --json`, field `head`), or after a modernize rebase from the patch-id match the coordinator computes itself (`cstack:takeover`, step 2). Never take it from a file in the store or the worktree, or from a worker's report. A worker that runs this gate itself decides nothing. Pass the same flag to the commit gate in stage 7.
 
 - Pass: next ticket. After the last ticket: stage 6.
 - Fail: run `cstack:repair` with source `check-commit`, the ticket id, its attempt number and the gate findings. It counts against `limits.coder_attempts` per ticket. `retry <ticket>`: brief a fresh worker for the next attempt. `exhausted <kind>`: failure `<kind>` (`tests_failed`, `no_change`, or `base_conflict` for a SYNC ticket).
@@ -226,7 +228,7 @@ Owner: `cstack:babysit-pr`. You run it. Never a subagent. Arm the `Monitor` tool
 Order: conflicts, then review threads, then CI.
 
 - DIRTY, BEHIND, or base moved under the PR's files: stage 7.
-- A real review finding on a GitHub thread: REPAIR ticket through `cstack:repair` (source `verify`), stage 5. Cap `limits.review_rounds`. Write every reply with `cstack:leaving-pr-comments`.
+- A real review finding on a GitHub thread: REPAIR ticket through `cstack:repair` (source `pr-review`), stage 5. Cap `limits.review_rounds`, then failure `pr_violation`. Write every reply with `cstack:leaving-pr-comments`.
 - A failed check: `node <root>/gates/ci-log.mjs <pr> --repo-dir <wt>`, then a `CI-REPAIR-<n>` ticket through `cstack:repair`, stage 5. Limit `limits.ci_repair_rounds`, then failure `ci_failed`. Pending past `limits.ci_timeout_seconds`: failure `ci_timeout`.
 - pr-wait exits 0 and no actionable thread is left: step 10b.
 

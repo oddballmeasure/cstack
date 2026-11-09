@@ -41,6 +41,7 @@ The before and after files of one proof carry the same first line. That is how a
    - Run the checks that the repo's CI runs (config `test_command`, typecheck, lint). These support a proof. Alone they prove only that nothing known broke.
    - For UI and runtime behaviour, run the app and look at the change. Save a screenshot when you can take one.
 2. **Capture before.** Run the reproduction on the unfixed code. Save it as `before`. Confirm it fails for the reason in the ticket. If it passes, or fails for another reason, fix the reproduction first. Do not touch the product code yet.
+   If the fix is already in place, capture `before` at the pre-change commit in a scratch worktree outside the repo: `git -C <worktree> worktree add --detach <tmp> <base sha>`, run the reproduction there, then `git -C <worktree> worktree remove <tmp>`. Never stash, reset or check out in the unit worktree. Skip step 3.
 3. **Fix.** Make the change.
 4. **Capture after.** Run the identical reproduction. Save it as `after`. Confirm it passes.
 5. **Check the claim against the files.** Read both files back. The command lines match. The exit codes and outputs show the change. Fix what does not match.
