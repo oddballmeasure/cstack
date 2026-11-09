@@ -32,7 +32,7 @@ Shell variables do not persist between Bash calls. Resolve each name once and wr
 2. `node <root>/gates/check-spec.mjs <store>/spec.md` exits 0. If not, run `cstack:spec` first.
 3. `<store>/e2e-plan.md` exists, and `<orch> unit get E2E` shows state `merged` or `done`. Implementers start from a base that holds the suite. If PR #0 is not merged, run `cstack:e2e-plan` first.
 4. `node <root>/gates/profile-diff.mjs <repo>` ends with `gate profile-diff: approved`. If not, run `cstack:profile-repo`.
-5. If `<store>/plan.md` exists and the gate in step 6 passes, skip to step 7. Never rewrite an approved plan.
+5. If `<store>/plan.md` exists and the gate in step 5 passes, do not rewrite it. Skip to step 7 when H2 is settled: `<store>/decisions.tsv` has an `H2` row (approved or skipped), or `<store>/gates.md` shows H2 resolved with `approve`. Otherwise skip to step 6.
 
 When the spec has one or two requirements with an obvious approach, the plan is one unit. Say so in the decision log and write it anyway: orchestrate needs the row.
 
@@ -85,6 +85,8 @@ The gate skips the `E2E` row (track `e2e`). It rejects a `gate:<id>` dependency 
 ### 6. Human gate H2
 
 Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --store <store>`. It is config `autonomy`, overridden by `<store>/run.json` when `cstack:program` ran with `--autonomy`.
+
+Log the `H2` row as soon as H2 is decided, before step 7, so a resumed run does not skip or repeat it.
 
 - **`send`.** Skip H2. Log `"H2" "skipped" "autonomy send"`. Go to step 7. Named gates are not skipped: they are checkpoints the guideline asked for, and `cstack:orchestrate` asks for each one under any autonomy.
 - **`stop`.** Ask once with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it, run the gate again, and ask again. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. The person resolves it by running `<orch> gate resolve H2 --answer <a>` in their own terminal. Never run it yourself: the mode skill's rule is that only a human's answer resolves a gate. The deny rule on headless sessions is a second layer behind that rule, not the reason for it. A later session resumes after the person resolves it.

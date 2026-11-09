@@ -676,6 +676,15 @@ describe("orch CLI", () => {
     assert.equal(o("standing", "show"), "(no standing orders)\n");
     assert.equal(o("standing", "add", "Never force push."), "1. Never force push.\n");
     assert.equal(o("standing", "show"), "1. Never force push.\n");
+    o("standing", "add", "STOP: paused.");
+    o("standing", "add", "Opus codes.");
+    assert.equal(o("standing", "remove", "2"), "removed 2. STOP: paused.\n");
+    assert.equal(o("standing", "show"), "1. Never force push.\n2. Opus codes.\n");
+    assert.match(cli(["--store", dir, "standing", "remove", "3"]).stderr, /no standing order 3/);
+    assert.match(cli(["--store", dir, "standing", "remove", "x"]).stderr, /must be a positive integer/);
+    o("standing", "remove", "2");
+    o("standing", "remove", "1");
+    assert.equal(o("standing", "show"), "(no standing orders)\n");
 
     assert.equal(o("frontier", "show"), "generation=0 prs=none lowest-unmerged=none\n");
     writeFileSync(path.join(dir, "frontier.json"), JSON.stringify({ generation: 1, prs: [{ pr: 7, branches: "cstack/u1", sha: "abc", state: "OPEN" }], lowestUnmerged: 7 }));
@@ -812,6 +821,24 @@ describe("orch CLI", () => {
     }
     assert.equal(o("unit", "get", "u1").stdout.split("\t")[2], "planned");
     assert.equal(o("ledger", "summary").stdout, "none\n");
+  });
+
+  test("a headless session may not resolve a gate or remove a standing order, even with a flag between the words", () => {
+    const dir = tmp();
+    const o = (args, env) => cli(["--store", dir, ...args], { env });
+    o(["init"]);
+    o(["gate", "park", "H2", "--question", "q", "--options", "approve|change", "--default", "approve"]);
+    o(["standing", "add", "STOP: paused."]);
+    for (const env of [{ CSTACK_HEADLESS: "1" }, { CSTACK_ROLE: "worker" }]) {
+      for (const args of [["gate", "resolve", "H2", "--answer", "approve"], ["gate", "--json", "resolve", "H2", "--answer", "approve"], ["standing", "remove", "1"], ["standing", "--force", "remove", "1"]]) {
+        const r = o(args, env);
+        assert.equal(r.code, 2, args.join(" "));
+        assert.match(r.stderr, /is a person's action; a headless cstack session may not run it/);
+      }
+      assert.equal(o(["standing", "show"], env).stdout, "1. STOP: paused.\n");
+      assert.equal(o(["gate", "list"], env).code, 0);
+    }
+    assert.equal(o(["standing", "--json", "remove", "1"]).code, 0, "a person may still run it");
   });
 
   test("replaces a stale lock, waits on or steals a live one", () => {

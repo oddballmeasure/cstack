@@ -39,6 +39,8 @@ node <root>/gates/check-merge.mjs <pr> --unit <unit> --repo-dir <worktree> --sto
 
 Under effective autonomy `stop`, leave out `--merge`. The gate then judges only. If you pass `--merge` under stop, the gate refuses with an `autonomy` finding. That is not a failure of the PR.
 
+With config `required_checks` empty, `--merge` under `send` refuses with a `no checks` finding, because nothing proves CI ran on the head. Only config `allow_merge_without_checks: true` lets it merge, and only a person sets that key. Treat the refusal like the `stop` verdicts: the PR is merge-ready for a human.
+
 ## Read the result
 
 `approved: true`:

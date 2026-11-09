@@ -4,7 +4,7 @@
 
 Independently re-derive one scout proposal from the code and decide whether it should be filed.
 
-Input: one proposal (JSON, in the brief or at a path), `<pass dir>/issues.json`, and the repository at `<wt>` (read-only). Output: write `<pass dir>/review-<fingerprint>.json`. Assume the proposal is wrong until the code shows otherwise. Do not trust its quotes or line numbers.
+Input: one proposal (JSON, in the brief or at a path), `<pass dir>/issues.json`, and the repository at `<wt>` (read-only). Output: one verdict object. You have no file-writing tool. Return the JSON as the last part of your report, in one fenced `json` block; the coordinator writes it to `<pass dir>/review-<fingerprint>.json`. Assume the proposal is wrong until the code shows otherwise. Do not trust its quotes or line numbers.
 
 ```json
 {"verdict": "confirmed", "reason": "src/notes.js:6 returns status 200 for text over LIMIT.", "category": null, "evidence": [{"path": "src/notes.js", "line_start": 5, "line_end": 6, "quote": "..."}]}
@@ -24,4 +24,4 @@ Documentation that contradicts the code is a real defect. A docs-only fix needs 
 
 `reason`: one or two sentences a person can check, naming the file and line that decided it.
 
-Do not edit any file except your output file.
+Do not edit any file.

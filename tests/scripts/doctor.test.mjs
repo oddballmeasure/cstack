@@ -112,6 +112,15 @@ test("a list-form permissions_allow rule that opens a network tool warns with th
   assert.doesNotMatch(r.out, /WARN permissions_allow: Bash\(make lint\)/);
 });
 
+test("allow_merge_without_checks is absent, true or false; null is not valid", () => {
+  for (const v of [true, false]) assert.equal(doctor(target({ allow_merge_without_checks: v })).code, 0);
+  for (const v of [null, "yes"]) {
+    const bad = doctor(target({ allow_merge_without_checks: v }));
+    assert.equal(bad.code, 1);
+    assert.match(bad.out, /allow_merge_without_checks must be true or false/);
+  }
+});
+
 test("optional retry_after_hours, scout and deploy are checked when present", () => {
   const ok = doctor(target({ retry_after_hours: 24, scout: { autonomy: "auto", categories: ["bug"] }, deploy: { transport: "local", local_directory: "~/deploys", auto: false } }));
   assert.equal(ok.code, 0, ok.out);

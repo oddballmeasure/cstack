@@ -38,6 +38,7 @@ Commands:
   status
   standing show
   standing add <line>
+  standing remove <n>                removes order n and renumbers the rest
 
 Unit states: planned ready in-progress verifying pr-open merged done error needs-human
 Verdicts: approved rejected live-ui-verified unit-test-verified type-check-only verifier-blocked verifier-failed
@@ -173,6 +174,7 @@ const COMMANDS = {
   status: { run: (s) => s.status.render(), text: statusLines },
   "standing show": { run: (s) => s.standing.show(), text: (r) => rows(r, standingLine, "(no standing orders)") },
   "standing add": { args: ["line"], run: (s, a) => s.standing.add({ line: a.line }), text: standingLine },
+  "standing remove": { args: ["number"], run: (s, a) => s.standing.remove({ number: a.number }), text: (r) => `removed ${standingLine(r)}` },
 };
 
 const GLOBAL_FLAGS = ["json", "force", "help"];
@@ -201,6 +203,11 @@ function resolveCommand(positional) {
   throw new UsageError(`unknown command: ${positional.slice(0, 2).join(" ")} (try --help)`);
 }
 
+// Only a person answers a human gate or lifts a standing order. A session cstack launched carries CSTACK_HEADLESS=1
+// (gates/worker.mjs, the daemon unit) or a CSTACK_ROLE, so orch refuses these verbs there. gates/lib/permissions.mjs
+// denies the same commands first.
+const HUMAN_ONLY = new Set(["gate resolve", "standing remove"]);
+
 function cli(argv) {
   const opts = parseArgs(argv, { flags: ALL_FLAGS, options: ALL_OPTIONS });
   if (opts.help) {
@@ -208,6 +215,9 @@ function cli(argv) {
     return 0;
   }
   const { name, spec, rest } = resolveCommand(opts._);
+  if (HUMAN_ONLY.has(name) && (process.env.CSTACK_HEADLESS === "1" || process.env.CSTACK_ROLE)) {
+    throw new UsageError(`${name} is a person's action; a headless cstack session may not run it`);
+  }
   const allowed = new Set([...GLOBAL_FLAGS, ...GLOBAL_OPTIONS, ...(spec.flags ?? []), ...(spec.options ?? [])]);
   for (const k of Object.keys(opts)) if (k !== "_" && !allowed.has(k)) throw new UsageError(`${name} does not take --${k}`);
   for (const k of spec.required ?? []) if (opts[k] === undefined) throw new UsageError(`${name} needs --${k}`);

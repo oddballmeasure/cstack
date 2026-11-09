@@ -236,7 +236,7 @@ After any new commit, stages 6, 7 and 8 run before you arm the Monitor again.
 
 #### 10b Review (sub-step of 10)
 
-Owner: `cstack:review-loop`, as `cstack:babysit-pr` step 10b describes. It runs once per new head, after pr-wait exits 0 and before the merge gate. Skip it when every changed path is documentation (`skip: docs only`), or when the ledger already holds a round at HEAD.
+Owner: `cstack:review-loop`, as `cstack:babysit-pr` step 10b describes. It runs once per new head, after pr-wait exits 0 and before the merge gate. Skip it when every changed path is documentation (`skip: docs only`), or when `<store>/review-<unit>-rounds.tsv` already has an `APPROVE` round at HEAD. The orch ledger holds verifier verdicts, not review rounds.
 
 The reviewer is the plugin's `cstack-reviewer` agent on `models.review`, fresh each round. It must differ from `models.code`. The budget is `limits.review_rounds` rounds over the unit's life, up to 5 for security, auth, data loss or concurrency.
 

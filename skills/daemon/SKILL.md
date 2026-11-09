@@ -1,6 +1,6 @@
 ---
 name: daemon
-description: "One polling tick of the cstack daemon for this repo: preflight once, drain finished workers, judge merges with post-merge CI, settle orphans through resume-run, requeue retryable failures, then launch the oldest ready issues as Level B workers. Run it on an interval with /loop 10m /cstack:daemon, usually headless under systemd. Replaces Cardinal's daemon."
+description: "One polling tick of the cstack daemon for this repo: preflight once, drain finished workers, judge merges with post-merge CI, settle orphans through resume-run, requeue retryable failures, then launch the oldest ready issues as Level B workers. Run it on an interval with /loop 10m /cstack:daemon, usually headless under systemd."
 argument-hint: "(no arguments; run as /loop 10m /cstack:daemon)"
 disable-model-invocation: true
 ---
@@ -31,24 +31,24 @@ Labels use config `label_prefix` (default `cstack`). The daemon only reads `read
 - **One tick, then stop.** Do not arm a Monitor. Do not sleep. Do not run `cstack:unit` in this session. The next `/loop` firing is the wake-up.
 - **Gates decide.** Take launches, orphans and retries from `daemon-tick.mjs`, never from your own reading of labels.
 - **Never two workers for one issue.** `worker.mjs launch` leaves a live worker alone, and `select` skips it. Do not work around either.
-- **Hard stops.** A `setup` inbox entry means a worker billed through an API key. Launch nothing in this tick or later ticks. Report it first. Under `claude -p` there is no one to ask, so the report is the final message of the tick.
+- **Hard stops.** A `setup` inbox entry means a worker billed through an API key. Launch nothing in this tick or later ticks: step 4 creates `<repo>/.cstack/daemon.stop`, which holds the stop until a person deletes it. Report it first. Under `claude -p` there is no one to ask, so the report is the final message of the tick.
 
 ## Tick
 
 Log one row per action with `<log> "daemon" "<action>" "<why>" "<evidence>" "<result>"`.
 
 1. **Preflight, once per session.** If this session has not passed doctor yet, run `node <root>/skills/doctor/scripts/doctor.mjs --offline <repo>`. On any FAIL, end the tick and report the FAIL lines. Doctor is offline because the tick reads GitHub through the gates, which fail with a clear error when GitHub is down.
-2. **Paused?** If `<repo>/.cstack/daemon.stop` exists, do steps 3 to 5 only. Launch and requeue nothing.
+2. **Paused?** If `<repo>/.cstack/daemon.stop` exists, do steps 3 to 5 and 8 only. Launch, relaunch and requeue nothing.
 3. **Scan.** Run `<tick> scan`. Each store line names its unit state, worker state, inbox count, and the flags `orphan` and `judge`.
 4. **Drain.** For each store with an inbox count above 0, run `<orch N> inbox drain`. Act on the entries:
-   - `setup`: a hard stop (see Rules). Note it, finish this step, then skip steps 6 to 8.
+   - `setup`: a hard stop (see Rules). Create `<repo>/.cstack/daemon.stop` with the reason (the issue and the inbox entry) as its text. Finish this step, then skip steps 6 and 7.
    - `usage_limit`: nothing. The worker put the unit back to `ready` with a reset time, and `select` defers it.
    - `merged`, `done`, `error`, `needs-human`, `pr-open`: the unit settled its issue. Log it.
    - `crash`: step 5 settles it.
    - `denied`: the worker's allowlist refused calls it needed (`workers/U1.denied.txt`). Never relaunch it. Settle the issue as failed with kind `setup` through `cstack:settle`, and report each refused call first. A person adds the missing rule to config `permissions_allow`, under the `worker` key when only workers need it.
 5. **Land and settle.**
    - For each `judge` store, run `node <root>/gates/post-merge.mjs --store <store N> --json` once, without `--wait`. It judges the merge commit's checks, re-runs a red one once, and files at most one follow-up issue. Log each `filed` follow-up.
-   - For each `orphan` store, run `cstack:resume-run issue-<N>`. The store has a launches file, so resume-run relaunches the worker once and settles a second death as `crash`. It never runs the unit in this session.
+   - For each `orphan` store, run `cstack:resume-run issue-<N>`. When paused, log each orphan and do not run resume-run, because it relaunches workers. The store has a launches file, so resume-run relaunches the worker once and settles a second death as `crash`. It never runs the unit in this session.
 6. **Retry sweep.** Run `<tick> retry --apply`. With config `retry_after_hours` unset, it does nothing. Otherwise it relabels each errored issue whose failure kind is retryable and older than the window back to `ready`. `crash`, `setup` and `deploy` are never retried.
 7. **Launch.** Run `<tick> select`. It lists open `ready` issues oldest first, skips live workers and usage-limit deferrals, and fills only the free slots of config `parallel`. For each `launch` entry, in order:
    ```sh

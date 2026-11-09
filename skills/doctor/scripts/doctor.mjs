@@ -98,6 +98,7 @@ function schemaErrors(c) {
   need(c.setup_command == null || nonEmptyArray(c.setup_command), "setup_command must be null or a non-empty array");
   need(c.e2e_command == null || nonEmptyArray(c.e2e_command), "e2e_command must be null or a non-empty array");
   need(Array.isArray(c.required_checks), "required_checks must be an array");
+  need(c.allow_merge_without_checks === undefined || type(c.allow_merge_without_checks) === "boolean", "allow_merge_without_checks must be true or false");
   need(Array.isArray(c.paths_off_limits), "paths_off_limits must be an array");
   need(Array.isArray(c.paths_hidden), "paths_hidden must be an array");
   need(c.docs_paths == null || (Array.isArray(c.docs_paths) && c.docs_paths.every((g) => type(g) === "string" && g.length > 0)), "docs_paths must be null or an array of globs");
@@ -164,7 +165,7 @@ function schemaErrors(c) {
     errs.push(...unknown(h, ["supervisor"], "host."));
   }
 
-  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "paths_off_limits", "paths_hidden", "docs_paths", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots", "ci_command"];
+  const known = ["version", "repo", "base_branch", "setup_command", "test_command", "e2e_command", "required_checks", "allow_merge_without_checks", "paths_off_limits", "paths_hidden", "docs_paths", "permissions_allow", "label_prefix", "autonomy", "parallel", "models", "limits", "retry_after_hours", "scout", "deploy", "harness", "models_codex", "codex_sandbox", "host", "forge", "forge_host", "review_bots", "ci_command"];
   errs.push(...unknown(c, known, ""));
   return errs;
 }
@@ -330,7 +331,7 @@ if (!offline && cli) {
   const missing = ["ready", "in-progress", "done", "error", "needs-human", "investigate", "proposed"].map((l) => `${prefix}:${l}`).filter((l) => !labels.has(l));
   if (!missing.length) pass("labels", `all ${prefix}:* labels exist`);
   else fail("labels", `missing: ${missing.join(" ")} (run the setup-cstack skill)`);
-  if (!((isObj(cfg) ? cfg.required_checks : null) ?? []).length) warn("required checks", "none configured; the merge gate will not wait for CI");
+  if (!((isObj(cfg) ? cfg.required_checks : null) ?? []).length) warn("required checks", cfg?.allow_merge_without_checks === true ? "none configured; allow_merge_without_checks is true, so the merge gate merges with no CI" : "none configured; the merge gate will not merge under autonomy send until required_checks is set or allow_merge_without_checks is true");
 }
 
 done();

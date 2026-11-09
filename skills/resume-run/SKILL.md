@@ -24,6 +24,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 | `<worker>` | `node <root>/gates/worker.mjs` |
 | `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<unit name>` | `cstack-<repo name>-<slug>-<unit>` (`<repo name>` is config `repo` after the slash). |
+| `<base>` | Config `base_branch`. |
 
 ## Procedure
 
@@ -43,7 +44,7 @@ Read these once. Do not narrate them back.
 
 ### 3. Reconcile each unit with git and GitHub
 
-For each U unit, in id order. Each step writes only when the store disagrees with GitHub, so a second run changes nothing.
+For each unit, in id order: the U units and the suite units (`E2E`, `E2E-<name>`) on track `e2e`. Each step writes only when the store disagrees with GitHub, so a second run changes nothing.
 
 1. **Find the PR.** If `pr` is empty and `branch` is set, run `node <root>/gates/forge.mjs change find --head <branch> --state all --json`. Record a hit (its `id`) with `<orch> unit set <unit> --pr <n>`.
 2. **Read the PR state** with `node <root>/gates/forge.mjs change view <pr> --json`: `state`, `head` and `mergeSha`.
