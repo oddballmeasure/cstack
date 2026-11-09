@@ -61,7 +61,7 @@ For each finding:
 
 1. **Verify it against the source.** Read the cited code in the worktree. Bots are useful and often wrong. A finding counts only when the code shows the problem. A human finding counts by default, but still check it.
 2. **Classify it.**
-   - A real bug in the intended case. Run `cstack:repair` with source `verify` and the verified findings as `review: <path:line> <finding>` lines. It returns `retry REPAIR-<n>` (the unit goes back to stage 5, then 6, 7 and 8) or `exhausted verification` (the unit fails). Also cap review rounds at `limits.review_rounds`, counted from this stage's `fix` rows in the decision log. Past that cap, the stage fails with kind `pr_violation`.
+   - A real bug in the intended case. Run `cstack:repair` with source `pr-review` and the verified findings as `review: <path:line> <finding>` lines. It counts the rounds against `limits.review_rounds` and returns `retry REPAIR-<n>` (the unit goes back to stage 5, then 6, 7 and 8) or `exhausted pr_violation` (the stage fails with kind `pr_violation`).
    - A false positive. Reply on the thread with a one-line reason that cites the code. Resolve the thread only after the reply posted.
    - Scope creep. Decline it (see **Fight scope**).
 3. **Reply** on the thread with `node <root>/gates/forge.mjs thread reply <pr> <thread id> --body-file <file>`, or on the PR with `node <root>/gates/forge.mjs change comment <pr> --body-file <file>`. Resolve a thread with `node <root>/gates/forge.mjs thread resolve <pr> <thread id>`. Write every reply with `cstack:leaving-pr-comments`: the callout header, the direct style, the secret check, and the footer line from `<root>/templates/footer.md` last.

@@ -137,6 +137,34 @@ test("check-commit still wants the exact unit and issue, on a line of their own"
   assert.match(res.out, /lacks Refs: #7/);
 });
 
+test("check-commit exempts a takeover's inherited commits given by --inherited, and only those", () => {
+  const { wt } = isolated();
+  const original = commit(wt, { "src/orig.js": "1\n" }, "Original contributor's work");
+  commit(wt, { "src/fix.js": "1\n" }, "Finish it" + trailers("U1", 7));
+  const run = (...extra) => gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--issue", "7", ...extra, "--json"]);
+  const strict = run();
+  assert.equal(strict.code, 1, "without --inherited every commit needs trailers");
+  assert.deepEqual(failChecks(strict), ["trailers"]);
+  assert.match(strict.json.findings.find((f) => f.check === "trailers").detail, new RegExp(`${original.slice(0, 12)} lacks Cstack-Unit`));
+  assert.equal(run("--inherited", original).code, 0, "inherited commits exempt");
+  commit(wt, { "src/more.js": "1\n" }, "Untrailered follow-up");
+  assert.deepEqual(failChecks(run("--inherited", original)), ["trailers"], "own commits still checked");
+});
+
+test("check-commit rejects an inherited head that is HEAD, not behind HEAD, unknown or garbage", () => {
+  const { base, wt } = isolated();
+  const side = path.join(base, "side");
+  git(wt, "worktree", "add", "-q", "-b", "side", side, "main");
+  const other = commit(side, { "src/side.js": "1\n" }, "Elsewhere");
+  const head = commit(wt, { "src/orig.js": "1\n" }, "Original");
+  for (const [label, value] of [["HEAD", head], ["not an ancestor", other], ["unknown sha", "f".repeat(40)], ["garbage", "HEAD~0"]]) {
+    const res = gate("check-commit.mjs", [wt, "--base", "main", "--unit", "U1", "--inherited", value, "--json"]);
+    assert.equal(res.code, 1, label);
+    assert.ok(failChecks(res).includes("inherited head"), label);
+    assert.ok(failChecks(res).includes("trailers"), `${label}: nothing exempted`);
+  }
+});
+
 test("check-commit flags a change to the cstack config", () => {
   const { wt, config } = isolated();
   commit(wt, { ".cstack/config.json": JSON.stringify({ ...config, autonomy: "send" }), "test/x.test.js": "t\n" }, "F" + trailers("U1"));

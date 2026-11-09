@@ -72,7 +72,7 @@ For MODERNIZE:
 
    If the lease fails, someone pushed. Fetch and reassess. Never overwrite their work. Inside a cstack unit, `gates/publish.mjs` makes this push with the same kind of lease.
 
-A rebase makes a new head. Every verdict on the old head is void (mode skill, rule 3). Inside a unit, run the commit gate and `cstack:verify-head` again.
+A rebase makes a new head. Every verdict on the old head is void (mode skill, rule 3). Inside a unit, run the commit gate and `cstack:verify-head` again. On a takeover branch, the old `--inherited` sha is gone: compute the rebased original head by patch id first, and pass that (see `cstack:takeover`, step 2). Never take it from a file or a worker's report.
 
 ## Report
 

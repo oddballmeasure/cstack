@@ -30,20 +30,47 @@ If the linked issue carries `<label_prefix>:in-progress`, a run may still hold i
 
 Make a replacement branch unless the human asked for an in-place or stacked continuation. Do not overwrite unrelated work. Do not push to, retitle, comment on or close the original PR without authorization.
 
+Fetch the original head. For a PR, take `branch`, `head` and `headRepo` from `forge.mjs change view <n> --json` in step 1. `headRepo` is the PR's source repo, `owner/name` on GitHub. When it equals config `repo` (`jq -r .repo <repo>/.cstack/config.json`), fetch the branch:
+
 ```bash
-git -C <repo> fetch origin pull/<n>/head:refs/remotes/origin/takeover-<n>
+git -C <repo> fetch origin <branch of the PR>:refs/remotes/origin/takeover-<n>
+```
+
+When it differs or is null, the PR comes from a fork: fetch the forge's change ref instead, `pull/<n>/head` on GitHub, `merge-requests/<n>/head` on GitLab. Either way, confirm `git -C <repo> rev-parse origin/takeover-<n>` equals `head`.
+
+A branch source has no PR record: run `git -C <repo> fetch origin <branch>`, take `head` from `git -C <repo> rev-parse origin/<branch>`, and isolate with `--base origin/<branch>` instead of the PR ref below.
+
+Then isolate:
+
+```bash
 node <root>/gates/isolate.mjs <repo> <branch> <worktree> --base origin/takeover-<n>
 ```
 
 Name the branch `cstack/<N>-<slug>` when an issue `N` exists (`docs/unit-flow.md`), else `cstack/takeover-<n>`. The branch starts at the original head, so it keeps the original commits, authors and `Co-authored-by` trailers. Add your fixes as separate commits on top.
 
-Register the branch in a run store, so the ledger and the publish gate know it. Inside a unit, use the unit's store and id. Outside a run, the store is `<repo>/.cstack/runs/takeover-<n>/` and the unit id is `takeover-<n>`:
+Register the branch in a run store, so the ledger and the publish gate know it. Inside a unit, the unit's store and id already exist: run only `unit set <unit> --branch <branch>`. Outside a run, the store is `<repo>/.cstack/runs/takeover-<n>/` and the unit id is `takeover-<n>`:
 
 ```bash
 node <root>/gates/orch.mjs --store <store> init
 node <root>/gates/orch.mjs --store <store> unit add takeover-<n> --track takeover
 node <root>/gates/orch.mjs --store <store> unit set takeover-<n> --branch <branch>
 ```
+
+The original commits carry no cstack trailers. Every commit gate the coordinator runs on this branch passes `--inherited <sha>`, so the trailer rule checks only commits after the original head. The diff, path and test checks still cover the whole branch. The gate rejects a value that is not a full SHA strictly behind HEAD, and then exempts nothing.
+
+Take `<sha>` only from the forge: `head` from `forge.mjs change view <n> --json` (for a branch source, `git -C <repo> rev-parse origin/<branch>` at fetch time). On every resume, take it from the forge again, and for a branch source confirm it still equals `origin/<branch>` on the remote; if it moved, settle `needs-human`. Never take it from a file in the store or the worktree, or from a worker's report: a worker can write both. A worker that runs `check-commit.mjs` itself decides nothing. Only the coordinator's run counts.
+
+A rebase by `cstack:modernize` replaces the original commits. Before the next commit gate, the coordinator checks that the rebased branch starts with a copy of every original commit, in order, by patch id. It computes this itself, in bash:
+
+```bash
+orig=$(git -C <worktree> rev-list --reverse <forge base>..<forge head>)
+new=$(git -C <worktree> rev-list --reverse origin/<base>..HEAD | head -n "$(echo "$orig" | wc -l)")
+pid() { git -C <worktree> show "$1" | git patch-id --stable | cut -d' ' -f1; }
+paste <(for c in $orig; do pid "$c"; done) <(for c in $new; do pid "$c"; done) | awk 'NF<2 || $1!=$2 {bad=1} END {exit bad || NR==0}' \
+  && echo "$new" | tail -n1
+```
+
+`<forge base>` is the merge base of the forge head and the old base. It prints the rebased copy of the original head: pass it as `--inherited`. If any original commit has an empty patch id (a merge commit), or any pair differs (the rebase changed a patch, for example while resolving a conflict), stop and settle `needs-human` with `git range-diff`. Never match the head alone: a worker commit that repeats the head's diff would then exempt everything beneath it.
 
 Credit the original contributors in the PR body and link the original PR. Use identities you verified from `git log --format='%an <%ae>'` or the forge's change record. Do not guess an email. If the repo squash-merges, check that the squash message keeps a `Co-authored-by:` line for each human contributor. A model attribution line does not replace contributor credit.
 
@@ -67,7 +94,7 @@ State what stays unverified.
 When the requested finish includes a PR:
 
 1. Publish the verified head: `node <root>/gates/publish.mjs <worktree> --store <store> --unit <unit>`. It refuses to push unless the ledger approves that head. A `ledger` finding: run step 4 again.
-2. File it with `cstack:file-pr`. Give it the issue, branch, worktree, verified SHA and the run store from step 2. The body adds a credit line after the fix paragraph: `Takes over #<n> by @<login>.`
+2. File it with `cstack:file-pr`. Give it the issue (or, with no issue, the original PR number), branch, worktree, verified SHA and the run store from step 2. The body adds a credit line after the fix paragraph: `Takes over #<n> by @<login>.`
 3. Drive it to green with `cstack:babysit-pr`. Do not stop at creation.
 4. Write every reply with `cstack:leaving-pr-comments`.
 5. Merge only through `cstack:merge-gate`, under the run's effective autonomy.

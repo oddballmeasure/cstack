@@ -14,8 +14,8 @@ The unit coordinator runs this skill after a failed gate. It writes what the imp
 ## Inputs
 
 - Store, unit id, issue `N`, base branch, worktree.
-- Source: `check-commit`, `verify`, `review`, `ci` or `sync`.
-- The findings: gate findings as `check: detail` lines, agreed `cstack:review-loop` findings as `review-loop <id> [<severity>] <path:line> <claim>. Fix: <fix>` lines, `gates/ci-log.mjs <pr>` output, or the conflicted file list from `gates/sync-base.mjs`.
+- Source: `check-commit`, `verify`, `review`, `pr-review`, `ci` or `sync`.
+- The findings: gate findings as `check: detail` lines, agreed `cstack:review-loop` findings as `review-loop <id> [<severity>] <path:line> <claim>. Fix: <fix>` lines, verified PR review findings from `cstack:babysit-pr` as `review: <path:line> <finding>` lines, `gates/ci-log.mjs <pr>` output, or the conflicted file list from `gates/sync-base.mjs`.
 - For `check-commit` only: the ticket id and its attempt number.
 
 ## The feedback file
@@ -27,7 +27,7 @@ Each section has this shape:
 ```
 ## <heading>
 
-Source: <check-commit | verify | review | ci | sync>
+Source: <check-commit | verify | review | pr-review | ci | sync>
 Head: <full HEAD sha when the gate ran>
 Written: <UTC ISO8601>
 
@@ -47,6 +47,7 @@ Headings are exact, because rounds are counted from them:
 | `check-commit` | `## <ticket> attempt <k>` | unchanged (`T1`, `REPAIR-1`, ...) |
 | `verify` | `## REPAIR-<n>` | `REPAIR-<n>` |
 | `review` | `## REPAIR-<n>` | `REPAIR-<n>` |
+| `pr-review` | `## REPAIR-<n>` | `REPAIR-<n>` |
 | `ci` | `## CI-REPAIR-<n>` | `CI-REPAIR-<n>` |
 | `sync` | `## SYNC-<n>` | `SYNC-<n>` |
 
@@ -59,6 +60,7 @@ Read the limit from config `limits`. Count the existing headings with `grep -cE`
 | `check-commit` | `^## <ticket> attempt [0-9]+$` plus 1 (attempt 1 has no section) | `coder_attempts` | see below |
 | `verify` | `^Source: verify$` | `verify_rounds` | `verification` |
 | `review` | `^Source: review$` | `review_rounds` | `review` |
+| `pr-review` | `^Source: pr-review$` | `review_rounds` | `pr_violation` |
 | `ci` | `^## CI-REPAIR-[0-9]+$` | `ci_repair_rounds` | `ci_failed` |
 | `sync` | `^## SYNC-[0-9]+$` | `base_sync_rounds` | `base_conflict` |
 
@@ -68,7 +70,7 @@ For `check-commit`, the failed attempt is attempt `count`. If `count` is at leas
 - `no_change` when every finding is `non-empty diff` or `no change`.
 - `tests_failed` otherwise.
 
-For the other sources, if `count` is at least the limit, the source is exhausted. Otherwise the new ticket is number `count + 1`. `verify` and `review` share the `REPAIR-<n>` ids but not the limit: their `<n>` is the count of `^## REPAIR-[0-9]+$` headings plus 1.
+For the other sources, if `count` is at least the limit, the source is exhausted. Otherwise the new ticket is number `count + 1`. `review` and `pr-review` each count separately against `review_rounds`, on purpose: the review loop and the PR's reviewers are different reviewers, and neither should use up the other's budget. `verify`, `review` and `pr-review` share the `REPAIR-<n>` ids but not the count: their `<n>` is the count of `^## REPAIR-[0-9]+$` headings plus 1.
 
 When exhausted, append nothing. Log the row (see below) and return `exhausted <kind>` with one line naming the last findings. The caller settles the failure per the contract.
 
@@ -82,7 +84,7 @@ Task text:
 
 > The coordinator ran check-commit after attempt <count> and it failed. Your commits are still on the branch. Fix the findings below with new commits. Do not amend or reset.
 
-For a conflict-marker finding, use Cardinal's line instead: "Conflict markers remain in <files>. Resolve every conflict and remove the markers."
+For a conflict-marker finding, use this line instead: "Conflict markers remain in <files>. Resolve every conflict and remove the markers."
 
 For a `no change` finding: "The previous attempt changed no files. Implement the ticket in the worktree."
 
@@ -109,6 +111,16 @@ Findings are the `review-loop` lines verbatim. Never add findings the coordinato
 Acceptance: `Every finding is resolved with the smallest change`, `The repository's test command passes`.
 
 An `exhausted review` return is not a failure. The caller, `cstack:review-loop`, treats it as budget end and settles the unit as needs a decision.
+
+### pr-review: `## REPAIR-<n>`
+
+Title: Resolve the PR review findings.
+
+> Reviewers on the pull request commented on the branch at <sha12>. The coordinator checked each comment against the code and confirmed the findings below. Make the smallest fix for each.
+
+Findings are the `review:` lines verbatim.
+
+Acceptance: `Every finding is resolved with the smallest change`, `The repository's test command passes`.
 
 ### ci: `## CI-REPAIR-<n>`
 

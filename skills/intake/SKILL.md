@@ -12,7 +12,8 @@ Intake is read-only for the repo. It writes only into the run store.
 ## Inputs
 
 - `<N>`: the issue number.
-- `<repo>`: the repo root, absolute. Use the main checkout, not a unit worktree.
+- `<repo>`: the repo root, absolute: the main checkout. Use it only for `profile-diff.mjs`, `.cstack/profile.json` and the intake gate.
+- `<wt>`: the unit worktree, absolute. Read code only here, where the hidden suite is not on disk (docs/unit-flow.md). Without a unit, use `<repo>` and never read a `paths_hidden` path.
 - `<store>`: the run store, `<repo>/.cstack/runs/<slug>/`, absolute.
 - `<root>`: the plugin root, two directories up from this skill's base directory.
 
@@ -78,8 +79,8 @@ Do this once per distinct behaviour. It replaces Cardinal's `find_repo_context` 
      | map(select(.score > 0)) | sort_by(-.score) | .[:5][] | "\(.score) \(.path)"' <repo>/.cstack/profile.json
    ```
    Include legacy files only when the issue is about old or prototype code.
-2. When the search gives no clear owner, or the behaviour crosses many files, run `cstack:how` with the behaviour as the question. Use its **Where Things Live** map.
-3. Confirm each owner by reading the file. Prefer active code over legacy code and unused prototypes.
+2. When the search gives no clear owner, or the behaviour crosses many files, run `cstack:how` in `<wt>` with the behaviour as the question. Use its **Where Things Live** map.
+3. Confirm each owner by reading the file in `<wt>`. Prefer active code over legacy code and unused prototypes.
 4. Record each behaviour, the query, the candidates and the confirmed owners in `<store>/intake-owners.md`. A decision without this file did not do this step.
 
 ## Tickets
@@ -94,4 +95,4 @@ Do this once per distinct behaviour. It replaces Cardinal's `find_repo_context` 
 
 ## Report
 
-Give the classification, the ticket ids in order with their requirements, whether a human answer was used, the gate result, and the path of `<store>/intake-<unit>.json`. The next stage is 4 for a workable kind, else settle `needs-human`.
+Give the classification, the ticket ids in order with their requirements, whether a human answer was used, the gate result, and the path of `<store>/intake-<unit>.json`. The next stage is 5 (implement) for a workable kind, else settle `needs-human`.
