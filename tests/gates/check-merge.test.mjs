@@ -140,6 +140,24 @@ test("review: config docs_paths replaces the default doc test", () => {
   assert.equal(unset.code, 0, "unset docs_paths keeps today's default: any .md is docs");
 });
 
+test("review: docs_paths comes from the base config, so a PR cannot widen it to skip review", () => {
+  const files = { "src/f.js": "1\n" };
+  const s = setup({ cfg: { docs_paths: [] }, review: false, headFiles: files, headConfig: (c) => `${JSON.stringify({ ...c, docs_paths: ["**", ".cstack/**"] }, null, 2)}\n`, pr: { files: [...listed(files), { path: ".cstack/config.json" }] } });
+  git(s.root, "checkout", "-q", "cstack/u1");
+  const res = s.run();
+  assert.deepEqual(failChecks(res), ["review"], "a head that widens docs_paths still needs a review round");
+  assert.doesNotMatch(res.out, /docs-only change/);
+});
+
+test("a malformed base config is a config finding, not a crash", () => {
+  for (const required_checks of ["ci", null]) {
+    const res = setup({ cfg: { required_checks } }).run();
+    assert.equal(res.code, 1, res.out);
+    assert.ok(failChecks(res).includes("config"), res.out);
+    assert.match(res.out, /cannot read a valid \.cstack\/config\.json \(an object with a required_checks list\)/);
+  }
+});
+
 // A commit that touches only the hidden suite, and the forge's file list for it.
 const SUITE = { "tests/acceptance/a.test.mjs": "x\n" };
 
@@ -196,7 +214,8 @@ test("review: a suite unit's config change is exempt only for e2e_command, judge
   needsReview(configPr(widened, { headFiles: { ...SUITE, "src/f.js": "1\n" } }), "a widened paths_hidden is read from the merge base, not the head");
   needsReview(configPr(() => "{ not json"), "a head config that does not parse needs a review");
   const gone = configPr((c) => json(c), { pr: { baseRefOid: "0".repeat(40) } });
-  needsReview(gone, "a base SHA missing locally needs a review");
+  assert.deepEqual(failChecks(gone).sort(), ["config", "review"], "a base SHA missing locally needs a review, and its merge policy is unreadable");
+  assert.match(gone.out, /cannot read a valid \.cstack\/config\.json .+ at the base 000000000000; the merge policy comes from the base/);
   const why = gone.json.findings.find((f) => f.check === "review").detail;
   assert.match(why, new RegExp(`Review required: .+${"0".repeat(40)} not available locally after fetch`));
   // Each fetch's outcome is in the finding: the base fetch worked, the head ref is not on this origin.
@@ -236,7 +255,7 @@ test("review: a failed fetch's stderr is redacted and capped in every finding", 
   const fail = `printf '%s\\n' "fatal: unable to access 'https://x-access-token:ghs_SECRET1@github.com/o/r.git/': 403" "remote: see https://bob:pw@SECRET2@git.example.com/o and https://glpat_SECRET3@host/x $(printf 'z%.0s' $(seq 1 400))" >&2; exit 128`;
   withGitWrapper(fail, (env) => {
     const res = suiteMerge({ headFiles: SUITE, pr: { files: listed(SUITE), baseRefOid: "0".repeat(40) }, env });
-    assert.deepEqual(failChecks(res).sort(), ["base", "review"]);
+    assert.deepEqual(failChecks(res).sort(), ["base", "config", "review"]);
     assert.doesNotMatch(res.out, /SECRET/, "no credential reaches the output or --json");
     const base = res.json.findings.find((f) => f.check === "base").detail;
     assert.match(base, /^git fetch failed: fatal: unable to access 'https:\/\/\*\*\*@github\.com\/o\/r\.git\/': 403 remote: see https:\/\/\*\*\*@git\.example\.com\/o and https:\/\/\*\*\*@host\/x z+$/);
@@ -318,7 +337,8 @@ test("--merge under autonomy stop leaves the PR for a human", () => {
 
 test("--merge under autonomy send merges at the verified head", () => {
   const s = setup({
-    cfg: { autonomy: "send" },
+    cfg: { autonomy: "send", required_checks: ["ci"] },
+    checkRuns: [run1("completed", "success")],
     extraRules: [
       { match: "^pr merge 5 --repo o/r --merge --match-head-commit [0-9a-f]{40}$", responses: [{ stdout: "" }] },
       ({ head, view }) => ({ match: "^pr view 5", responses: [{ json: view }, { json: { ...view, state: "MERGED", mergeCommit: { oid: "m".repeat(40) } } }] }),
@@ -334,6 +354,31 @@ const mergeRules = [
   ({ view }) => ({ match: "^pr view 5", responses: [{ json: view }, { json: { ...view, state: "MERGED", mergeCommit: { oid: "c".repeat(40) } } }] }),
 ];
 
+test("--merge under autonomy send with no required checks refuses unless the config allows it", () => {
+  const s = setup({ cfg: { autonomy: "send" }, extraRules: mergeRules });
+  const refused = s.run("--merge");
+  assert.deepEqual(failChecks(refused), ["no checks"]);
+  assert.match(refused.out, /set allow_merge_without_checks: true/);
+  assert.doesNotMatch(readFileSync(path.join(s.base, "gh.log"), "utf8"), /pr merge/);
+
+  const notTrue = setup({ cfg: { autonomy: "send", allow_merge_without_checks: "yes" }, extraRules: mergeRules }).run("--merge");
+  assert.deepEqual(failChecks(notTrue), ["no checks"], "only the boolean true allows it");
+
+  const allowed = setup({ cfg: { autonomy: "send", allow_merge_without_checks: true }, extraRules: mergeRules }).run("--merge");
+  assert.equal(allowed.code, 0, allowed.out);
+  assert.equal(allowed.json.merge_sha, "c".repeat(40));
+});
+
+test("the merge policy comes from the base config: a PR cannot grant itself a merge", () => {
+  const json = (c) => `${JSON.stringify(c, null, 2)}\n`;
+  // The checkout is the PR head, as a unit worktree is, so the config on disk is the head's.
+  const atHead = (s) => (git(s.root, "checkout", "-q", "cstack/u1"), s);
+  const allow = atHead(setup({ cfg: { autonomy: "send" }, headConfig: (c) => json({ ...c, allow_merge_without_checks: true }), extraRules: mergeRules }));
+  assert.deepEqual(failChecks(allow.run("--merge")), ["no checks"], "a head that sets allow_merge_without_checks is still refused");
+  const send = atHead(setup({ headConfig: (c) => json({ ...c, autonomy: "send", allow_merge_without_checks: true }), extraRules: mergeRules }));
+  assert.deepEqual(failChecks(send.run("--merge")), ["autonomy"], "a head that raises autonomy is still stop");
+});
+
 test("run.json autonomy stop lowers config send: no merge", () => {
   const s = setup({ cfg: { autonomy: "send" }, runJson: { autonomy: "stop" }, env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules });
   const res = s.run("--merge");
@@ -346,7 +391,7 @@ test("run.json autonomy send raises config stop only with CSTACK_PROGRAM_AUTONOM
   assert.deepEqual(failChecks(refused), ["autonomy"], "a run.json written by anyone cannot raise autonomy");
   assert.match(refused.out, /may only lower autonomy/);
 
-  const launched = setup({ runJson: { autonomy: "send" }, env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules }).run("--merge");
+  const launched = setup({ cfg: { allow_merge_without_checks: true }, runJson: { autonomy: "send" }, env: { CSTACK_PROGRAM_AUTONOMY: "send" }, extraRules: mergeRules }).run("--merge");
   assert.equal(launched.code, 0, launched.out);
   assert.equal(launched.json.merge_sha, "c".repeat(40));
   assert.match(launched.out, /send \(run\.json \+ CSTACK_PROGRAM_AUTONOMY\)/);
@@ -363,7 +408,7 @@ test("an unreadable run.json fails closed: no merge even under config send", () 
 
 test("a merge error still counts when GitHub shows it merged at the head; otherwise fails", () => {
   const merged = setup({
-    cfg: { autonomy: "send" },
+    cfg: { autonomy: "send", allow_merge_without_checks: true },
     extraRules: [
       { match: "^pr merge", responses: [{ code: 1, stderr: "GraphQL: timeout" }] },
       ({ view }) => ({ match: "^pr view 5", responses: [{ json: view }, { json: { ...view, state: "MERGED", mergeCommit: { oid: "a".repeat(40) } } }] }),
@@ -373,12 +418,12 @@ test("a merge error still counts when GitHub shows it merged at the head; otherw
   assert.equal(ok.code, 0, ok.out);
   assert.match(ok.out, /reported an error, GitHub shows it merged/);
 
-  const failed = setup({ cfg: { autonomy: "send" }, extraRules: [{ match: "^pr merge", responses: [{ code: 1, stderr: "Head branch was modified" }] }] });
+  const failed = setup({ cfg: { autonomy: "send", allow_merge_without_checks: true }, extraRules: [{ match: "^pr merge", responses: [{ code: 1, stderr: "Head branch was modified" }] }] });
   const bad = failed.run("--merge");
   assert.deepEqual(failChecks(bad), ["merge"]);
   assert.match(bad.out, /Head branch was modified/);
 
-  const silent = setup({ cfg: { autonomy: "send" }, extraRules: [{ match: "^pr merge", responses: [{ code: 1 }] }] });
+  const silent = setup({ cfg: { autonomy: "send", allow_merge_without_checks: true }, extraRules: [{ match: "^pr merge", responses: [{ code: 1 }] }] });
   assert.match(silent.run("--merge").out, /merge failed: OPEN/);
 });
 

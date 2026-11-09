@@ -27,7 +27,7 @@ Infer the need from the message. A named situation, such as "which skill reviews
 
 Check the state that changes the answer, and mention it only when it does:
 
-- No `.cstack/config.json` in the repo means `/cstack:setup-cstack` has not run. Every skill then uses the defaults in `templates/config.json`.
+- No `.cstack/config.json` in the repo means `/cstack:setup-cstack` has not run. The read-only skills (`how`, `blast-radius`, `interrogate`, `review-loop` on a pasted diff) then use the defaults in `templates/config.json`. The run skills (`unit`, `program`, `orchestrate`, `e2e-plan`) stop until setup runs.
 - No `.claude/skills/verify-<app>/` in the repo means agents have no scripted way to drive the app. Mention `cstack:create-verification-skill` when the question is about proving a change works in a browser or a long-running service.
 
 ## Get set up

@@ -144,7 +144,7 @@ When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must s
 
 **After the author ends:**
 
-- `QUESTION E<n>` in the report: the E has no observable surface. Run `cstack:spec` with the question as its only open question, then relaunch the author with the amended spec. Do this once. A second question is failure `invalid_output`.
+- `QUESTION E<n>` in the report: the E has no observable surface. Run `cstack:spec --run <slug> --amend "<question>"`, then relaunch the author with the amended spec. Do this once. A second question is failure `invalid_output`.
 - `E2E_COMMAND_CHANGE`: check that the array prints TAP and stays inside the suite, write it to `<store>/e2e-command.json`, run step 4 again, and relaunch the author with the earlier brief, its report and the new command. Do this once.
 - `git -C <wt> status --porcelain` prints anything: the author left uncommitted files. Relaunch once with that output in the brief.
 - Any other failure: relaunch once with a fresh session, the original brief and the previous report. A second failure is failure `invalid_output`.
@@ -229,7 +229,7 @@ Use this when a merged suite needs new lanes, for example browser lanes after a 
 
 The amendment ships as its own e2e unit, through steps 3 to 8 with these changes:
 
-1. **Spec.** If a new lane tests a new E, amend `spec.md` through `cstack:spec` first. `check-spec.mjs` must pass.
+1. **Spec.** If a new lane tests a new E, amend `spec.md` with `cstack:spec --run <slug> --amend "<the new E>"` first. `check-spec.mjs` must pass.
 2. **Unit.** Pick a unit id `E2E-<name>`, for example `E2E-UI`, with branch `cstack/<N>-e2e-<name>`. Register it on track `e2e`: `<orch> unit add E2E-UI --track e2e --issue <N> --state ready`. Use this id wherever steps 3 to 8 say `E2E`. The gates treat a unit as a suite unit only when its id is `E2E` or `E2E-<name>` and its `units.tsv` row has track `e2e`: `orch ledger record` then accepts its pass by hand, `publish.mjs` pushes its branch, and `check-merge.mjs` skips the review round when every changed file is under the merge base's `paths_hidden`, or is `.cstack/config.json` with only `e2e_command` changed against the merge base. The gate fetches the base branch and the PR head ref, then takes the changed files from a local `git diff --no-renames` against the merge base, not from the forge's list, so a file moved into the suite counts on both sides. A SHA it still cannot find locally means a review is required, and the finding names it. Any other file or config key in the diff, docs included, needs a review round.
 3. **Brief.** Add to the step 5 brief: the unit id for the commit trailer, the lanes to add, and the SHA the existing red-check table ran at. That SHA is the head of the last `approved` row in `<store>/ledger.tsv` for the unit that shipped the existing table (`E2E`, or the previous amendment).
 4. **The author's red check.** Step 6 runs on a base where earlier lanes may already pass. Only the new lanes must FAIL for the right reason. Record the red check in blocks, oldest first:

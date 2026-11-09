@@ -1,6 +1,6 @@
 ---
 name: full-stop
-description: "Do the same work as cstack:full-send for one unit or a whole program, but with autonomy stop for this run: never merge, and end each PR with one verdict (Ready to merge, Waiting for required approval, or Blocked). Use for /cstack:full-stop <issue number | guideline text or path>, or when the user says \"full stop\", even as a closing \"Full stop.\"."
+description: "Do the same work as cstack:full-send for one unit or a whole program, but with autonomy stop for this run: never merge, and end each PR with one verdict (Ready to merge, Waiting for required approval, or Blocked). Use for /cstack:full-stop <issue number | guideline text or path>."
 argument-hint: "<issue number> | <guideline text or path> [--slug <s>] [--parallel=N]"
 disable-model-invocation: true
 ---
@@ -15,7 +15,7 @@ Read [full-send](../full-send/SKILL.md) and follow its steps, proof rules, revie
 
 ## Autonomy stop for this run
 
-In full-send step 2, record `"autonomy": "stop"` in `<store>/run.json`. For a program, pass `--autonomy=stop` to `cstack:program`. `run.json` may always lower autonomy, so the merge gate refuses to merge in this run even when config says `send`. Skip full-send step 3: a lowered autonomy always takes effect. Check it once with `node <root>/gates/run-settings.mjs --store <store>`, which must print `autonomy stop`.
+In full-send step 2, record `"autonomy": "stop"` in `<store>/run.json`. For a program, follow [program](../program/SKILL.md) in this session with `--autonomy=stop` in place of `--autonomy=send`. `run.json` may always lower autonomy, so the merge gate refuses to merge in this run even when config says `send`. Skip full-send step 3: a lowered autonomy always takes effect. Check it once with `node <root>/gates/run-settings.mjs --store <store>`, which must print `autonomy stop`.
 
 ## No merging
 

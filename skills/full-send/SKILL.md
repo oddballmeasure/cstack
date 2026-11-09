@@ -1,6 +1,6 @@
 ---
 name: full-send
-description: "Run one cstack unit or a whole program unattended to a merged result, with autonomy send for this run only: merge through the merge gate, --force-with-lease on the run's own branches, any test method proof needs. Use for /cstack:full-send <issue number | guideline text or path>, or when the user says \"full send\"."
+description: "Run one cstack unit or a whole program unattended to a merged result, with autonomy send for this run only: merge through the merge gate, --force-with-lease on the run's own branches, any test method proof needs. Use for /cstack:full-send <issue number | guideline text or path>."
 argument-hint: "<issue number> | <guideline text or path> [--slug <s>] [--parallel=N]"
 disable-model-invocation: true
 ---
@@ -42,7 +42,7 @@ Rules about how to test still apply. Follow rules that name the correct command,
 3. **Check that the grant reaches the merge gate.** For a unit, run `node <root>/gates/run-settings.mjs --store <store>`. For a program, `cstack:program` runs it at step 0. `run.json` raises autonomy to `send` only when the human launched this session with `CSTACK_PROGRAM_AUTONOMY=send`. When the output says `autonomy stop`, the merge gate will refuse. Say so first in your report, with the fix: relaunch Claude Code as `CSTACK_PROGRAM_AUTONOMY=send claude` and run this again. Then continue under `cstack:full-stop` rules, so the work still ends merge-ready.
 4. **Run it.**
    - A unit: `cstack:unit <N>`. It proves, verifies, files the PR, babysits it, runs the review loop, and merges through `cstack:merge-gate`.
-   - A program: `cstack:program <guideline> --autonomy=send [--slug <s>] [--parallel=N]`. Plan approval (H2) is skipped. Spec approval (H1) is one batched question with defaults. In a headless run the defaults are taken and logged.
+   - A program: read [program](../program/SKILL.md) and follow it in this session with the arguments `<guideline> --autonomy=send [--slug <s>] [--parallel=N]`. `cstack:program` is user-only, so the Skill tool cannot start it. Plan approval (H2) is skipped. Spec approval (H1) is one batched question with defaults. In a headless run the defaults are taken and logged.
 5. **Report** in your final message: each PR link and merge commit, the proof, and each decision you made for the user. For a program, the program's final report is the report.
 
 Stay active from step 1 to step 5. If you end your turn while checks, workers or reviews are pending, the work stops, because nobody prompts you again. Wait under the `Monitor` tool on the watcher the owning skill names (`gates/pr-wait.mjs` for a PR, `gates/inbox-wait.mjs` for a program). Never a sleep loop.
@@ -51,7 +51,7 @@ Stay active from step 1 to step 5. If you end your turn while checks, workers or
 
 Proof is evidence you observed yourself in this session: command output, a reproduction, a screenshot. `cstack:prove` and `cstack:verify-head` hold the rules. A non-author verifier judges every head, and the hidden e2e suite judges every lane through `gates/run-e2e.mjs`. Green mocked tests do not prove that the user experience works.
 
-When you cannot prove a change, you do not have full confidence. Ask the user.
+When you cannot prove a change, you do not have full confidence. Leave the PR unmerged and ask per **Asking the user**.
 
 ## Merge gate
 

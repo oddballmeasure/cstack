@@ -141,6 +141,10 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     "Edit(~/.claude/**)", "Edit(~/.config/**)", "Edit(~/.bashrc)", "Edit(~/.zshrc)", "Edit(~/.profile)", "Edit(~/.local/bin/**)",
     // The config decides autonomy and hidden paths; a person edits it (the guard also blocks this).
     `Edit(${abs(repoRoot)}/.cstack/config.json)`,
+    // A store's human gates and standing orders: only a person answers a gate or lifts a STOP (orch.mjs HUMAN_ONLY).
+    // The store allow above would let any role edit them as files. An Edit rule covers every file-writing tool,
+    // Write included. Known gap: a Bash write (`printf >>`, or `node <script>` that imports gates/lib/store.mjs).
+    ...["gates.md", "preferences.md"].flatMap((f) => [`Edit(${abs(runs)}/*/${f})`, `Edit(${abs(runs)}/**/${f})`, `Edit(//tmp/cstack-*/${f})`, `Edit(//tmp/cstack-*/**/${f})`]),
     // Privilege, remote shells, downloads and network tools. cstack's own ssh deploy runs as a gate subprocess.
     "Bash(sudo *)", "Bash(su *)", "Bash(ssh *)", "Bash(scp *)", "Bash(rsync *)", "Bash(curl *)", "Bash(wget *)", "Bash(nc *)",
     "WebFetch", "WebSearch",
@@ -159,14 +163,21 @@ export function permissionSettings(role, { pluginRoot, repoRoot, home, config = 
     const writes = ["change create", "change edit", "change ready", "change comment", "checks rerun", "thread reply", "thread resolve", "issue create", "issue edit", "issue comment", "labels ensure"];
     deny.push(...writes.map((v) => `Bash(node ${plugin}/gates/forge.mjs ${v} *)`));
   }
-  // Only a person resolves a human gate (H2, a plan's gate:<id>). A session cstack launches has no one to ask, so
-  // it may park a gate but never answer one. The literal forms name orch.mjs through a prefix longer than the
+  // Only a person resolves a human gate (H2, a plan's gate:<id>) or lifts a standing order (a STOP line from
+  // cstack:pause-safely). A session cstack launches has no one to ask, so it may park a gate or add an order, but
+  // never answer the one or remove the other. The literal forms name orch.mjs through a prefix longer than the
   // `node <plugin>/*` allow rule. The catch-all starts with `*`, which the Codex guard never lets an allow override,
   // and still needs orch.mjs before `gate resolve`, so a commit message or PR body that only mentions it passes.
+  // orch.mjs strips flags before it reads the command, so `gate --json resolve` is the same call: a second
+  // catch-all matches a flag between the two words without blocking `gate list` or `standing add`. orch.mjs also
+  // refuses both verbs itself in a headless session (HUMAN_ONLY there).
   // Known gaps: `bash -c`, `node -e`, and in Claude Code (which does not fold whitespace) `gate  resolve`.
   const orch = [`${plugin}/gates/orch.mjs`, "gates/orch.mjs", "./gates/orch.mjs", "*/orch.mjs", "orch.mjs"];
   const launchers = ["node ", "node * ", ""];
-  deny.push(...orch.flatMap((o) => launchers.flatMap((l) => [`Bash(${l}${o} gate resolve *)`, `Bash(${l}${o} * gate resolve *)`])), "Bash(*orch.mjs* gate resolve*)");
+  for (const [noun, act] of [["gate", "resolve"], ["standing", "remove"]]) {
+    const verb = `${noun} ${act}`;
+    deny.push(...orch.flatMap((o) => launchers.flatMap((l) => [`Bash(${l}${o} ${verb} *)`, `Bash(${l}${o} * ${verb} *)`])), `Bash(*orch.mjs* ${verb}*)`, `Bash(*orch.mjs* ${noun} -* ${act}*)`);
+  }
   // Only a coordinator starts or stops detached sessions, through systemd-run or the host supervisor.
   if (role !== "coordinator") {
     deny.push("Bash(systemd-run *)", ...["start", "stop", "daemon-run"].map((c) => `Bash(node ${plugin}/gates/supervise.mjs ${c} *)`));

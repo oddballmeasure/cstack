@@ -57,12 +57,57 @@ test("no headless role may resolve a human gate, in any command form; parking an
     "node ../cstack/gates/orch.mjs gate resolve PROTO --answer approve",
     "node orch.mjs gate resolve PROTO --answer approve",
     "node orch.mjs --store /s gate resolve PROTO --answer approve",
+    "node /opt/cstack/gates/orch.mjs gate --json resolve PROTO --answer approve",
+    "node /opt/cstack/gates/orch.mjs --store /s gate --force resolve PROTO --answer approve",
+    "node orch.mjs gate --store /s resolve H2 --answer approve",
   ];
   for (const role of ROLES) {
-    const deny = perms(role, {}, { worktree: "/wt/e2e" }).deny.filter((r) => r.includes("gate resolve"));
+    const deny = perms(role, {}, { worktree: "/wt/e2e" }).deny.filter((r) => r.includes("orch.mjs") && r.includes("resolve"));
     for (const cmd of resolve) assert.ok(deny.some((r) => matches(r, cmd)), `${role} refuses ${cmd}`);
     for (const cmd of ['git commit -m "Hold units until a person runs gate resolve"', 'gh pr create --body "run gate resolve <id> --answer approve"', "node /opt/cstack/gates/orch.mjs --store /s gate list", "node /opt/cstack/gates/orch.mjs --store /s gate park PROTO --question q --options approve|reject --default reject"]) {
       assert.ok(!deny.some((r) => matches(r, cmd)), `${role} may run ${cmd}`);
+    }
+  }
+});
+
+test("no headless role may remove a standing order, in any command form; adding and showing stay allowed", WIN_PERMS, () => {
+  const matches = (rule, cmd) => new RegExp(`^${rule.slice(5, -1).split("*").map((t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`).test(cmd);
+  const remove = [
+    "node /opt/cstack/gates/orch.mjs --store /s standing remove 1",
+    "node /opt/cstack/gates/orch.mjs standing remove 2",
+    "node --no-warnings /opt/cstack/gates/orch.mjs --run r standing remove 1",
+    "/opt/cstack/gates/orch.mjs --store /s standing remove 1",
+    "node gates/orch.mjs --store /s standing remove 1",
+    "node ./gates/orch.mjs standing remove 1",
+    "node ../cstack/gates/orch.mjs standing remove 1",
+    "node orch.mjs standing remove 1",
+    "node /opt/cstack/gates/orch.mjs standing --json remove 1",
+    "node /opt/cstack/gates/orch.mjs --store /s standing --force remove 1",
+    "node orch.mjs standing --store /s remove 1",
+  ];
+  for (const role of ROLES) {
+    const deny = perms(role, {}, { worktree: "/wt/e2e" }).deny.filter((r) => r.includes("orch.mjs") && r.includes("remove"));
+    for (const cmd of remove) assert.ok(deny.some((r) => matches(r, cmd)), `${role} refuses ${cmd}`);
+    for (const cmd of ["node /opt/cstack/gates/orch.mjs --store /s standing show", 'node /opt/cstack/gates/orch.mjs --store /s standing add "STOP: paused"', 'git commit -m "Tell the human to run standing remove"']) {
+      assert.ok(!deny.some((r) => matches(r, cmd)), `${role} may run ${cmd}`);
+    }
+  }
+});
+
+test("no headless role may edit a store's gates.md or preferences.md as a file", WIN_PERMS, () => {
+  // Gitignore-style globs, as Claude Code reads Edit rules: `**/` is any number of directories, `*` stays in one.
+  const glob = (g) => g.split("**/").map((part) => part.split("*").map((t) => t.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("[^/]*")).join("(?:.*/)?");
+  const matches = (rule, file) => new RegExp(`^${glob(rule.slice(5, -1)).replace(/\[\^\/\]\*\[\^\/\]\*$/, ".*")}$`).test(file);
+  const files = ["//src/app/.cstack/runs/r1/gates.md", "//src/app/.cstack/runs/issue-7/preferences.md", "//tmp/cstack-store-x/gates.md", "//tmp/cstack-run/r1/preferences.md"];
+  for (const role of ROLES) {
+    const p = perms(role, {}, { worktree: "/wt/e2e" });
+    const deny = p.deny.filter((r) => r.startsWith("Edit("));
+    for (const f of files) {
+      assert.ok(deny.some((r) => matches(r, f)), `${role} may not edit ${f}`);
+      assert.ok(p.allow.some((r) => r.startsWith("Edit(") && matches(r, f)), `the deny, not a missing allow, refuses ${f} for ${role}`);
+    }
+    for (const f of ["//src/app/.cstack/runs/r1/units.tsv", "//src/app/.cstack/runs/r1/decisions.tsv", "//tmp/cstack-store-x/inbox/1.json"]) {
+      assert.ok(!deny.some((r) => matches(r, f)), `${role} may edit ${f}`);
     }
   }
 });

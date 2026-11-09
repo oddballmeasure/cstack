@@ -1,7 +1,7 @@
 ---
 name: spec
 description: "Use when cstack needs a spec from a guideline prompt (text or a file path), for example at step 1 of a program run. Writes <store>/spec.md per templates/spec.md: problem, users, goals, non-goals, requirements R1..Rn, e2e requirements E1..En with Covers lines, constraints and a measurable done predicate. Batches every open question into one AskUserQuestion call with a default per question (headless: takes the defaults and logs them). Ends when gates/check-spec.mjs passes."
-argument-hint: "<guideline text or path> [--run <slug>]"
+argument-hint: "<guideline text or path> [--run <slug>] [--approval-question] [--amend <question or change>]"
 ---
 
 # Spec
@@ -25,7 +25,7 @@ Shell variables do not persist between Bash calls. Resolve each name once and wr
 ## Procedure
 
 1. Read the [cstack mode skill](../cstack/SKILL.md) and the template `<root>/templates/spec.md`. The template's comment block is the format contract. Keep its eight `## ` headings, spelled exactly.
-2. **Read the guideline.** If the argument is a readable file path, read the file. Else the argument is the guideline text. Copy it unchanged to `<store>/guideline.md` so a resumed run starts from the same words. If `<store>/spec.md` already exists and passes the gate, report it and stop. Do not rewrite an approved spec.
+2. **Read the guideline.** If the argument is a readable file path, read the file. Else the argument is the guideline text. Copy it unchanged to `<store>/guideline.md` so a resumed run starts from the same words. If `<store>/spec.md` already exists and passes the gate: with `--amend <question or change>`, edit only what the amendment needs, keep every existing R and E id, ask its open question (if any) as the only question, run the gate (step 6) and log the change (step 7). Without `--amend`, report the spec and stop. Do not rewrite an approved spec.
 3. **Read the repo to ground constraints.** Use it only for facts the spec must respect: language and runtime version, test command, entry points that already exist, config `paths_hidden`, and anything the guideline names. Read `<repo>/.cstack/profile.json` if it exists. For a question the profile cannot answer, use `cstack:how`. Explorers read code only inside a sparse worktree made by `gates/isolate.mjs`, never in the main checkout, so they never see `paths_hidden`. For an empty or new repo, skip this step and say so in the decision log.
 4. **Write the spec** to `<store>/spec.md`. Follow **Writing each section**.
 5. **Collect open questions** (see **Open questions**). Ask them in one batch, or take the defaults in a headless run. Apply the answers to the spec.
@@ -73,6 +73,7 @@ An open question is a product or preference call that changes a requirement, a n
 Gather every open question first, then ask once.
 
 - Put all of them in **one** `AskUserQuestion` call. Never ask a second time in this skill. The tool takes at most 4 questions per call. With more than 4, ask the 4 that change the most requirements, and take the defaults for the rest.
+- With `--approval-question` (from `cstack:program`, gate H1), the first question is "Approve this spec as written, with the defaults below?" with the default "Approve (default)". That leaves 3 slots for open questions. Ask it even when there are no open questions. If the human changes something, apply it before step 6.
 - Every question has a default. Write the spec with the defaults first, so the spec is complete before you ask. Make the default the first option and end its label with `(default)`.
 - Each option says what changes in the spec, for example "R4 rejects amounts above 1,000,000 with exit 2".
 

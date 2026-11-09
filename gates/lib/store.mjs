@@ -870,6 +870,17 @@ export function openStore(directory, options = {}) {
       atomicWrite(path.join(dir, "preferences.md"), `${rows.map((r) => `${r.number}. ${r.line}`).join("\n")}\n`);
       return rows.at(-1);
     },
+    // Removes order n and renumbers the rest, so the file keeps the 1..n numbering readStanding requires.
+    remove(p) {
+      beginWrite();
+      const n = positiveInteger(p.number, "standing order number");
+      const rows = readStanding(dir);
+      if (n > rows.length) throw new UsageError(`no standing order ${n}`);
+      const [removed] = rows.splice(n - 1, 1);
+      const kept = rows.map((r, i) => ({ number: i + 1, line: r.line }));
+      atomicWrite(path.join(dir, "preferences.md"), kept.length ? `${kept.map((r) => `${r.number}. ${r.line}`).join("\n")}\n` : "");
+      return removed;
+    },
   };
 
   const status = {

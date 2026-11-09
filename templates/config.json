@@ -10,6 +10,7 @@
   ],
   "e2e_command": null,
   "required_checks": [],
+  "allow_merge_without_checks": false,
   "paths_off_limits": [
     ".github/workflows/**"
   ],

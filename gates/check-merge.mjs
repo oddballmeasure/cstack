@@ -11,7 +11,11 @@
 // CSTACK_PROGRAM_AUTONOMY=send (gates/lib/run.mjs). It runs
 // the forge's merge at exactly that SHA with a merge commit (`gh pr merge --merge --match-head-commit <sha>` on GitHub)
 // as a subprocess (the guard hook blocks the model from doing that). A merge command that reports an error still
-// counts when the forge shows the change merged at the verified head.
+// counts when the forge shows the change merged at the verified head. With no required_checks it refuses to
+// merge unless config allow_merge_without_checks is true, so an unset list never means "merge with no CI".
+// The merge policy (required_checks, allow_merge_without_checks, autonomy, docs_paths) comes from the config at the
+// PR's base SHA, never from the checkout, which may be the PR head: a PR cannot grant itself a merge or a docs-only
+// pass. A missing or malformed config there fails, and the gate judges with the strictest policy.
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync, readFileSync } from "node:fs";
@@ -89,6 +93,15 @@ function missingShas(repoDir, forge, pr, p) {
   return shas.length ? { shas, fetched } : null;
 }
 
+// The parsed .cstack/config.json at a commit, or null when it is missing, unreadable or not JSON.
+function configAt(repoDir, rev) {
+  try {
+    return JSON.parse(gitOut(repoDir, ["show", `${rev}:${CONFIG}`]));
+  } catch {
+    return null;
+  }
+}
+
 function suiteUnit(store, id) {
   try {
     const s = openStore(store);
@@ -112,6 +125,14 @@ await main(async (argv) => {
   const gate = new Gate("check-merge", { json: args.json });
 
   const p = forge.change(pr);
+
+  // Fetch the base first: the merge policy reads the config at the base SHA, and the base check below needs the tip.
+  const fetch = fetchRef(repoDir, p.base);
+  const baseConfig = configAt(repoDir, p.baseSha);
+  // null, a JSON array, a string or a number has no required_checks list, so each fails here.
+  const policyOk = Array.isArray(baseConfig?.required_checks);
+  if (!policyOk) gate.fail("config", `cannot read a valid ${CONFIG} (an object with a required_checks list) at the base ${String(p.baseSha).slice(0, 12)}; the merge policy comes from the base, never from the PR`);
+  const policy = policyOk ? baseConfig : { required_checks: [], docs_paths: [], autonomy: "stop" };
   const sha = p.head;
   gate.check(p.state === "open" && !p.draft, "pr state", `open at ${sha.slice(0, 12)}`, `state ${p.state.toUpperCase()}${p.draft ? " (draft)" : ""}`);
 
@@ -122,13 +143,13 @@ await main(async (argv) => {
   // Review loop (unit stage 10b): a diff that touches more than docs needs an APPROVE round at this exact
   // head and no open blocker or should finding. The files come from cstack:review-loop.
   const store = args.store || path.join(repoDir, ".cstack", "runs", process.env.CSTACK_RUN || "");
-  // A docs-only diff needs no review. Docs are config docs_paths when it is a list ([] means none), else isDoc. The forge's list can only
+  // A docs-only diff needs no review. Docs are the base config's docs_paths when it is a list ([] means none), else isDoc. The forge's list can only
   // rule the exemption out; the local diff decides it.
   // A suite unit (PR #0, or a later amendment that adds lanes) holds only the hidden suite and the config
   // line that runs it. A reviewer may not read paths_hidden, so check-e2e, the red check and the mutation
   // spot-check judge it instead. It needs the id, the units.tsv row on track e2e, and a diff that passes
   // suiteDiff, so a product unit cannot claim the exemption. An unreadable store means a review is required.
-  const isDocFile = docTest(config);
+  const isDocFile = docTest(policy);
   const forgeDocs = p.files.every(isDocFile);
   const suite = suiteUnit(store, args.unit);
   const missing = forgeDocs || suite ? missingShas(repoDir, forge, pr, p) : null;
@@ -157,7 +178,7 @@ await main(async (argv) => {
     );
   }
 
-  const required = config.required_checks;
+  const required = policy.required_checks;
   if (required.length) {
     let checks = null;
     try {
@@ -186,7 +207,6 @@ await main(async (argv) => {
   gate.check(p.merge === "clean", "merge state", p.mergeRaw, `${p.mergeRaw}${p.merge === "unknown" ? ` (${forge.name} still computing; retry)` : ""}`);
 
   // Base moved since the PR was based: refuse if the new base commits touch the PR's files.
-  const fetch = fetchRef(repoDir, p.base);
   if (fetch.code !== 0) gate.fail("base", `git fetch failed: ${fetchError(fetch)}`);
   else {
     const tip = git(repoDir, ["rev-parse", `origin/${p.base}`]).stdout.trim();
@@ -202,9 +222,11 @@ await main(async (argv) => {
 
   let merged = null;
   if (args.merge && gate.approved) {
-    const autonomy = effectiveAutonomy(config, store);
+    const autonomy = effectiveAutonomy(policy, store);
     if (autonomy.level !== "send") {
       gate.fail("autonomy", `autonomy is stop (${autonomy.source}${autonomy.note ? `; ${autonomy.note}` : ""}); the PR is merge-ready and a human merges it`);
+    } else if (!required.length && policy.allow_merge_without_checks !== true) {
+      gate.fail("no checks", "required_checks is empty, so nothing proves CI ran on this head; set required_checks, or set allow_merge_without_checks: true in .cstack/config.json to merge with no CI. A human may merge it");
     } else {
       gate.pass("autonomy", `send (${autonomy.source})`);
       const m = forge.merge(pr, sha);

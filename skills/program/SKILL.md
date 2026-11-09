@@ -102,8 +102,8 @@ The pending-work Stop hook guards this session only when `CSTACK_COORDINATOR=1` 
 ### 1. Frame (gate H1)
 
 1. If the guideline is thin (no goals, or no observable behaviour), run `cstack:sharpen` on it first. Log it.
-2. Run `cstack:spec <guideline> --run <slug>`.
-3. **H1 is the spec's one question batch.** Add "Approve this spec as written, with the defaults below?" as the first question in the `AskUserQuestion` call that `cstack:spec` makes. Its default is "Approve (default)". That leaves room for 3 open questions. Do not ask a second time. If the human changes something, apply it, run `gates/check-spec.mjs` again, and log the change.
+2. Run `cstack:spec <guideline> --run <slug> --approval-question`.
+3. **H1 is the spec's one question batch.** With `--approval-question`, `cstack:spec` asks "Approve this spec as written, with the defaults below?" first in its one `AskUserQuestion` call, even with no open questions. Do not ask a second time. If the human changes something, `cstack:spec` applies it, runs `gates/check-spec.mjs` again, and logs the change.
 4. **Headless.** There is no `AskUserQuestion` under `claude -p`. Take every default, H1's approval included, and log each one with result `default`. List them first in the final report, so the human can overturn one.
 
 Gate: `node <root>/gates/check-spec.mjs <store>/spec.md` exits 0. Fail: `cstack:spec` already retried twice, so this is failure `invalid_output`. Report and stop.

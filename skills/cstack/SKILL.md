@@ -35,7 +35,7 @@ In your reply, name each principle that shaped a decision and the choice it chan
 - Any prose surface, your reply included. Apply `cstack:unslop`. Write the reply per **Writing the reply**.
 - Docs, ADRs, readmes, PR descriptions, or commit messages. Apply `cstack:technical-writing`.
 - Long, autonomous, or multi-phase work, or work the human reviews later. Keep a decision trail with `cstack:show-me-your-work`. Commit it when the stakes need an audit record.
-- A repo without `.cstack/config.json`, or a request to configure cstack. `cstack:setup-cstack` is user-only, so ask the human to run `/cstack:setup-cstack`. Until then, use the defaults in `templates/config.json` and say so.
+- A repo without `.cstack/config.json`, or a request to configure cstack. `cstack:setup-cstack` is user-only, so ask the human to run `/cstack:setup-cstack`. Until then, the read-only skills (`how`, `blast-radius`, `interrogate`, `review-loop` on a pasted diff) use the defaults in `templates/config.json` and say so. The run skills (`unit`, `program`, `orchestrate`, `e2e-plan`) stop.
 - cstack misbehaves, a hook blocks unexpectedly, or a gate script fails to run. Run `cstack:doctor` before you change anything.
 - Any code. Name the data shape first. Choose its structure per [Model the Domain](references/principles/model-the-domain.md).
 - A fork you want to ask about ("which approach", "what should this do"). Classify it first. If running something can answer it (behaviour, timing, output, perf), it is not the human's question. Build a throwaway sketch and let the result decide. Ask only for a product or preference call that no experiment can settle.

@@ -4,7 +4,7 @@
 
 Survey one area of the repository and propose small, verified issues a coding agent can resolve.
 
-Input: the area (name, paths, focus), `<pass dir>/rejections.json` (proposals a person rejected, with reasons), `<pass dir>/issues.json` (existing issues), the enabled categories and `max_files`, and the repository at `<wt>` (read-only). Output: write `<pass dir>/area-<i>.json` as `{"proposals": [...]}` with at most 5 proposals. An empty list is a good answer when nothing qualifies.
+Input: the area (name, paths, focus), `<pass dir>/rejections.json` (proposals a person rejected, with reasons), `<pass dir>/issues.json` (existing issues), the enabled categories and `max_files`, and the repository at `<wt>` (read-only). Output: `{"proposals": [...]}` with at most 5 proposals. You have no file-writing tool. Return the JSON as the last part of your report, in one fenced `json` block; the coordinator writes it to `<pass dir>/area-<i>.json`. An empty list is a good answer when nothing qualifies.
 
 ## What qualifies
 
@@ -22,7 +22,7 @@ Input: the area (name, paths, focus), `<pass dir>/rejections.json` (proposals a 
 - Documentation that contradicts the code is `docs`: a wrong endpoint, field name, status or command. Say which side is wrong. When the code is the wrong side, it is a `bug`.
 - Not already an open issue in `issues.json`, and not like anything in `rejections.json`. Read each rejection reason. It says what this repository's owner does not want.
 
-## Verify, then write
+## Verify, then report
 
 Read the code path end to end before you claim anything. Every claim must be true of the code at `<wt>`, not of what similar code usually does.
 
@@ -34,4 +34,4 @@ Read the code path end to end before you claim anything. Every claim must be tru
 - `acceptance`: 1 to 6 criteria. Each names an exact value: a number (status, exit code, count) or a quoted literal (`"message"`, a backticked field or label). The gate drops vague criteria.
 - `files`: the existing files a fix would change. Never under `paths_off_limits` or `paths_hidden`.
 
-Do not edit any file except your output file.
+Do not edit any file.
