@@ -38,7 +38,7 @@ Edit only the verification skill's own directory: its `SKILL.md`, `features/`, a
    2. The evidence captured so far survives every cleanup. Check it at its named location. Do not assume.
    3. Nothing a drive started outlives its use. Clean failed-iteration residue whether the session is stuck, exited or shared. For a shared instance, clean the residue, not the instance.
 
-   A doctor failure caused by skill drift is drift. Fix it under the edit scope and retry once. Restart only what the fix invalidated. Then call the pass `blocked`.
+   A doctor failure caused by skill drift is drift. Fix it under the edit scope and retry once. Restart only what the fix invalidated. If the retry still fails, call the pass `blocked`.
 
    A feature you cannot reach is `verified-unreachable` only with the concrete prerequisite (auth, entitlement, OS, external state) and the route you tried. If the map omits that prerequisite, that is drift.
 

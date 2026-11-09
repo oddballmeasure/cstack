@@ -43,6 +43,7 @@ For a SYNC ticket, the merge is already in progress. Resolve the markers as the 
 - Never rebase, reset, amend an earlier commit, or force anything. Fix forward with new commits.
 - Never claim a test passed unless you saw it pass in this session.
 - Never widen scope. Note extras in your report as follow-ups.
+- Never start subagents. You are the one worker for this ticket, and the coordinator counts attempts per worker.
 
 ## Report
 

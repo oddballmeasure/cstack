@@ -22,7 +22,7 @@ Open a TodoWrite list with one entry per phase before you start: 1 Ground, 2 Ske
 
 Build a real model of every system the new code touches. Run `cstack:how` over the relevant subsystems. Naming a file is not grounding. Produce the explanation `cstack:how` prescribes. If the design redefines ownership or layering, read the history of the existing shape too (`git log` on its files, the PRs that made it), so its rationale becomes a constraint, not a guess.
 
-Explorers read code only in a sparse worktree from `gates/isolate.mjs`, never in a checkout that holds `paths_hidden`.
+Inside a run, explorers read the unit's isolated worktree from `gates/isolate.mjs`. Outside a run, they follow `cstack:how`: list `paths_hidden` under FORBIDDEN and check `git status` afterward.
 
 Skip Phase A only for greenfield work with no surrounding system.
 

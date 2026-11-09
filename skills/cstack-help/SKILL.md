@@ -94,7 +94,7 @@ The unit stages (`cstack:intake`, `cstack:implement-ticket`, `cstack:repair`, `c
 
 Close calls:
 
-- `cstack:review-loop` gates a merge: one reviewer per round on a different model, with a ledger. `cstack:council` gives three scored opinions and changes nothing. `cstack:interrogate` attacks a change from several angles and changes nothing.
+- `cstack:review-loop` gates a merge: one reviewer per round on a different model, with a ledger. `cstack:council` gives three scored opinions. Its members change nothing. The lead applies only the fixes it agrees with, then convenes a new round. `cstack:interrogate` attacks a change from several angles and changes nothing.
 - `cstack:interrogate` reviews the diff. `cstack:blast-radius` looks for breakage outside the diff.
 - `cstack:resume-run` continues a run. `cstack:status` only reports on it.
 
