@@ -156,10 +156,17 @@ export function local(config, cwd) {
       if (!rec) return [];
       return [{ name: rec.name, id: sha, status: rec.status, conclusion: rec.conclusion, started_at: rec.started_at, url: f, details_url: f, output: null, state: rec.conclusion === "success" ? "pass" : "fail" }];
     },
-    checkTail(check, lines) {
+    checkLog(check) {
       const f = file("checks", check.id);
       const log = existsSync(f) ? JSON.parse(readFileSync(f, "utf8")).log : "(no log)";
-      return (log.trimEnd() || "(no output)").split("\n").slice(-lines).join("\n");
+      return log.trimEnd() || "(no output)";
+    },
+    checkTail(check, lines) {
+      return this.checkLog(check).split("\n").slice(-lines).join("\n");
+    },
+    // ci_command runs here, so a failed check is always the project's own.
+    checkJob() {
+      return null;
     },
     rerunHandle(check) {
       return check.id ?? null;

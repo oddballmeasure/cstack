@@ -1,0 +1,18 @@
+2026-11-08T21:20:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T21:20:00.1000000Z Complete job name: test
+2026-11-08T21:20:00.2000000Z ##[group]Run actions/checkout@v4
+2026-11-08T21:20:00.2000000Z ##[endgroup]
+2026-11-08T21:20:01.0000000Z ##[group]Run actions/setup-node@v4
+2026-11-08T21:20:01.0000000Z with:
+2026-11-08T21:20:01.0000000Z   node-version: 22
+2026-11-08T21:20:01.0010000Z ##[endgroup]
+2026-11-08T21:20:02.0000000Z Found in cache @ /opt/hostedtoolcache/node/22.11.0/x64
+2026-11-08T21:20:02.5000000Z ##[group]Run npm test
+2026-11-08T21:20:02.5000000Z npm test
+2026-11-08T21:20:02.5000000Z shell: /usr/bin/bash -e {0}
+2026-11-08T21:20:02.5010000Z ##[endgroup]
+2026-11-08T21:20:05.0000000Z not ok 3 - parses an empty ledger
+2026-11-08T21:20:05.0000000Z   Error: ENOENT: no such file or directory, open 'ledger.json'
+2026-11-08T21:20:05.1000000Z # fail 1
+2026-11-08T21:20:05.2000000Z ##[error]Process completed with exit code 1.
+2026-11-08T21:20:05.3000000Z Post job cleanup.

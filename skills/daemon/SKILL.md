@@ -64,7 +64,7 @@ Interactive, for a trial: start Claude Code in the repo as `CSTACK_COORDINATOR=1
 
 Headless, as a service on macOS or Windows: run `node <root>/gates/supervise.mjs daemon-file --repo-dir <repo>`. It writes a launchd agent (macOS) or a Task Scheduler command (Windows) under `<repo>/.cstack/daemon/` and prints the one install command for the human to run. The service runs `supervise.mjs daemon-run`, which writes the coordinator allowlist and then runs the same `claude -p "/loop 10m /cstack:daemon"` session as the systemd unit. A LaunchAgent runs only while the user is logged in. A Task Scheduler task needs the user logged in, unless they store a password for it themselves.
 
-Headless, as a service on Linux: copy [the systemd user unit](references/cstack-daemon@.service) to `~/.config/systemd/user/`, edit the plugin path, then:
+Headless, as a service on Linux: copy [the systemd user unit](references/cstack-daemon@.service) to `~/.config/systemd/user/`, check the plugin path (see **Plugin path**), then:
 
 ```sh
 systemctl --user daemon-reload
@@ -73,6 +73,15 @@ loginctl enable-linger "$USER"
 ```
 
 The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `--permission-mode dontAsk` and the coordinator allowlist that `ExecStartPre` writes to `.cstack/permissions/coordinator.json` (no permission bypass), `CSTACK_COORDINATOR=1`, `CSTACK_HEADLESS=1`, an explicit `PATH`, and `ANTHROPIC_API_KEY`, `ANTHROPIC_AUTH_TOKEN` and `CSTACK_PROGRAM_AUTONOMY` unset, so the daemon and its workers bill the subscription and the run's autonomy comes from config. Read its log with `journalctl --user -u 'cstack-daemon@*'`.
+
+### Plugin path
+
+`CSTACK_PLUGIN` in the unit names the plugin root that the daemon loads with `--plugin-dir`. Point it at a path that follows plugin updates:
+
+- **Installed from a marketplace.** Use Claude Code's clone of the marketplace, `~/.claude/plugins/marketplaces/<marketplace>` (`%h/.claude/plugins/marketplaces/cstack` for cstack's own marketplace, the unit's default). cstack's marketplace lists the plugin at the repo root, so the clone is the plugin root. `claude plugin update` and marketplace updates move it. `~/.claude/plugins/installed_plugins.json` records each installed version and its `installPath`.
+- **A git checkout.** Use the checkout. `git pull` updates it.
+
+Never use the versioned cache directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`. Claude Code installs each update into a new directory and leaves the old one, so the daemon keeps running the old version. `cstack:doctor` warns when the version under `CSTACK_PLUGIN` differs from the installed version. The marketplace clone can run ahead of the installed version when the marketplace refreshes before the plugin updates. Run `claude plugin update`, then restart the unit with `systemctl --user restart "cstack-daemon@<escaped repo path>.service"`. A running daemon loads the new version only when it restarts.
 
 Not live-tested yet: whether a headless `claude -p` session stays alive under `/loop` between firings. If it exits after the first tick, the unit's `Restart=always` with `RestartSec=600` still gives about a 10-minute cadence, one tick per start, with doctor once per start.
 

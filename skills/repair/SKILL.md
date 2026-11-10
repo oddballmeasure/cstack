@@ -128,7 +128,7 @@ Title: Make the required CI checks pass.
 
 > The branch passed the repository's test command here, but a CI check failed on the pushed commit <sha12>. CI differs from local: fix the cause, do not skip the test. CI runs in a different environment (often Linux, a different language build, a different clock or timezone), so look for code or tests that depend on the machine. Fix the cause shown in the log. Do not weaken or skip the failing test.
 
-Then the `ci-log.mjs` output, one block per failed check.
+Then the `ci-log.mjs` output, one block per failed check of kind `project`. A check of kind `infra` failed before the repo's own steps ran. It never becomes a CI-REPAIR ticket: `cstack:babysit-pr` re-runs it once, then settles the unit as needs a decision.
 
 Acceptance: `The failure shown in the CI log is fixed at its cause`, `The repository's test command passes`.
 

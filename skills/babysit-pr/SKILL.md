@@ -73,11 +73,15 @@ Review bots such as CodeRabbit are advisory. Treat their findings like any other
 pr-wait reports a failed check and exits 1. Collect the failure:
 
 ```bash
-node <root>/gates/ci-log.mjs <pr> --repo-dir <worktree>
+node <root>/gates/ci-log.mjs <pr> --repo-dir <worktree> --rerun --json
 ```
 
-- **Infrastructure flake.** The log shows a runner, network or quota error, not a test or build failure in this repo. Re-run the failed checks once with `node <root>/gates/forge.mjs checks rerun <head sha>`. Log the decision. A second flake on the same check counts as a real failure.
-- **Real failure.** Run `cstack:repair` with source `ci` and the ci-log output verbatim. It counts against `limits.ci_repair_rounds` and returns `retry CI-REPAIR-<n>` (the unit goes back to stage 5) or `exhausted ci_failed` (the unit fails).
+ci-log marks each failed check `project` or `infra`. An `infra` check failed before the repo's own steps ran: a runner error or shutdown, an action or tool that could not install or download, `startup_failure`, or a job that no runner took. Act on its `action`. Do not judge the log yourself:
+
+- **`rerun`.** Every failure is `infra` and on its first attempt. ci-log waited for the failed runs to complete, then re-ran them once. Log the decision and arm the Monitor again on the same head. Nothing reaches the human.
+- **`wait`.** As `rerun`, but a failed run still had checks running when ci-log's `--timeout` (default 540 seconds) ran out. Nothing was re-run, so the attempt is not spent. Run the same ci-log command again.
+- **`needs-human`.** Every failure is `infra`, and one failed again on its re-run, cannot be re-run, or its re-run could not start. Never repair the code for it, and never fail the unit with `ci_failed`. Settle the unit as needs a decision through `cstack:settle`. The question starts `CI infrastructure:`, then names each check, ci-log's `reason` for it and the head SHA. Options: `fix the runner, re-run the check, then relabel the issue ready (recommended)`; `close the PR`.
+- **`repair`.** A `project` check failed. Run `cstack:repair` with source `ci` and the ci-log output of the `project` checks verbatim. It counts against `limits.ci_repair_rounds` and returns `retry CI-REPAIR-<n>` (the unit goes back to stage 5) or `exhausted ci_failed` (the unit fails). The new push runs every check again, so the `infra` ones need no re-run.
 
 After every repair, stages 6, 7 and 8 run again before you arm the Monitor. A new commit voids the old verdict.
 

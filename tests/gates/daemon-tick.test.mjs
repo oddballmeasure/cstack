@@ -110,7 +110,9 @@ test("select picks up a usage-limited run, whose issue still carries the in-prog
   write(d.store(38), "workers/U1.not-before", `${new Date(Date.now() + DAY).toISOString()}\n`);
   d.unit(39, "in-progress", { launched: true, worker: "active" });
   d.unit(40, "in-progress", { launched: true, worker: "failed" });
-  const at = (days) => new Date(Date.now() - days * DAY).toISOString();
+  // One clock reading, so equal ages give equal timestamps and the tie breaks on the issue number.
+  const now = Date.now();
+  const at = (days) => new Date(now - days * DAY).toISOString();
   const rules = [
     { match: "^issue list --repo o/r --state open --label cstack:ready", responses: [{ json: [{ number: 41, title: "queued", createdAt: at(1) }] }] },
     {
@@ -141,7 +143,9 @@ test("select: oldest ready issues first, skipping live workers and usage-limit d
   write(d.store(13), "workers/U1.not-before", `${new Date(Date.now() + DAY).toISOString()}\n`);
   d.unit(14, "error");
   write(d.store(14), "workers/U1.not-before", `${new Date(Date.now() - DAY).toISOString()}\n`);
-  const at = (days) => new Date(Date.now() - days * DAY).toISOString();
+  // One clock reading, so equal ages give equal timestamps and the tie breaks on the issue number.
+  const now = Date.now();
+  const at = (days) => new Date(now - days * DAY).toISOString();
   const ready = [
     { number: 12, title: "newer", createdAt: at(1) },
     { number: 4, title: "running", createdAt: at(9) },

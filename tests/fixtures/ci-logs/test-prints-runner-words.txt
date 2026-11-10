@@ -1,0 +1,9 @@
+2026-11-08T22:20:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T22:20:00.2000000Z ##[group]Run npm test
+2026-11-08T22:20:00.2000000Z echo "The runner has received a shutdown signal" && npm test
+2026-11-08T22:20:00.2000000Z shell: /usr/bin/bash -e {0}
+2026-11-08T22:20:00.2010000Z ##[endgroup]
+2026-11-08T22:20:00.3000000Z The runner has received a shutdown signal
+2026-11-08T22:20:05.0000000Z not ok 4 - reconnects after the server drops
+2026-11-08T22:20:05.0000000Z   Error: lost communication with the server
+2026-11-08T22:20:05.1000000Z ##[error]Process completed with exit code 1.

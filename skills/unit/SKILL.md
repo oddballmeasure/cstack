@@ -229,7 +229,7 @@ Order: conflicts, then review threads, then CI.
 
 - DIRTY, BEHIND, or base moved under the PR's files: stage 7.
 - A real review finding on a GitHub thread: REPAIR ticket through `cstack:repair` (source `pr-review`), stage 5. Cap `limits.review_rounds`, then failure `pr_violation`. Write every reply with `cstack:leaving-pr-comments`.
-- A failed check: `node <root>/gates/ci-log.mjs <pr> --repo-dir <wt>`, then a `CI-REPAIR-<n>` ticket through `cstack:repair`, stage 5. Limit `limits.ci_repair_rounds`, then failure `ci_failed`. Pending past `limits.ci_timeout_seconds`: failure `ci_timeout`.
+- A failed check: `node <root>/gates/ci-log.mjs <pr> --repo-dir <wt> --rerun --json`. Action `repair`: a `CI-REPAIR-<n>` ticket through `cstack:repair`, stage 5. Limit `limits.ci_repair_rounds`, then failure `ci_failed`. Action `rerun` (CI infrastructure, first attempt): ci-log re-ran it once the run completed; arm the Monitor again. Action `wait`: the run is still going; run ci-log again. Action `needs-human` (CI infrastructure again): settle as needs a decision with reason `CI infrastructure`, never `ci_failed`. Pending past `limits.ci_timeout_seconds`: failure `ci_timeout`.
 - pr-wait exits 0 and no actionable thread is left: step 10b.
 
 After any new commit, stages 6, 7 and 8 run before you arm the Monitor again.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { makeRepo, commit, gate, git, write, failChecks, approve, path } from "./helpers.mjs";
 
@@ -309,4 +309,86 @@ test("ci-log with nothing failed passes; errors exit 2", () => {
   assert.match(ok.out, /no failed checks/);
   assert.match(gate("ci-log.mjs", ["6", "--repo-dir", r.root], { env }).err, /gh pr view 6 failed/);
   assert.equal(gate("ci-log.mjs", ["5", "--lines", "0", "--repo-dir", r.root]).code, 2);
+});
+
+// ci-log: CI infrastructure failures (cstack#109)
+
+const ciLog = (name) => readFileSync(path.resolve("tests/fixtures/ci-logs", `${name}.txt`), "utf8");
+const actionsCheck = (name, run, job, conclusion = "failure") => ({ id: job, name, conclusion, started_at: "2026-11-08T21:14:00Z", details_url: `https://github.com/o/r/actions/runs/${run}/job/${job}`, output: {} });
+function infraScenario(base, { attempt = 1, rerun = [{}], checks = null, rounds = null } = {}) {
+  return scenario(base, [
+    { match: "^pr view 5", responses: [{ json: { headRefOid: "c".repeat(40) } }] },
+    { match: "^api repos/o/r/commits/", responses: (rounds ?? [checks ?? [actionsCheck("secrets", 7, 70)]]).map((json) => ({ json })) },
+    { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/70/logs", responses: [{ stdout: ciLog("gitleaks-install") }] },
+    { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/71/logs", responses: [{ stdout: ciLog("npm-test") }] },
+    { match: "^api repos/o/r/actions/jobs/70$", responses: [{ json: { run_attempt: attempt, runner_name: "runner-2", steps: [{ name: "Scan for secrets", conclusion: "failure" }] } }] },
+    { match: "^api repos/o/r/actions/jobs/71$", responses: [{ json: { run_attempt: attempt, runner_name: "runner-1" } }] },
+    { match: "^api repos/o/r/actions/runs/8$", responses: [{ json: {} }] },
+    { match: "^run rerun 7 --failed --repo o/r", responses: rerun },
+  ]);
+}
+
+test("ci-log: an infrastructure failure on its first attempt is re-run once with --rerun, never repaired", () => {
+  const r = makeRepo();
+  const env = infraScenario(r.base);
+  const plain = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--json"], { env });
+  assert.equal(plain.code, 1, plain.out + plain.err);
+  assert.equal(plain.json.action, "rerun");
+  assert.deepEqual(plain.json.rerun, []);
+  assert.deepEqual([plain.json.failures[0].kind, plain.json.failures[0].attempt, plain.json.failures[0].handle], ["infra", 1, "7"]);
+  assert.match(plain.json.failures[0].reason, /gitleaks-action@v2 failed to install/);
+  assert.doesNotMatch(readFileSync(env.FAKE_GH_LOG, "utf8"), /run rerun/, "without --rerun it only says so");
+  const res = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun"], { env });
+  assert.equal(res.code, 1);
+  assert.match(res.out, /FAIL secrets: failure \(infra: the action gitleaks/);
+  assert.match(res.out, /FAIL action: rerun: CI infrastructure: first attempt of secrets; re-ran 7/);
+  assert.match(readFileSync(env.FAKE_GH_LOG, "utf8"), /run rerun 7 --failed --repo o\/r/);
+});
+
+test("ci-log: an infrastructure failure that comes back, cannot be re-run, or cannot re-start is needs-human", () => {
+  const r = makeRepo();
+  const again = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env: infraScenario(r.base, { attempt: 2 }) });
+  assert.equal(again.json.action, "needs-human");
+  assert.equal(again.json.reason, "CI infrastructure: secrets failed again on attempt 2");
+  const env = infraScenario(r.base, { rerun: [{ code: 1, stderr: "HTTP 403" }] });
+  const refused = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env });
+  assert.deepEqual([refused.json.action, refused.json.reason, refused.json.rerun], ["needs-human", "CI infrastructure: the re-run of 7 could not start", []]);
+  const startup = { name: "workflow", conclusion: "startup_failure", started_at: "2026-11-08T21:14:00Z", details_url: "https://ci.example/9", output: { summary: "the workflow is not valid" } };
+  const noRun = { ...actionsCheck("build", 8, 0), details_url: "https://github.com/o/r/actions/runs/8" };
+  const stuck = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env: infraScenario(r.base, { checks: [startup, { ...noRun, conclusion: "startup_failure" }] }) });
+  assert.equal(stuck.json.action, "needs-human");
+  assert.equal(stuck.json.reason, "CI infrastructure: build has no known attempt; workflow cannot be re-run");
+});
+
+test("ci-log: a project failure next to an infrastructure one is repaired, and nothing is re-run", () => {
+  const r = makeRepo();
+  const env = infraScenario(r.base, { checks: [actionsCheck("secrets", 7, 70), actionsCheck("test", 7, 71)] });
+  const res = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env });
+  assert.equal(res.json.action, "repair");
+  assert.equal(res.json.reason, "the project's own steps failed in test");
+  assert.deepEqual(res.json.failures.map((f) => [f.name, f.kind]), [["secrets", "infra"], ["test", "project"]]);
+  assert.doesNotMatch(readFileSync(env.FAKE_GH_LOG, "utf8"), /run rerun/);
+});
+
+test("ci-log: an infrastructure re-run waits until the failed run has completed (review F5)", () => {
+  const r = makeRepo();
+  const running = { ...actionsCheck("e2e", 7, 72), conclusion: null, status: "in_progress" };
+  const done = { ...running, conclusion: "success", status: "completed" };
+  const other = { ...actionsCheck("docs", 9, 90), conclusion: null, status: "queued" };
+  const env = { ...infraScenario(r.base, { rounds: [[actionsCheck("secrets", 7, 70), running, other], [actionsCheck("secrets", 7, 70), done, other]] }), CSTACK_CI_LOG_POLL_MS: "10" };
+  const waited = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env });
+  assert.equal(waited.json.action, "rerun", waited.out + waited.err);
+  assert.deepEqual(waited.json.rerun, ["7"]);
+  const calls = readFileSync(env.FAKE_GH_LOG, "utf8").split("\n");
+  assert.ok(calls.findIndex((l) => l.startsWith("run rerun 7")) > calls.findLastIndex((l) => l.startsWith("api repos/o/r/commits/")), "the re-run comes after the run completed");
+  assert.equal(calls.filter((l) => l.startsWith("api repos/o/r/commits/")).length, 2, "a check of another run does not hold it up");
+
+  const still = infraScenario(r.base, { rounds: [[actionsCheck("secrets", 7, 70), running]] });
+  const told = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--json"], { env: still });
+  assert.equal(told.json.action, "wait");
+  assert.match(told.json.reason, /^CI infrastructure: run 7 still has checks running/);
+  const timedOut = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--timeout", "0.05", "--json"], { env: { ...still, CSTACK_CI_LOG_POLL_MS: "20" } });
+  assert.equal(timedOut.json.action, "wait");
+  assert.doesNotMatch(readFileSync(still.FAKE_GH_LOG, "utf8"), /run rerun/, "the attempt is not spent on a running run");
+  assert.equal(gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--timeout", "0"], { env: still }).code, 2);
 });

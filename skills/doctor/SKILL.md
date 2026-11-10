@@ -25,6 +25,7 @@ Doctor checks that a target repo can run cstack. It changes nothing. Setup is th
 | Run store | `.cstack/runs/` is not writable. A missing `.gitignore` entry is a WARN. |
 | Hooks | A self-test shows the cstack guard no longer blocks a direct `gh pr merge`. |
 | GitHub | The repo or base branch cannot be read, or any `<prefix>:` state label is missing. No required checks is a WARN. |
+| Daemon plugin | Never fails, and does not run on Windows. When this repo has a `cstack-daemon@` systemd user unit (enabled, or with its own unit file or drop-ins), a WARN when its `CSTACK_PLUGIN` is unset, holds no cstack plugin, or holds a version other than the installed one: the install for this repo in `~/.claude/plugins/installed_plugins.json`, else the user-scope install, else the plugin running doctor. The fix is in `cstack:daemon`, **Plugin path**. |
 
 ## Report
 
