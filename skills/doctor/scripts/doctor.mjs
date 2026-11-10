@@ -395,7 +395,8 @@ const tilde = (p) => {
   const home = os.homedir();
   return p === home || p.startsWith(home + path.sep) ? `~${p.slice(home.length)}` : p;
 };
-const daemon = daemonPlugin();
+// systemd user units exist only off Windows.
+const daemon = process.platform === "win32" ? null : daemonPlugin();
 if (daemon && !daemon.value) warn("daemon plugin", `${daemon.instance} sets no CSTACK_PLUGIN`);
 else if (daemon) {
   const running = pluginVersion(daemon.value);

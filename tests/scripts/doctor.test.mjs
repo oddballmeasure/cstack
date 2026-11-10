@@ -398,7 +398,7 @@ function daemonHost(root, { unit = "Environment=CSTACK_PLUGIN=%h/plugins/cache/c
   return { HOME: home, XDG_CONFIG_HOME: "", CLAUDE_CONFIG_DIR: claude };
 }
 
-test("a daemon unit pinned to an older plugin version warns; one that follows the installed version passes", () => {
+test("a daemon unit pinned to an older plugin version warns; one that follows the installed version passes", { skip: process.platform === "win32" && "systemd units do not exist on Windows" }, () => {
   const root = target();
   const pinned = doctor(root, ["--offline"], daemonHost(root));
   assert.equal(pinned.code, 0, pinned.out);
@@ -409,7 +409,7 @@ test("a daemon unit pinned to an older plugin version warns; one that follows th
   assert.match(spaced.out, /PASS daemon plugin: .* runs cstack 0\.5\.18/, "a quoted value keeps its spaces");
 });
 
-test("a daemon unit without CSTACK_PLUGIN, or pointing at no plugin, warns; with no install doctor compares itself", () => {
+test("a daemon unit without CSTACK_PLUGIN, or pointing at no plugin, warns; with no install doctor compares itself", { skip: process.platform === "win32" && "systemd units do not exist on Windows" }, () => {
   const root = target();
   const reset = doctor(root, ["--offline"], daemonHost(root, { dropIn: "[Service]\nEnvironment=\n" }));
   assert.match(reset.out, /WARN daemon plugin: cstack-daemon@.* sets no CSTACK_PLUGIN/);
