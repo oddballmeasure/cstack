@@ -3,8 +3,8 @@
 // Usage: node doctor.mjs [--offline] [repo-dir]
 // Prints one line per check: PASS|WARN|FAIL <check>: <detail>. Exit 1 if any FAIL.
 // --offline skips every check that calls GitHub.
-import { readFileSync, existsSync, statSync, accessSync, mkdirSync, constants } from "node:fs";
-import { tmpdir } from "node:os";
+import { readFileSync, readdirSync, existsSync, statSync, accessSync, mkdirSync, constants } from "node:fs";
+import os, { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { run, git, which } from "../../../gates/lib/common.mjs";
@@ -332,6 +332,68 @@ if (!offline && cli) {
   if (!missing.length) pass("labels", `all ${prefix}:* labels exist`);
   else fail("labels", `missing: ${missing.join(" ")} (run the setup-cstack skill)`);
   if (!((isObj(cfg) ? cfg.required_checks : null) ?? []).length) warn("required checks", cfg?.allow_merge_without_checks === true ? "none configured; allow_merge_without_checks is true, so the merge gate merges with no CI" : "none configured; the merge gate will not merge under autonomy send until required_checks is set or allow_merge_without_checks is true");
+}
+
+// The daemon's systemd user unit loads the plugin from CSTACK_PLUGIN. A path pinned to one installed version keeps
+// the daemon on that version after a plugin update (cstack#110).
+const readJson = (f) => {
+  try {
+    return JSON.parse(readFileSync(f, "utf8"));
+  } catch {
+    return null;
+  }
+};
+const pluginVersion = (dirPath) => readJson(path.join(dirPath, ".claude-plugin", "plugin.json"))?.version ?? null;
+// systemd-escape --path: strip the outer slashes, "/" becomes "-", anything else outside [A-Za-z0-9:_.] (and a
+// leading ".") becomes \xNN per byte.
+const escapePath = (p) =>
+  [...Buffer.from(p.replace(/^\/+|\/+$/g, ""), "utf8")]
+    .map((b, i) => {
+      const c = String.fromCharCode(b);
+      if (c === "/") return "-";
+      return /[A-Za-z0-9:_.]/.test(c) && !(i === 0 && c === ".") ? c : `\\x${b.toString(16).padStart(2, "0")}`;
+    })
+    .join("") || "-";
+function daemonPlugin() {
+  const home = os.homedir();
+  const units = path.join(process.env.XDG_CONFIG_HOME || path.join(home, ".config"), "systemd", "user");
+  const instance = `cstack-daemon@${escapePath(root)}.service`;
+  const own = path.join(units, instance);
+  const installed = [own, `${own}.d`, path.join(units, "default.target.wants", instance)].some((f) => existsSync(f));
+  if (!installed) return null;
+  const confs = (d) => (existsSync(d) ? readdirSync(d).filter((f) => f.endsWith(".conf")).sort().map((f) => path.join(d, f)) : []);
+  // An instance file replaces the template; drop-ins apply in order, the template's first.
+  const files = [existsSync(own) ? own : path.join(units, "cstack-daemon@.service"), ...confs(path.join(units, "cstack-daemon@.service.d")), ...confs(`${own}.d`)];
+  let value = null;
+  for (const f of files.filter((f) => existsSync(f))) {
+    for (const line of readFileSync(f, "utf8").split(/\r?\n/)) {
+      if (/^\s*Environment=\s*$/.test(line)) value = null;
+      const m = line.match(/^\s*Environment=(?:.*[\s"])?CSTACK_PLUGIN=([^"\s]+)/);
+      if (m) value = m[1].replace(/%h/g, home).replace(/%%/g, "%");
+    }
+  }
+  return { instance, value };
+}
+function installedPlugin() {
+  const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  const list = readJson(path.join(configDir, "plugins", "installed_plugins.json"))?.plugins ?? {};
+  const installs = Object.entries(list)
+    .filter(([key]) => key.startsWith("cstack@"))
+    .flatMap(([, v]) => (Array.isArray(v) ? v : []));
+  const rank = (i) => (i.projectPath === root ? 2 : i.scope === "user" ? 1 : 0);
+  const best = installs.filter((i) => i.version).sort((a, b) => rank(b) - rank(a) || String(b.lastUpdated).localeCompare(String(a.lastUpdated)))[0];
+  if (best) return { version: best.version, from: `installed (${best.scope ?? "unknown"} scope)` };
+  return { version: pluginVersion(pluginRoot), from: "the plugin running doctor" };
+}
+const daemon = daemonPlugin();
+if (daemon && !daemon.value) warn("daemon plugin", `${daemon.instance} sets no CSTACK_PLUGIN`);
+else if (daemon) {
+  const running = pluginVersion(daemon.value);
+  const want = installedPlugin();
+  if (!running) warn("daemon plugin", `${daemon.instance} has CSTACK_PLUGIN=${daemon.value}, which holds no cstack plugin`);
+  else if (want.version && running !== want.version) {
+    warn("daemon plugin", `${daemon.instance} runs cstack ${running} from ${daemon.value}, but ${want.version} is ${want.from}. Point CSTACK_PLUGIN at a path that follows updates (see cstack:daemon), then restart the unit`);
+  } else pass("daemon plugin", `${daemon.instance} runs cstack ${running}`);
 }
 
 done();

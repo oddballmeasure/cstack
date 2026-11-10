@@ -370,3 +370,51 @@ test("a missing config while cstack/setup exists points at the open setup change
   assert.equal(r.code, 1);
   assert.match(r.out, /FAIL config: .*on the open cstack\/setup change; merge it, then git pull/);
 });
+
+// cstack#110: a daemon unit that pins CSTACK_PLUGIN to one version keeps running it after an update.
+function daemonHost(root, { unit = "Environment=CSTACK_PLUGIN=%h/plugins/cache/cstack/cstack/0.5.17\n", dropIn = null, installed = "0.5.18" } = {}) {
+  const home = mkdtempSync(path.join(tmpdir(), "cstack-home-"));
+  const units = path.join(home, ".config", "systemd", "user");
+  const top = git(root, "rev-parse", "--show-toplevel").stdout.trim();
+  const instance = `cstack-daemon@${top.replace(/^\//, "").replace(/-/g, "\\x2d").replace(/\//g, "-")}.service`;
+  mkdirSync(path.join(units, "default.target.wants"), { recursive: true });
+  writeFileSync(path.join(units, "cstack-daemon@.service"), `[Service]\nWorkingDirectory=/%I\n${unit}`);
+  writeFileSync(path.join(units, "default.target.wants", instance), "");
+  if (dropIn) {
+    mkdirSync(path.join(units, `${instance}.d`));
+    writeFileSync(path.join(units, `${instance}.d`, "plugin.conf"), dropIn);
+  }
+  for (const [dir, version] of [["plugins/cache/cstack/cstack/0.5.17", "0.5.17"], ["plugins/marketplaces/cstack", "0.5.18"]]) {
+    mkdirSync(path.join(home, dir, ".claude-plugin"), { recursive: true });
+    writeFileSync(path.join(home, dir, ".claude-plugin", "plugin.json"), JSON.stringify({ name: "cstack", version }));
+  }
+  const claude = path.join(home, ".claude");
+  mkdirSync(path.join(claude, "plugins"), { recursive: true });
+  if (installed) {
+    const entry = (scope, version, extra = {}) => ({ scope, installPath: path.join(home, "plugins/cache/cstack/cstack", version), version, lastUpdated: "2026-11-09T00:00:00.000Z", ...extra });
+    const list = { version: 2, plugins: { "other@x": [entry("user", "9.9.9")], "cstack@cstack": [entry("local", "0.0.1", { projectPath: "/elsewhere" }), entry("project", installed, { projectPath: top })] } };
+    writeFileSync(path.join(claude, "plugins", "installed_plugins.json"), JSON.stringify(list));
+  }
+  return { HOME: home, XDG_CONFIG_HOME: "", CLAUDE_CONFIG_DIR: claude };
+}
+
+test("a daemon unit pinned to an older plugin version warns; one that follows the installed version passes", () => {
+  const root = target();
+  const pinned = doctor(root, ["--offline"], daemonHost(root));
+  assert.equal(pinned.code, 0, pinned.out);
+  assert.match(pinned.out, /WARN daemon plugin: cstack-daemon@.*\.service runs cstack 0\.5\.17 from .*0\.5\.17, but 0\.5\.18 is installed \(project scope\)\. Point CSTACK_PLUGIN at a path that follows updates/);
+  const following = doctor(root, ["--offline"], daemonHost(root, { dropIn: '[Service]\nEnvironment="CSTACK_PLUGIN=%h/plugins/marketplaces/cstack" CSTACK_HEADLESS=1\n' }));
+  assert.match(following.out, /PASS daemon plugin: cstack-daemon@.* runs cstack 0\.5\.18/);
+});
+
+test("a daemon unit without CSTACK_PLUGIN, or pointing at no plugin, warns; with no install doctor compares itself", () => {
+  const root = target();
+  const reset = doctor(root, ["--offline"], daemonHost(root, { dropIn: "[Service]\nEnvironment=\n" }));
+  assert.match(reset.out, /WARN daemon plugin: cstack-daemon@.* sets no CSTACK_PLUGIN/);
+  const empty = doctor(root, ["--offline"], daemonHost(root, { unit: "Environment=CSTACK_PLUGIN=%h/nowhere\n" }));
+  assert.match(empty.out, /WARN daemon plugin: .* which holds no cstack plugin/);
+  const self = JSON.parse(readFileSync(path.resolve(HERE, "../../.claude-plugin/plugin.json"), "utf8")).version;
+  const mine = doctor(root, ["--offline"], daemonHost(root, { installed: null }));
+  assert.match(mine.out, new RegExp(`WARN daemon plugin: .* but ${self.replace(/\./g, "\\.")} is the plugin running doctor`));
+  assert.doesNotMatch(doctor(root, ["--offline"]).out, /daemon plugin/, "no unit for this repo, no check");
+});

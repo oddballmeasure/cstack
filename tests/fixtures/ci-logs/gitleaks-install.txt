@@ -1,0 +1,24 @@
+2026-11-08T21:14:02.1180000Z Requested labels: self-hosted
+2026-11-08T21:14:02.1180000Z Job defined at: o/r/.github/workflows/ci.yml@refs/pull/12/merge
+2026-11-08T21:14:02.1190000Z Waiting for a runner to pick up this job...
+2026-11-08T21:14:03.0000000Z Current runner version: '2.329.0'
+2026-11-08T21:14:03.0010000Z Runner name: 'runner-2'
+2026-11-08T21:14:03.0020000Z ##[group]Operating System
+2026-11-08T21:14:03.0020000Z Ubuntu
+2026-11-08T21:14:03.0030000Z ##[endgroup]
+2026-11-08T21:14:03.1000000Z Download action repository 'actions/checkout@v4' (SHA:11bd71901bbe5b1630ceea73d27597364c9af683)
+2026-11-08T21:14:03.2000000Z Download action repository 'gitleaks/gitleaks-action@v2' (SHA:ff98106e4c7b2bc287b24eaf42907196329070c7)
+2026-11-08T21:14:03.5000000Z Complete job name: secrets
+2026-11-08T21:14:03.6000000Z ##[group]Run actions/checkout@v4
+2026-11-08T21:14:03.6000000Z with:
+2026-11-08T21:14:03.6000000Z   fetch-depth: 0
+2026-11-08T21:14:03.6010000Z ##[endgroup]
+2026-11-08T21:14:04.9000000Z [command]/usr/bin/git checkout --progress --force refs/remotes/pull/12/merge
+2026-11-08T21:14:05.1000000Z ##[group]Run gitleaks/gitleaks-action@v2
+2026-11-08T21:14:05.1000000Z env:
+2026-11-08T21:14:05.1000000Z   GITHUB_TOKEN: ***
+2026-11-08T21:14:05.1010000Z ##[endgroup]
+2026-11-08T21:14:05.4000000Z [gitleaks-action] Downloading gitleaks from https://github.com/zricethezav/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz
+2026-11-08T21:14:05.6000000Z ##[error]Destination file path /tmp/gitleaks.tmp already exists
+2026-11-08T21:14:05.7000000Z Post job cleanup.
+2026-11-08T21:14:05.9000000Z Cleaning up orphan processes

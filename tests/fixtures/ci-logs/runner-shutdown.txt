@@ -1,0 +1,7 @@
+2026-11-08T21:50:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T21:50:00.2000000Z ##[group]Run npm test
+2026-11-08T21:50:00.2000000Z shell: /usr/bin/bash -e {0}
+2026-11-08T21:50:00.2010000Z ##[endgroup]
+2026-11-08T21:50:40.0000000Z ok 1 - adds an entry
+2026-11-08T21:52:00.0000000Z ##[error]The runner has received a shutdown signal. This can happen when the runner service is stopped, or a manually started runner is canceled.
+2026-11-08T21:52:00.1000000Z ##[error]The operation was canceled.

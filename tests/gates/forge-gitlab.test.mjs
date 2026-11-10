@@ -89,6 +89,18 @@ test("checks: newest pipeline's jobs, newest per name, mapped to GitHub's words"
   assert.deepEqual([checks[5].id, checks[5].url, checks[5].details_url, checks[3].started_at], [4, "https://gitlab.com/j/4", "https://gitlab.com/j/4", null]);
 });
 
+test("checkJob: the job's failure reason, runner and attempt, counting retried runs of its name", () => {
+  const job = (id, name, o = {}) => ({ id, name, status: "failed", web_url: `https://gitlab.com/j/${id}`, allow_failure: false, ...o });
+  const rules = [
+    { match: `^api -X GET ${P}/pipelines\\?sha=s1`, responses: [{ json: [{ id: 12 }] }] },
+    { match: `^api -X GET ${P}/pipelines/12/jobs\\?per_page`, responses: [{ json: [job(5, "test", { failure_reason: "runner_system_failure", runner: { description: "shared-1" } }), job(6, "lint")] }] },
+    { match: `^api -X GET ${P}/pipelines/12/jobs\\?include_retried=true&per_page=100$`, responses: [{ json: [job(3, "test"), job(5, "test"), job(6, "lint")] }, { json: [] }, { code: 1, stderr: "500" }] },
+  ];
+  const r = call(rules, `const [lint, test] = f.checks("s1"); return [f.checkJob(test), f.checkJob(lint), f.checkJob(test)];`);
+  assert.equal(r.code, 0, r.err);
+  assert.deepEqual(r.out, [{ attempt: 2, runner: "shared-1", steps: null, reason: "runner_system_failure" }, { attempt: null, runner: null, steps: null, reason: null }, { attempt: null, runner: "shared-1", steps: null, reason: "runner_system_failure" }]);
+});
+
 test("log tails strip colours and section markers; reruns retry the job", () => {
   const trace = "\x1b[0Ksection_start:1:step\r\x1b[0KRunning\nline 1\n\x1b[31;1mERROR boom\x1b[0;m\nsection_end:1:step\r\x1b[0K\nJob failed\n";
   const rules = [

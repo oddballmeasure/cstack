@@ -100,6 +100,7 @@ test("checks run ci_command once per SHA in a clean worktree; failures, tails an
   assert.deepEqual([b.state, b.conclusion], ["fail", "failure"]);
   assert.equal(f.rerunHandle(b), bad);
   assert.equal(f.rerunHandle({}), null);
+  assert.equal(f.checkJob(b), null, "ci_command runs here: no runner to blame");
   assert.equal(f.rerun(bad).ok, true);
   assert.equal(f.checks(bad)[0].state, "fail");
   assert.match(f.checkTail({ id: "0".repeat(40) }, 5), /cannot check out|no log/);

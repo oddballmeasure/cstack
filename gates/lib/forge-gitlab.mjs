@@ -128,14 +128,23 @@ export function gitlab(repo, cwd, host = null) {
       return [...latest.values()]
         .sort((a, b) => a.name.localeCompare(b.name))
         .map((j) => {
-          const c = { name: j.name, id: j.id, started_at: j.started_at ?? null, url: j.web_url, details_url: j.web_url, output: null, ...jobCheck(j) };
+          const c = { name: j.name, id: j.id, started_at: j.started_at ?? null, url: j.web_url, details_url: j.web_url, output: null, pipeline: newest.id, failure_reason: j.failure_reason ?? null, runner: j.runner?.description ?? null, ...jobCheck(j) };
           return { ...c, state: stateOf(c) };
         });
     },
-    checkTail(check, lines) {
+    checkLog(check) {
       const r = glab("GET", `${project}/jobs/${check.id}/trace`);
-      const tail = r.code === 0 ? cleanTrace(r.stdout) : `(job log unavailable: ${r.stderr.trim()})`;
-      return tail.trimEnd().split("\n").slice(-lines).join("\n");
+      return r.code === 0 ? cleanTrace(r.stdout) : `(job log unavailable: ${r.stderr.trim()})`;
+    },
+    checkTail(check, lines) {
+      return this.checkLog(check).trimEnd().split("\n").slice(-lines).join("\n");
+    },
+    // The job's failure_reason and runner, and its attempt: how many runs of its name the pipeline holds, retried
+    // ones included. The attempt is null when the pipeline's jobs cannot be read.
+    checkJob(check) {
+      const r = glab("GET", `${project}/pipelines/${check.pipeline}/jobs?include_retried=true&per_page=100`);
+      const attempt = r.code === 0 ? JSON.parse(r.stdout).filter((j) => j.name === check.name).length || null : null;
+      return { attempt, runner: check.runner ?? null, steps: null, reason: check.failure_reason ?? null };
     },
     rerunHandle(check) {
       return Number.isInteger(check.id) ? String(check.id) : null;

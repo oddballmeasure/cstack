@@ -1,0 +1,10 @@
+2026-11-08T21:30:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T21:30:00.2000000Z ##[group]Run actions/checkout@v4
+2026-11-08T21:30:00.2000000Z ##[endgroup]
+2026-11-08T21:30:01.0000000Z ##[group]Run golangci/golangci-lint-action@v6
+2026-11-08T21:30:01.0000000Z with:
+2026-11-08T21:30:01.0000000Z   version: latest
+2026-11-08T21:30:01.0010000Z ##[endgroup]
+2026-11-08T21:30:09.0000000Z main.go:14:2: ineffectual assignment to err (ineffassign)
+2026-11-08T21:30:09.1000000Z ##[error]issues found
+2026-11-08T21:30:09.2000000Z Post job cleanup.

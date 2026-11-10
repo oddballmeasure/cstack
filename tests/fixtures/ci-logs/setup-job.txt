@@ -1,0 +1,5 @@
+2026-11-08T21:40:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T21:40:00.0010000Z Runner name: 'runner-1'
+2026-11-08T21:40:00.1000000Z Download action repository 'actions/setup-python@v5' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-11-08T21:40:30.0000000Z Warning: Failed to download action 'https://api.github.com/repos/actions/setup-python/tarball/a26af69'. Error: Response status code does not indicate success: 503 (Service Unavailable).
+2026-11-08T21:40:30.1000000Z ##[error]Failed to download archive 'https://api.github.com/repos/actions/setup-python/tarball/a26af69' after 3 attempts.

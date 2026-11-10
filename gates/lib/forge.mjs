@@ -9,6 +9,8 @@
 //   check   {name, state: pass|fail|pending|skipped, status, conclusion, id, started_at, url, output}
 //   issue   {number, title, state: open|closed, labels: [name], comments: [body], body, createdAt}
 // headRef(id) names the ref that holds a change's head on the remote, for a gate that must fetch it.
+// checkLog(check) is a check's whole log, checkTail(check, n) its last n lines, and checkJob(check) what the forge knows
+// about the run behind it ({attempt, runner, steps, reason}, or null), which gates/lib/ci-infra.mjs reads.
 // Skills reach the same layer through gates/forge.mjs, whose verbs read richer records:
 //   detail  a change plus {title, branch, author, bot, body, autoMerge, headRepo, commits, reviewRequired}
 //   thread  {id, resolved, path, line, author, bot, body, url, comments: [{author, bot, body, url, createdAt}]}
@@ -166,19 +168,34 @@ function github(repo, cwd) {
       }
       return [...latest.values()].sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ ...c, state: checkState(c), url: c.details_url }));
     },
-    // The last `lines` lines of a check's log: the Actions job log, else the check's output summary and text.
-    checkTail(check, lines) {
+    // A check's whole log: the Actions job log, else the check's output summary and text.
+    checkLog(check) {
       const job = String(check.url ?? check.details_url).match(/\/actions\/runs\/\d+\/job\/(\d+)/);
-      let tail;
       if (job) {
         // Job logs carry terminal color codes; gh refuses them unless allowed, so allow and strip them.
         const r = gh(["api", "--allow-escape-sequences", `repos/${repo}/actions/jobs/${job[1]}/logs`]);
-        tail = r.code === 0 ? r.stdout.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "") : `(job log unavailable: ${r.stderr.trim()})`;
-      } else {
-        const output = check.output ?? {};
-        tail = [output.summary, output.text].filter(Boolean).join("\n") || "(no output)";
+        return r.code === 0 ? r.stdout.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "") : `(job log unavailable: ${r.stderr.trim()})`;
       }
-      return tail.trimEnd().split("\n").slice(-lines).join("\n");
+      const output = check.output ?? {};
+      return [output.summary, output.text].filter(Boolean).join("\n") || "(no output)";
+    },
+    // The last `lines` lines of checkLog.
+    checkTail(check, lines) {
+      return this.checkLog(check).trimEnd().split("\n").slice(-lines).join("\n");
+    },
+    // What the forge knows about the run behind a failed check, for gates/lib/ci-infra.mjs:
+    // {attempt, runner, steps: [{name, conclusion}] | null, reason}, or null when the check is not an Actions run or
+    // the forge cannot read it. A run that never reached a runner has no runner name and no steps.
+    checkJob(check) {
+      const url = String(check.url ?? check.details_url ?? "");
+      const runId = url.match(/\/actions\/runs\/(\d+)/)?.[1];
+      if (!runId) return null;
+      const job = url.match(/\/actions\/runs\/\d+\/job\/(\d+)/)?.[1];
+      const r = gh(["api", job ? `repos/${repo}/actions/jobs/${job}` : `repos/${repo}/actions/runs/${runId}`]);
+      if (r.code !== 0) return null;
+      const j = JSON.parse(r.stdout);
+      const steps = job ? (j.steps ?? []).map((s) => ({ name: s.name, conclusion: s.conclusion })) : null;
+      return { attempt: j.run_attempt ?? null, runner: j.runner_name || null, steps, reason: null };
     },
     // The handle that re-runs a failed check, or null when the forge cannot re-run it.
     rerunHandle(check) {
