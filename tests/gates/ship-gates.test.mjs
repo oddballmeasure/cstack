@@ -315,10 +315,10 @@ test("ci-log with nothing failed passes; errors exit 2", () => {
 
 const ciLog = (name) => readFileSync(path.resolve("tests/fixtures/ci-logs", `${name}.txt`), "utf8");
 const actionsCheck = (name, run, job, conclusion = "failure") => ({ id: job, name, conclusion, started_at: "2026-11-08T21:14:00Z", details_url: `https://github.com/o/r/actions/runs/${run}/job/${job}`, output: {} });
-function infraScenario(base, { attempt = 1, rerun = [{}], checks = null } = {}) {
+function infraScenario(base, { attempt = 1, rerun = [{}], checks = null, rounds = null } = {}) {
   return scenario(base, [
     { match: "^pr view 5", responses: [{ json: { headRefOid: "c".repeat(40) } }] },
-    { match: "^api repos/o/r/commits/", responses: [{ json: checks ?? [actionsCheck("secrets", 7, 70)] }] },
+    { match: "^api repos/o/r/commits/", responses: (rounds ?? [checks ?? [actionsCheck("secrets", 7, 70)]]).map((json) => ({ json })) },
     { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/70/logs", responses: [{ stdout: ciLog("gitleaks-install") }] },
     { match: "^api --allow-escape-sequences repos/o/r/actions/jobs/71/logs", responses: [{ stdout: ciLog("npm-test") }] },
     { match: "^api repos/o/r/actions/jobs/70$", responses: [{ json: { run_attempt: attempt, runner_name: "runner-2", steps: [{ name: "Scan for secrets", conclusion: "failure" }] } }] },
@@ -368,4 +368,27 @@ test("ci-log: a project failure next to an infrastructure one is repaired, and n
   assert.equal(res.json.reason, "the project's own steps failed in test");
   assert.deepEqual(res.json.failures.map((f) => [f.name, f.kind]), [["secrets", "infra"], ["test", "project"]]);
   assert.doesNotMatch(readFileSync(env.FAKE_GH_LOG, "utf8"), /run rerun/);
+});
+
+test("ci-log: an infrastructure re-run waits until the failed run has completed (review F5)", () => {
+  const r = makeRepo();
+  const running = { ...actionsCheck("e2e", 7, 72), conclusion: null, status: "in_progress" };
+  const done = { ...running, conclusion: "success", status: "completed" };
+  const other = { ...actionsCheck("docs", 9, 90), conclusion: null, status: "queued" };
+  const env = { ...infraScenario(r.base, { rounds: [[actionsCheck("secrets", 7, 70), running, other], [actionsCheck("secrets", 7, 70), done, other]] }), CSTACK_CI_LOG_POLL_MS: "10" };
+  const waited = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--json"], { env });
+  assert.equal(waited.json.action, "rerun", waited.out + waited.err);
+  assert.deepEqual(waited.json.rerun, ["7"]);
+  const calls = readFileSync(env.FAKE_GH_LOG, "utf8").split("\n");
+  assert.ok(calls.findIndex((l) => l.startsWith("run rerun 7")) > calls.findLastIndex((l) => l.startsWith("api repos/o/r/commits/")), "the re-run comes after the run completed");
+  assert.equal(calls.filter((l) => l.startsWith("api repos/o/r/commits/")).length, 2, "a check of another run does not hold it up");
+
+  const still = infraScenario(r.base, { rounds: [[actionsCheck("secrets", 7, 70), running]] });
+  const told = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--json"], { env: still });
+  assert.equal(told.json.action, "wait");
+  assert.match(told.json.reason, /^CI infrastructure: run 7 still has checks running/);
+  const timedOut = gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--rerun", "--timeout", "0.05", "--json"], { env: { ...still, CSTACK_CI_LOG_POLL_MS: "20" } });
+  assert.equal(timedOut.json.action, "wait");
+  assert.doesNotMatch(readFileSync(still.FAKE_GH_LOG, "utf8"), /run rerun/, "the attempt is not spent on a running run");
+  assert.equal(gate("ci-log.mjs", ["5", "--repo-dir", r.root, "--timeout", "0"], { env: still }).code, 2);
 });

@@ -367,9 +367,14 @@ function daemonPlugin() {
   let value = null;
   for (const f of files.filter((f) => existsSync(f))) {
     for (const line of readFileSync(f, "utf8").split(/\r?\n/)) {
-      if (/^\s*Environment=\s*$/.test(line)) value = null;
-      const m = line.match(/^\s*Environment=(?:.*[\s"])?CSTACK_PLUGIN=([^"\s]+)/);
-      if (m) value = m[1].replace(/%h/g, home).replace(/%%/g, "%");
+      const env = line.match(/^\s*Environment=(.*)$/);
+      if (!env) continue;
+      if (!env[1].trim()) value = null;
+      // Assignments are separated by spaces; double or single quotes keep spaces inside one.
+      for (const [, dq, sq, bare] of env[1].matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) {
+        const a = dq ?? sq ?? bare;
+        if (a.startsWith("CSTACK_PLUGIN=")) value = a.slice("CSTACK_PLUGIN=".length).replace(/%h/g, home).replace(/%%/g, "%");
+      }
     }
   }
   return { instance, value };
@@ -385,14 +390,19 @@ function installedPlugin() {
   if (best) return { version: best.version, from: `installed (${best.scope ?? "unknown"} scope)` };
   return { version: pluginVersion(pluginRoot), from: "the plugin running doctor" };
 }
+// A path under the home directory, as ~/..., so a report names no user's home.
+const tilde = (p) => {
+  const home = os.homedir();
+  return p === home || p.startsWith(home + path.sep) ? `~${p.slice(home.length)}` : p;
+};
 const daemon = daemonPlugin();
 if (daemon && !daemon.value) warn("daemon plugin", `${daemon.instance} sets no CSTACK_PLUGIN`);
 else if (daemon) {
   const running = pluginVersion(daemon.value);
   const want = installedPlugin();
-  if (!running) warn("daemon plugin", `${daemon.instance} has CSTACK_PLUGIN=${daemon.value}, which holds no cstack plugin`);
+  if (!running) warn("daemon plugin", `${daemon.instance} has CSTACK_PLUGIN=${tilde(daemon.value)}, which holds no cstack plugin`);
   else if (want.version && running !== want.version) {
-    warn("daemon plugin", `${daemon.instance} runs cstack ${running} from ${daemon.value}, but ${want.version} is ${want.from}. Point CSTACK_PLUGIN at a path that follows updates (see cstack:daemon), then restart the unit`);
+    warn("daemon plugin", `${daemon.instance} runs cstack ${running} from ${tilde(daemon.value)}, but ${want.version} is ${want.from}. Point CSTACK_PLUGIN at a path that follows updates (see cstack:daemon), then restart the unit`);
   } else pass("daemon plugin", `${daemon.instance} runs cstack ${running}`);
 }
 

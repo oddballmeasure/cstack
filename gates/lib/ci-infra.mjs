@@ -8,12 +8,14 @@
 // Infrastructure, in this order:
 //   - conclusion startup_failure: the run never started
 //   - a GitLab failure_reason that names the runner or the platform, not the job script
-//   - a runner error anywhere in the log: shutdown signal, lost communication, a job no runner picked up
+//   - a runner annotation (##[error] or ##[warning] outside a step's ##[group] block): shutdown signal, lost
+//     communication, a job no runner picked up
 //   - an Actions job that never reached a runner: no runner name and no steps
 //   - a failed runner step: Set up job, Initialize containers, Complete job
-//   - in an Actions log, the first error before any step started, or inside a third-party action's step
-//     (`uses: owner/repo@ref` or `docker://`) when the error is an install, download or network failure
-// Anything else is the project's.
+//   - in an Actions log, the first error before any step started, or the first error of a third-party action's step
+//     (`uses: owner/repo@ref` or `docker://`) when that error line is the action's own install or download failure,
+//     not the exit of a command it wraps
+// Anything else is the project's: when unsure, the project.
 
 export const INFRA_REASON = "CI infrastructure";
 
@@ -27,36 +29,44 @@ const RUNNER_ERRORS = [
 ];
 const RUNNER_STEPS = /^(?:Set up job|Set up runner|Initialize containers|Complete job|Complete runner)$/i;
 const ACTION_STEP = /^(?:[\w.-]+\/[\w./-]+@[\w./-]+|docker:\/\/\S+)$/;
+// The action's own error line, naming its install, download or setup. Never a wrapped command's exit, and never a
+// bare network error or "already exists", which a test the action runs can print as well.
 const INSTALL_ERRORS = [
-  /\balready exists\b/i,
-  /Unable to (?:download|resolve action|locate executable|find)/i,
-  /Failed to (?:download|fetch|install|resolve|extract)/i,
-  /\b(?:ECONNRESET|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|ENOSPC)\b/,
-  /No space left on device/i,
-  /Could not resolve host/i,
-  /socket hang up/i,
-  /rate limit exceeded/i,
-  /\b(?:502 Bad Gateway|503 Service Unavailable|504 Gateway Time-?out|429 Too Many Requests)\b/i,
+  /Destination file path \S+ already exists/i,
+  /\b(?:Unable|Failed) to (?:download|install|fetch|extract|resolve action|locate executable)\b/i,
+  /\bError (?:downloading|installing)\b/i,
 ];
+const WRAPPED_EXIT = /Process completed with exit code|exited with code|exit code \d+/i;
 
 // An Actions log line, without its timestamp.
 const bare = (line) => line.replace(/^\d{4}-\d\d-\d\dT[\d:.]+Z /, "");
 
-// The first error in an Actions log and the step it fell in: {step: <"Run ..." header text> | null, error, context}.
+// The first error in an Actions log and the step it fell in: {step: <"Run ..." header text> | null, error}.
 function firstError(log) {
   const lines = log.split("\n").map(bare);
   const at = lines.findIndex((l) => l.startsWith("##[error]"));
   if (at < 0) return null;
   let step = null;
-  let start = 0;
   for (let i = at; i >= 0; i--) {
     if (lines[i].startsWith("##[group]Run ")) {
       step = lines[i].slice("##[group]Run ".length).trim();
-      start = i;
       break;
     }
   }
-  return { step, error: lines[at].slice("##[error]".length).trim(), context: lines.slice(start, at + 20).join("\n") };
+  return { step, error: lines[at].slice("##[error]".length).trim() };
+}
+
+// Runner annotations: ##[error] and ##[warning] lines outside a step's ##[group] block. A step's own output, such as a
+// test that prints a runner's words, never counts.
+function runnerAnnotations(log) {
+  const out = [];
+  let inGroup = false;
+  for (const line of log.split("\n").map(bare)) {
+    if (line.startsWith("##[group]")) inGroup = true;
+    else if (line.startsWith("##[endgroup]")) inGroup = false;
+    else if (!inGroup && /^##\[(?:error|warning)\]/.test(line)) out.push(line.replace(/^##\[\w+\]/, ""));
+  }
+  return out;
 }
 
 const infra = (reason) => ({ kind: "infra", reason });
@@ -64,14 +74,16 @@ const infra = (reason) => ({ kind: "infra", reason });
 export function classifyFailure({ conclusion, log = "", job = null }) {
   if (conclusion === "startup_failure") return infra("startup_failure: the workflow run never started");
   if (job?.reason && GITLAB_INFRA.has(job.reason)) return infra(`the runner failed the job (${job.reason})`);
-  const runnerError = RUNNER_ERRORS.map((re) => log.match(re)).find(Boolean);
+  const runnerError = runnerAnnotations(log)
+    .flatMap((line) => RUNNER_ERRORS.map((re) => line.match(re)))
+    .find(Boolean);
   if (runnerError) return infra(`runner error: ${runnerError[0]}`);
   if (job?.steps && job.steps.length === 0 && !job.runner) return infra("the job never ran on a runner");
   const failedStep = job?.steps?.find((s) => s.conclusion === "failure");
   if (failedStep && RUNNER_STEPS.test(failedStep.name)) return infra(`the runner step "${failedStep.name}" failed`);
   const first = firstError(log);
   if (first && first.step === null) return infra(`failed while setting up the job, before any step ran: ${first.error}`);
-  if (first && ACTION_STEP.test(first.step) && INSTALL_ERRORS.some((re) => re.test(first.context))) {
+  if (first && ACTION_STEP.test(first.step) && !WRAPPED_EXIT.test(first.error) && INSTALL_ERRORS.some((re) => re.test(first.error))) {
     return infra(`the action ${first.step} failed to install or download: ${first.error}`);
   }
   const where = first?.step ?? failedStep?.name;

@@ -212,7 +212,7 @@ Each step's failure goes to step 8 with the failure kind, the step, and the evid
 
 Reaches the human, batched into the final report: defaults taken at H1, a parked H2, PR #0 or unit PRs waiting to merge under stop, units in `needs-human` or `error`, a `setup` (billing) entry, a post-merge follow-up, council blockers, and a refused `--autonomy=send`.
 
-Never reaches the human: retries, restarts, usage-limit waits, base syncs, CI flakes, and "should I keep going".
+Never reaches the human: retries, restarts, usage-limit waits, base syncs, a first CI infrastructure failure (`ci-log.mjs` re-runs it once, silently), and "should I keep going". A CI infrastructure failure that comes back on the re-run reaches the human, as a unit in `needs-human` with reason `CI infrastructure`.
 
 ## Final report
 

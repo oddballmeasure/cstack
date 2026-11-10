@@ -212,3 +212,12 @@ test("pr-wait on a local repo without ci_command: green with no CI checks after 
   assert.equal(w.out, `#1 green on ${r.head.slice(0, 7)}: no CI checks; 0 unresolved threads; merge state clean\n`);
   assert.match(w.err, /required checks: none set/);
 });
+
+test("ci-log on the local forge: a failure is the project's, whatever ci_command prints (review F3)", () => {
+  const ci = [process.execPath, "-e", "console.log('##[error]The runner has received a shutdown signal'); process.exit(1)"];
+  const r = withRemote({ ci_command: ci });
+  assert.equal(r.forge.createChange({ head: "feat", base: "main", title: "Feature", bodyFile: body(r.base, "x\n") }).ok, true);
+  const res = gate("ci-log.mjs", ["1", "--repo-dir", r.root, "--rerun", "--json"], { env: { CSTACK_FORGE: "local" } });
+  assert.equal(res.code, 1, res.out + res.err);
+  assert.deepEqual([res.json.action, res.json.failures[0].kind, res.json.failures[0].reason], ["repair", "project", "the local ci_command failed"]);
+});

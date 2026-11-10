@@ -42,3 +42,15 @@ test("without a step to blame, the project's failure names the step or the concl
   assert.deepEqual(classifyFailure({ conclusion: "failure", log: "", job: job({ steps: [] }) }), { kind: "project", reason: "the check concluded failure" }, "no steps but a runner: it ran");
   assert.deepEqual(classifyFailure({ conclusion: "timed_out", log: "", job: job({ steps: [{ name: "Unit tests", conclusion: "failure" }] }) }), { kind: "project", reason: 'the step "Unit tests" failed' });
 });
+
+test("a test-runner action whose tests fail is the project's, whatever the tests print (review F1)", () => {
+  const cypress = classifyFailure({ conclusion: "failure", log: log("cypress-action"), job: job({ steps: [{ name: "Run cypress-io/github-action@v6", conclusion: "failure" }] }) });
+  assert.deepEqual(cypress, { kind: "project", reason: 'the step "cypress-io/github-action@v6" failed' }, "user already exists, ECONNREFUSED, ENOTFOUND and 429 come from the tests");
+  assert.deepEqual(classifyFailure({ conclusion: "failure", log: log("test-action-own-error"), job: null }), { kind: "project", reason: 'the step "dorny/test-reporter@v1" failed' });
+  const wrapped = log("gitleaks-install").replace("Destination file path /tmp/gitleaks.tmp already exists", "Failed to install: exit code 1");
+  assert.equal(classifyFailure({ conclusion: "failure", log: wrapped }).kind, "project", "a wrapped exit is never the action's own install error");
+});
+
+test("runner words printed by a step are the project's; only runner annotations count (review F2)", () => {
+  assert.deepEqual(classifyFailure({ conclusion: "failure", log: log("test-prints-runner-words"), job: job({ steps: [{ name: "Run npm test", conclusion: "failure" }] }) }), { kind: "project", reason: 'the step "npm test" failed' });
+});

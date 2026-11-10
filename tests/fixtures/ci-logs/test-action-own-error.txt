@@ -1,0 +1,7 @@
+2026-11-08T22:10:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T22:10:00.2000000Z ##[group]Run dorny/test-reporter@v1
+2026-11-08T22:10:00.2000000Z with:
+2026-11-08T22:10:00.2000000Z   path: results/*.xml
+2026-11-08T22:10:00.2010000Z ##[endgroup]
+2026-11-08T22:10:02.0000000Z Creating test report JUnit
+2026-11-08T22:10:02.1000000Z ##[error]Failed test were found and 'fail-on-error' option is set to true

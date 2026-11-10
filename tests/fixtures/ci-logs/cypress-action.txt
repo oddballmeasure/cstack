@@ -1,0 +1,15 @@
+2026-11-08T22:00:00.0000000Z Current runner version: '2.329.0'
+2026-11-08T22:00:00.2000000Z ##[group]Run actions/checkout@v4
+2026-11-08T22:00:00.2000000Z ##[endgroup]
+2026-11-08T22:00:01.0000000Z ##[group]Run cypress-io/github-action@v6
+2026-11-08T22:00:01.0000000Z with:
+2026-11-08T22:00:01.0000000Z   start: npm start
+2026-11-08T22:00:01.0010000Z ##[endgroup]
+2026-11-08T22:00:20.0000000Z   Running:  signup.cy.js
+2026-11-08T22:00:25.0000000Z   1) signup rejects a taken name
+2026-11-08T22:00:25.1000000Z      AssertionError: expected "user already exists" to equal "welcome"
+2026-11-08T22:00:25.2000000Z      Error: connect ECONNREFUSED 127.0.0.1:5432
+2026-11-08T22:00:25.3000000Z      Error: getaddrinfo ENOTFOUND api.test
+2026-11-08T22:00:25.4000000Z      429 Too Many Requests: rate limit exceeded
+2026-11-08T22:00:26.0000000Z ##[error]Process completed with exit code 1.
+2026-11-08T22:00:26.1000000Z Post job cleanup.

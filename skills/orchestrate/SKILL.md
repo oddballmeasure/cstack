@@ -167,7 +167,7 @@ Leave the store intact. It is the postmortem.
 
 Reaches the human, batched into the final report: a hard stop from the mode skill, a `setup` (billing) entry, a unit in `needs-human`, a post-merge follow-up labelled `needs-human`, an open gate in `<orch> gate list`, a rejected named gate, and a program-level dead end.
 
-Never reaches the human: retries, restarts, usage-limit waits, base syncs, CI flakes, and "should I keep going". When in doubt, act and log.
+Never reaches the human: retries, restarts, usage-limit waits, base syncs, a first CI infrastructure failure (`ci-log.mjs` re-runs it once, silently), and "should I keep going". A CI infrastructure failure that comes back on the re-run does reach the human, as a unit in `needs-human` with reason `CI infrastructure`. When in doubt, act and log.
 
 ## Final report
 
