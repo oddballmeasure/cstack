@@ -53,6 +53,10 @@ Closes #<N>
 
 Proof: <the evidence, see below>
 
+<the Council review table, when cstack:council ran>
+
+<the review-loop line, when cstack:review-loop approved>
+
 Created with <model> in cstack.
 
 <the footer line from <root>/templates/footer.md>

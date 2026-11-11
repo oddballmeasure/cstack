@@ -393,6 +393,7 @@ test("launch --coordinator starts the run's coordinator with CSTACK_COORDINATOR=
   assert.ok(JSON.parse(readFileSync(p.files("coordinator.settings.json"), "utf8")).permissions.allow.includes("Bash(systemctl --user stop cstack-*)"), "the coordinator role");
   assert.ok(dry.includes("--unit=cstack-r-prog-coordinator"));
   assert.ok(dry.includes("--setenv=CSTACK_COORDINATOR=1"));
+  assert.ok(dry.includes("--setenv=CSTACK_COORDINATOR_UNIT=cstack-r-prog-coordinator"), "program and resume-run compare against it");
   assert.ok(!dry.includes("CSTACK_COORDINATOR"), "the coordinator keeps its marker");
   assert.ok(!dry.some((a) => a.startsWith("--property=ExecStopPost")));
   assert.equal(dry.at(-1), "/cstack:orchestrate --run prog");
@@ -434,13 +435,14 @@ test("launch under the other backends: the runner starts claude and runs exit wh
   assert.equal(spec.backend, "launchd");
   assert.equal(spec.name, "cstack-r-prog-U1");
   assert.deepEqual(spec.argv.slice(0, 2), ["claude", "-p"]);
-  assert.deepEqual(spec.unset, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CSTACK_COORDINATOR"]);
+  assert.deepEqual(spec.unset, ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CSTACK_COORDINATOR", "CSTACK_COORDINATOR_UNIT"]);
   assert.equal(spec.env.CSTACK_UNIT, "U1");
   assert.equal(spec.env.CSTACK_HEADLESS, "1");
   assert.deepEqual(spec.onExit.slice(-5), ["exit", "--store", p.store, "--unit", "U1"]);
   const coord = JSON.parse(p.worker(["launch", "--store", p.store, "--coordinator", "--dry-run"], { ...runner, CSTACK_SUPERVISOR: "launchd" }).out);
   assert.equal(coord.onExit, null, "the coordinator has no exit hook");
   assert.equal(coord.env.CSTACK_COORDINATOR, "1");
+  assert.equal(coord.env.CSTACK_COORDINATOR_UNIT, "cstack-r-prog-coordinator");
 
   const waited = p.worker(["launch", "--store", p.store, "--unit", "U1", "--wait"], runner);
   assert.equal(waited.code, 0, waited.err);
@@ -463,8 +465,8 @@ test("codex harness: launch checks the ChatGPT login, runs codex exec, and exit 
   const codex = { ...p.env, CSTACK_HARNESS: "codex" };
   const dry = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], codex).out);
   const envAt = dry.indexOf("/usr/bin/env");
-  assert.deepEqual(dry.slice(envAt + 1, envAt + 7), ["-u", "OPENAI_API_KEY", "-u", "CODEX_API_KEY", "-u", "CSTACK_COORDINATOR"]);
-  assert.deepEqual(dry.slice(envAt + 7, envAt + 10), ["codex", "exec", "--json"]);
+  assert.deepEqual(dry.slice(envAt + 1, envAt + 9), ["-u", "OPENAI_API_KEY", "-u", "CODEX_API_KEY", "-u", "CSTACK_COORDINATOR", "-u", "CSTACK_COORDINATOR_UNIT"]);
+  assert.deepEqual(dry.slice(envAt + 9, envAt + 12), ["codex", "exec", "--json"]);
   assert.ok(dry.includes("--setenv=CSTACK_HARNESS=codex"));
   assert.ok(!dry.some((x) => x.startsWith("--setenv=CSTACK_GUARD_HIDE")));
   const hidden = JSON.parse(p.worker(["launch", "--store", p.store, "--unit", "U1", "--dry-run"], { ...codex, CSTACK_GUARD_HIDE: "/opt/g" }).out);

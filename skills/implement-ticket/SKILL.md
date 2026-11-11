@@ -75,7 +75,7 @@ Method: <one line, see below>
 
 ACCEPTANCE
 - The ticket is implemented. Behaviour outside it is unchanged.
-- Code changes come with tests in the repo's own suite that drive the app's boundary.
+- Code changes come with tests in the repo's own suite that drive the app's boundary (for a library, its public API).
 - `node <plugin root>/gates/run-tests.mjs <worktree>` passes at your final commit. It runs config test_command in the worktree. Run other repo tools from the directory that holds them, spelled as the allow rule spells them: `cd <worktree>/frontend && npm ci` passes where `npm ci --prefix <worktree>/frontend` is refused.
 - Every commit carries the three trailers.
 

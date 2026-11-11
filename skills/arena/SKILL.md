@@ -18,7 +18,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate produces.
 2. Derive the rubric: 3 to 6 concrete, gradeable criteria for success on this task. It is the picker's tool in Phase D. Candidates see only the task.
-3. Pick the runners from config `models`. Default: one runner on `code` and one on `judge`. If both name the same model, add one on `review`. A role set to `inherit` means omit `model`. Add runners when the arena covers several design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners from config `models`. Default: one runner on `code` and one on `judge`. If both name the same model, add one on `review`. A role set to `inherit` means omit `model`. Add runners when the arena covers several design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. `--n` sets the runner count. Extra runners reuse the roles in order `code`, `judge`, `review`.
 4. Give each candidate its own output location, per [Separate Before Serializing Shared State](../cstack/references/principles/separate-before-serializing-shared-state.md). A writer gets `isolation: "worktree"`. A design candidate writes to `<out>/candidate-<n>/`, where `<out>` is `<store>/arena/<topic>/` in a run, else `/tmp/cstack-arena/<topic>/`.
 
 ## Phase B: Fan out
@@ -31,7 +31,7 @@ If a candidate produces no output, go on with N-1 and note the dropout.
 
 ## Phase C: Cross-judge
 
-After every candidate has finished, spawn one read-only judge (`subagent_type: "Explore"`, brief says "do not edit files"). Its model is a config role not used by any runner, `review` by default. If every role names the same model, use it and note that the judge shares the runners' model. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with its reasons. It runs while you read in Phase D.
+After every candidate has finished, spawn one read-only judge (`subagent_type: "Explore"`, brief says "do not edit files"). Its model is a config role not used by any runner, `review` by default. If every role names the same model, use it and note that the judge shares the runners' model. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with its reasons. In an interactive session, the judge runs while you read in Phase D. In a headless session it blocks, so read the candidates first, then spawn the judge.
 
 ## Phase D: Pick a base
 
@@ -47,7 +47,7 @@ If the candidates converge on one shape, that is strong agreement. Note it and s
 
 ## Phase F: Verify
 
-Verify the synthesized artifact like any other output, per [Prove It Works](../cstack/references/principles/prove-it-works.md). If verification finds a problem the arena missed, either Phase A was wrong (reframe and run again) or a candidate caught it and you missed the graft (go back to Phase E).
+Verify the synthesized artifact like any other output, per [Prove It Works](../cstack/references/principles/prove-it-works.md). For a type or interface sketch, it compiles with its stub bodies, and the usage sketch type-checks against it. If verification finds a problem the arena missed, either Phase A was wrong (reframe and run again) or a candidate caught it and you missed the graft (go back to Phase E).
 
 ## Outputs
 

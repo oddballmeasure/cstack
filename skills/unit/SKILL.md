@@ -251,7 +251,7 @@ Pass `--merge` only when the run's effective autonomy is `send`: `node <root>/ga
 
 ### 12 Settle
 
-Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. After a merge, record the merge commit too: `<orch> unit set <unit> --state merged --sha <merge sha>`. Under orchestrate, also push the final report: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
+Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. After a merge, record the merge commit too: `<orch> unit set <unit> --state merged --sha <merge sha>`. Under orchestrate, write the final report (**Final report**, below) first, then push it: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
 
 ## On failure
 

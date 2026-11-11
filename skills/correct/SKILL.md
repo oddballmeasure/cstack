@@ -16,7 +16,9 @@ Assume every contributor is an agent that sees only the files it opened, copies 
 
 ## Find the mistake classes
 
-Read recent commits, reverts, review comments, `CLAUDE.md` (or `AGENTS.md` when no `CLAUDE.md` exists), and comments that explain workarounds. Use `node <root>/gates/forge.mjs threads <pr>` for PR review threads (`<root>` is the plugin root, two directories up from this skill's base directory). Group the mistakes into classes. A class counts once it has happened twice.
+Read recent commits, reverts, review comments, the file that holds the agent rules, and comments that explain workarounds. Use `node <root>/gates/forge.mjs threads <pr>` for PR review threads (`<root>` is the plugin root, two directories up from this skill's base directory). Group the mistakes into classes. A class counts once it has happened twice.
+
+The file that holds the agent rules is `CLAUDE.md`, or `AGENTS.md` when no `CLAUDE.md` exists. When `CLAUDE.md` only imports another file (a line such as `@AGENTS.md`), follow the import and use that file.
 
 ## Fix each class at the highest level that works
 
@@ -27,11 +29,11 @@ Read recent commits, reverts, review comments, `CLAUDE.md` (or `AGENTS.md` when 
 
 ## Fix and prove
 
-Fix the most frequent classes now, one commit each, on a branch. Do not commit to the default branch. Prove each new check fails on a real past mistake: check out or replay that mistake, run the check, and show the failure output. Run the same command locally and in CI. An exception goes on the offending line with a reason, an expiry date, and a human's approval.
+Fix up to 3 classes per run, the most frequent first, one commit each, on a branch. List the rest in the reply. Do not commit to the default branch. Prove each new check fails on a real past mistake: check out or replay that mistake, run the check, and show the failure output. Run the same command locally and in CI. An exception goes on the offending line with a reason, an expiry date, and a human's approval.
 
 ## Keep the rule table
 
-Keep a table in `CLAUDE.md` (or `AGENTS.md` when no `CLAUDE.md` exists) that pairs each rule with what enforces it:
+Keep a table in the file that holds the agent rules that pairs each rule with what enforces it:
 
 | Rule | Enforced by |
 | --- | --- |

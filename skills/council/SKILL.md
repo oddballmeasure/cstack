@@ -28,9 +28,11 @@ Spawn all three members in one message with the `Agent` tool. Each gets the same
 
 ```
 GOAL: Review or advise only. Do not edit, commit, push, comment on PRs, or start subagents.
-CONTEXT: Read <root>/skills/cstack/SKILL.md first. <request, intent, out of scope, paths or diff>.
+SCOPE: <paths, the diff command, or the pasted text>. Read the code around it.
+CONTEXT: Read <root>/skills/cstack/SKILL.md first. <request, intent, out of scope>.
 ACCEPTANCE: Find real problems first: bugs, broken callers, mismatch with the intent, design risks.
   Hold to the smallest change. Name extras as extras.
+VERIFY: None. You are read-only.
 FORBIDDEN: <paths_hidden>, <paths_off_limits>, any write, any GitHub call.
 REPORT: SCORE: <n>/10 for the work as it stands (code review only).
   Then findings as F1 [blocker|should|nit] <file>:<line or section> <claim>. Fix: <suggestion>.
@@ -65,7 +67,7 @@ Repeated reviews grow a change one cheap fix at a time. It is your job to keep s
 
 ## 6. Record
 
-If the work ends in a PR, put the results in the PR description, directly above the `Created with <model> in cstack.` line:
+If the work ends in a PR, put the results in the PR description, in the place `cstack:file-pr` gives: above the review-loop line, if any, and the `Created with <model> in cstack.` line:
 
 ```markdown
 ## Council review

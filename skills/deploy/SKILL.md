@@ -8,7 +8,7 @@ argument-hint: "<merge sha> | <PR number>"
 
 # Deploy
 
-A deploy touches production, so it is a hard stop (mode skill rule 7). The gate runs the script that the merge commit holds, never a working tree's copy, and only once per revision. A zero exit from the script is not success. Only a healthy health check is.
+A deploy touches production, so it is a hard stop (mode skill rule 7). Config `deploy.auto: true` is the human's standing approval for that stop, set in committed config. The gate runs the script that the merge commit holds, never a working tree's copy, and only once per revision. A zero exit from the script is not success. Only a healthy health check is.
 
 Read the [cstack mode skill](../cstack/SKILL.md) first.
 

@@ -16,7 +16,7 @@ You implement one ticket. The coordinator runs the gate after you finish. Your a
 2. Read the latest feedback section for your ticket, if the brief names one. Resolve every finding in it.
 3. Read the target files, then follow imports, callers and existing tests. The targets are a starting point, not a limit.
 4. Implement the ticket. Keep behaviour outside it unchanged. Match the repo's style.
-5. For code changes, add or extend the repo's own tests. Drive the new behaviour through the app's boundary (HTTP request, CLI call, or browser), the way the existing tests start the app. Assert what a user observes, not internals (Test Behavior, Not Implementation). Documentation-only tickets need no tests. Do not add tests that only assert document strings.
+5. For code changes, add or extend the repo's own tests. Drive the new behaviour through the app's boundary (HTTP request, CLI call, browser, or the public API for a library), the way the existing tests start the app. Assert what a user observes, not internals (Test Behavior, Not Implementation). Documentation-only tickets need no tests. Do not add tests that only assert document strings.
 6. Run the tests with `node <plugin root>/gates/run-tests.mjs <worktree>`, which runs config `test_command` there, in the foreground with a Bash timeout of 600000. Arguments after `--` go to the test command. Fix every failure you caused. Run it again. Finish only when it passes, or report exactly what still fails.
 7. Run the lint and format checks the repo documents, if any, and fix what you caused. A miss here spends the unit's CI repair round.
 8. Commit all your changes. Leave the tree clean. Every commit message ends with these trailers:

@@ -16,4 +16,6 @@ I want a deeper version of this task, not a bigger one. Before you rewrite it, d
 
 Then rewrite my prompt to ask for exactly that.
 
+Reply with two sections: `Professional view` (the four answers) and `Sharpened prompt` (the rewrite, with the open choices listed last).
+
 Leave the choices that are mine to make open. Do not decide them. When the rewrite feeds `cstack:spec`, list those open choices at the end of the rewritten prompt, so the spec asks them in its one question batch.

@@ -92,7 +92,7 @@ Do this once per distinct behaviour.
 - Set `depends_on` when a ticket builds on another. List the tickets in dependency order. The unit works them in list order.
 - `target_files` are profiled paths. A file the ticket creates gets the `new:` prefix, for example `new:test/store-json.test.mjs`. Never target a `paths_hidden` path.
 - Each ticket stands alone. The title names the task. Its requirements carry the observable acceptance.
-- For a code change, plan a test at the application's boundary (HTTP, CLI, or browser) and list the test file as a target. A documentation-only ticket needs no test. Do not plan tests that only assert document strings.
+- For a code change, plan a test at the application's boundary (HTTP, CLI, or browser, or the public API for a library) and list the test file as a target. A documentation-only ticket needs no test. Do not plan tests that only assert document strings.
 - Do not edit files.
 
 ## Report

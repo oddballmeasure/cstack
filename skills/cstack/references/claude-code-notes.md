@@ -10,7 +10,7 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 | --- | --- |
 | `Agent` | Spawn a subagent. Fields: `subagent_type`, `model`, `isolation`, `run_in_background`, `prompt`, `description`. |
 | `Skill` | Run another cstack skill by name, for example `cstack:unslop`. It works inside subagents. |
-| `AskUserQuestion` | Ask the human a decision question. It is absent in `claude -p`, so ask in plain text there and take the safe default. |
+| `AskUserQuestion` | Ask the human a decision question. It is absent in `claude -p`. There, take the safe default, log it, and put the question first in the final message. |
 | `TodoWrite` | Keep the step list. When the session has no `TodoWrite`, keep the list in the reply and update it at each phase. |
 | `Monitor` | Wait on a watcher script. The session ends its turn, stays alive, and wakes on the event. It works in `-p` mode. |
 | `Grep`, `Glob` | When the session lacks them, use `Bash` with `rg`. |
@@ -55,7 +55,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 | User rules | `~/.claude/rules/*.md`, loaded into each new session |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, or a plugin's `skills/` |
 | Plugin manifest | `.claude-plugin/plugin.json` |
-| Transcripts | `~/.claude/projects/<slug>/<session>.jsonl`. The slug is the workspace path with each `/` and `.` changed to `-`. Subagent transcripts are in `<session>/subagents/`. |
+| Transcripts | `~/.claude/projects/<slug>/<session>.jsonl`. The slug is the workspace path with `/` and `.` changed to `-`, and other punctuation may change too. Match it against `ls ~/.claude/projects/`. Subagent transcripts are in `<session>/subagents/`. |
 | cstack config and runs | `.cstack/config.json`, `.cstack/runs/<slug>/` |
 
 ## No built-in PR tool

@@ -106,7 +106,7 @@ The mode skill (`skills/cstack/SKILL.md`) holds ten non-negotiables and 24 princ
 
 | Symptom | Fix |
 |---|---|
-| A hook blocked a command | Read the rule name in the message (`hidden-paths`, `off-limits`, `no-sleep-loops`, `no-admin-merge`, `no-autonomy-raise`, `no-deploy-approval`, `no-eval-publish`). Run `cstack:doctor` before changing anything. |
+| A hook blocked a command | Read the rule name in the message (`hidden-paths`, `off-limits`, `no-sleep-loops`, `no-admin-merge`, `no-autonomy-raise`, `no-deploy-approval`, `no-eval-publish`, `no-subagent-background`, `headless-foreground-agents`, `role-deny`). Run `cstack:doctor` before changing anything. |
 | `--autonomy=send` did not merge | The session lacked `CSTACK_PROGRAM_AUTONOMY=send`. `node <root>/gates/run-settings.mjs --store <store>` prints why. Relaunch with it set. |
 | The coordinator stopped mid-run | `/cstack:program --resume <slug>`, or `cstack:resume-run <slug>` for a plain orchestrate run. |
 | A unit hit the usage limit | Nothing. The worker re-queues it after the reset. |

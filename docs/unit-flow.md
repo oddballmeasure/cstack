@@ -69,7 +69,7 @@ The unit skill is the coordinator. It never edits product code itself. Every imp
 
 ## Failure kinds
 
-`invalid_output`, `tests_failed`, `no_change`, `verification`, `ci_failed`, `ci_timeout`, `base_conflict`, `pr_violation`, `git`, `github`, `setup`, `usage_limit`, `crash`.
+`invalid_output`, `tests_failed`, `no_change`, `verification`, `ci_failed`, `ci_timeout`, `base_conflict`, `pr_violation`, `git`, `github`, `setup`, `usage_limit`, `crash`, `deploy` (`cstack:deploy` only).
 
 On failure: settle `error` with the comment `cstack stopped at <stage> (<kind>): <one line>`. Write the line to `<store>/failure-<unit>.txt` and push it: `node gates/orch.mjs --store <store> inbox push unit <id> error --report <store>/failure-<unit>.txt`. Keep the worktree for inspection.
 
@@ -78,7 +78,7 @@ On failure: settle `error` with the comment `cstack stopped at <stage> (<kind>):
 | Outcome | Label | Comment prefix |
 |---|---|---|
 | merged | `done` | `cstack resolved this in` |
-| merge-ready (autonomy stop) | `in-progress` (unchanged) | `cstack: ready to merge` |
+| merge-ready (autonomy stop) | `in-progress` (unchanged) | `cstack: ready to merge`, or `cstack: waiting for required approval` |
 | needs a decision | `needs-human` | `cstack needs a decision before continuing` |
 | not taken | `needs-human` | `cstack is not taking this issue:` |
 | failed | `error` | `cstack stopped at` |

@@ -15,7 +15,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` and
 ## Budget
 
 - Default: `limits.review_rounds` rounds (3). Round 1 is a full review. Later rounds check only changed code and open findings.
-- Extend to 5 only for security, permissions, auth, data loss, or state and concurrency, while a blocker or should stays open with evidence. Or when the human asks. Log the extension and its reason.
+- Extend by 2 rounds only for security, permissions, auth, data loss, or state and concurrency, while a blocker or should stays open with evidence. Or when the human asks. Log the extension and its reason.
 - Stop early when a round returns only nits. Declined nits and comment, doc or format-only fixes need no new round.
 - One reviewer per round. The reviewer never starts subagents or other reviewers.
 - Budget end is not approval. A timeout, an error or no reply is not approval either.
@@ -32,11 +32,9 @@ Pick its `model`:
 2. Use config `models.review`. If it equals the author model, or is `inherit` and the session model is the author model, pick a model that differs from the author model per the mode skill's **Model** rule. Log the substitution with its reason, and say it in the report.
 3. Use the same reviewer model in every round of one loop.
 
-<!-- Room for later, not implemented: an optional config key `models.reviewer_command` could name an external CLI reviewer (another vendor's model). The loop would run it with the same brief on stdin and parse the same reply format. Today the reviewer is always a Claude model through the Agent tool. -->
-
 ## 1. Scope
 
-Name the diff, the author model, the intent, what is out of scope, and the round budget (3, or 5 for security, auth, data loss or concurrency), in 1 to 3 sentences.
+Name the diff, the author model, the intent, what is out of scope, and the round budget (`limits.review_rounds`, plus 2 for security, auth, data loss or concurrency), in 1 to 3 sentences.
 
 - **Inside a unit** (`cstack:unit` stage 10, step 10b). The diff is `git -C <wt> diff <base>...HEAD`, with `<base>` as the unit names it. Each call runs one round on the current head. The ledger in the run store carries the loop across heads, so the round number is the ledger's last round plus 1.
 - **A PR.** `node <root>/gates/forge.mjs change view <n> --json`. Confirm HEAD is the PR's `head`. The base is `git merge-base HEAD origin/<base>`, with `base` from the same record.
@@ -82,6 +80,7 @@ ACCEPTANCE: Find bugs, broken callers, and mismatch with the intent. Skip style 
   Hold to the smallest change. Flag code, tests or guards the intent does not need.
   Other paths, rare cases, small perf, extra compat: nits.
   blocker = the intended case is wrong. should = a real bug callers will hit, inside the intent. nit = the rest.
+VERIFY: None required. Run tests only in the form your agent file allows.
 FORBIDDEN: <paths_hidden>, <paths_off_limits>, any write, any GitHub call.
 REPORT:
 VERDICT: APPROVE or CHANGES
@@ -121,7 +120,7 @@ For a dispute or a budget end, show both sides in 2 or 3 lines each. The human d
 
 ## 6. Mark the PR
 
-Only when the loop is approved, add this line to the PR body, directly above the `Created with <model> in cstack.` line:
+Only when the loop is approved, add this line to the PR body, directly above the `Created with <model> in cstack.` line and below any Council review table (the order is in `cstack:file-pr`):
 
 ```
 Reviewed with review-loop: <N> rounds with <model>. Verdict: approved

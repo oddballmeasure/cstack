@@ -14,7 +14,7 @@ The author's stated intent for this change:
 
 > {INTENT}
 
-Review whether the code achieves this intent well. Do NOT question the intent itself. Assume the goal is correct and challenge the execution.
+Review whether the code achieves this intent well. Take the intent as given and challenge the execution. The lead checks the intent separately, so a finding against the intent is dismissed.
 
 ## Code Under Review
 
@@ -34,9 +34,9 @@ Review the code through every lens in the rubric and the code-quality lens above
 
 For each finding, provide:
 
-1. **Severity**: `critical` | `warning` | `nit`
-   - `critical`: Would cause bugs, data loss, security issues, or fundamentally broken behavior
-   - `warning`: Design concern, maintainability risk, or correctness issue that isn't immediately broken but will cause pain
+1. **Severity**: `blocker` | `should` | `nit`, the same scale as every cstack reviewer brief
+   - `blocker`: Would cause bugs, data loss, security issues, or fundamentally broken behavior
+   - `should`: Design concern, maintainability risk, or correctness issue that isn't immediately broken but will cause pain
    - `nit`: Style, naming, minor improvement.
 2. **Finding**: What the problem is, in concrete terms. Reference specific lines/functions.
 3. **Evidence**: Why you believe this is a problem. Show your reasoning. Don't just assert.

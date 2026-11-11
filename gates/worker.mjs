@@ -23,7 +23,8 @@
 // generated settings, workers/<id>.settings.json (role worker, or coordinator with --coordinator).
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
-// pending-work Stop hook applies to it. It has no exit hook and no unit row. When <store>/run.json has
+// pending-work Stop hook applies to it, and CSTACK_COORDINATOR_UNIT=<that name>, so program and resume-run can tell
+// the run's own coordinator from a second session that only sets CSTACK_COORDINATOR=1. Workers get neither. It has no exit hook and no unit row. When <store>/run.json has
 // "entry": "program", the coordinator runs `/cstack:program --resume <slug>` instead.
 // Every session gets CSTACK_HEADLESS=1, which the guard and the pending-work Stop hook read: under -p or exec the
 // end of the turn ends the process. The PATH comes from workerPath (gates/lib/workers.mjs).
@@ -106,7 +107,7 @@ function launch(store, unit, args) {
         : `/cstack:orchestrate --run ${slug}`
     : `/cstack:unit ${row.issue ? `${row.issue} ` : ""}--run ${slug} --unit ${unit}`;
   const role = coordinator
-    ? ["--setenv=CSTACK_COORDINATOR=1"]
+    ? ["--setenv=CSTACK_COORDINATOR=1", `--setenv=CSTACK_COORDINATOR_UNIT=${name}`]
     : [`--setenv=CSTACK_UNIT=${unit}`, `--property=ExecStopPost=${[process.execPath, SELF, "exit", "--store", store, "--unit", unit].map(quote).join(" ")}`];
   mkdirSync(path.dirname(workerFile(store, id, "jsonl")), { recursive: true });
   const settingsFile = workerFile(store, id, "settings.json");
@@ -131,7 +132,7 @@ function launch(store, unit, args) {
     settingsFile,
     prompt,
   ];
-  const unset = [...BILLING_VARS[harness], ...(coordinator ? [] : ["CSTACK_COORDINATOR"])];
+  const unset = [...BILLING_VARS[harness], ...(coordinator ? [] : ["CSTACK_COORDINATOR", "CSTACK_COORDINATOR_UNIT"])];
   const sessionEnv = {
     PATH,
     HOME: home,
@@ -139,7 +140,7 @@ function launch(store, unit, args) {
     CSTACK_PROGRAM_AUTONOMY: process.env.CSTACK_PROGRAM_AUTONOMY === "send" ? "send" : "",
     CSTACK_HARNESS: harness,
     CSTACK_HEADLESS: "1",
-    ...(coordinator ? { CSTACK_COORDINATOR: "1" } : { CSTACK_UNIT: unit }),
+    ...(coordinator ? { CSTACK_COORDINATOR: "1", CSTACK_COORDINATOR_UNIT: name } : { CSTACK_UNIT: unit }),
   };
   if (backend !== "systemd") return launchRunner({ backend, store, unit, id, name, coordinator, row, repoRoot, session, unset, sessionEnv, args });
   const argv = [
