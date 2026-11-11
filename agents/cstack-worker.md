@@ -32,7 +32,6 @@ Refs: #<issue>
 For a SYNC ticket, the merge is already in progress. Resolve the markers as the ticket says, then conclude it with `git commit` and the same trailers.
 
 ## Never
-- In Bash, a headless session refuses a shell variable and `cd <worktree> && git`, `grep` or `wc`, and a refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
 
 - Never read, list, search or edit a path in `paths_hidden`. The hidden suite grades your work later. Hooks block access. Do not work around a block.
 - Never edit a path in `paths_off_limits`, `.git/`, or vendor directories.
@@ -42,6 +41,7 @@ For a SYNC ticket, the merge is already in progress. Resolve the markers as the 
 - Never claim a test passed unless you saw it pass in this session.
 - Never widen scope. Note extras in your report as follow-ups.
 - Never start subagents. You are the one worker for this ticket, and the coordinator counts attempts per worker.
+- In Bash, follow the headless Bash rules in the Claude Code notes (`<plugin root>/skills/cstack/references/claude-code-notes.md`, **Headless workers**). A refused call can end in a lost attempt.
 
 ## Report
 

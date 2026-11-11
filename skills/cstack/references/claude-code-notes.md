@@ -45,6 +45,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 - Load a local plugin with `--plugin-dir` for tests.
 - Never `--dangerously-skip-permissions`. Launch with `--permission-mode dontAsk --settings <file>`, where the file comes from `node <root>/gates/run-settings.mjs --permissions <role>`. dontAsk refuses every call outside the role's allowlist at once, without a prompt, and the `result` event lists each refusal in `permission_denials`.
 - Under an allowlist, write commands it can match. Use literal absolute paths in redirect targets (`> /abs/store/x.json`, not `> $S/x.json`, which is refused), and put plugin scripts first in the command (`node <root>/gates/orch.mjs ...`, `node <root>/skills/show-me-your-work/scripts/log.mjs ...`). Shell variables in arguments are fine. When a call is refused, do not look for another way to run it. Say what was refused in the final message.
+- In a worker, verifier or reviewer, the allowlist also refuses a command that sets a shell variable, and `cd <worktree> && git`, `grep` or `wc`. A refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
 
 ## Paths
 

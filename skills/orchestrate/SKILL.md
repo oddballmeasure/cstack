@@ -142,7 +142,7 @@ For each `launch` line:
 <worker> launch --store <store> --unit <unit>
 ```
 
-It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and starts the session through the host supervisor (`systemd-run --user` on Linux, launchd on macOS, Task Scheduler on Windows, else a detached process): `claude -p --strict-mcp-config --plugin-dir <root> "/cstack:unit <issue> --run <slug> --unit <unit>"` with an explicit PATH and `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` unset. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
+It is idempotent. It leaves a live worker alone, marks the unit `in-progress`, and starts a headless `/cstack:unit` session through the host supervisor. The header of `gates/worker.mjs` gives the command, the supervisors and the environment. `--dry-run` prints the command. The worker's output is in `<store>/workers/<unit>.jsonl` and `.stderr.log`.
 
 ### Wait
 

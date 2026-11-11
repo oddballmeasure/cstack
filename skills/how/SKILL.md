@@ -14,8 +14,8 @@ This skill is read-only. No spawn edits files.
 ## Setup
 
 1. Read the [cstack mode skill](../cstack/SKILL.md). Put its absolute path in every brief and tell the agent to read it first.
-2. Read `.cstack/config.json` with `jq`. Take `models.gather` for explorers and `models.judge` for the explainer. A role set to `inherit` means omit `model`. With no config, use `templates/config.json` and say so.
-3. Read `.cstack/profile.json` if it exists. Its summaries and capabilities point at likely owners. Treat them as leads. Confirm each one in the code.
+2. Read config per the mode skill's **Config** section, which also defines `<root>` and `<repo>`. Take `models.gather` for explorers and `models.judge` for the explainer. A role set to `inherit` means omit `model`.
+3. Read `<repo>/.cstack/profile.json` if it exists. Its summaries and capabilities point at likely owners. Treat them as leads. Confirm each one in the code.
 4. Choose the explorer type. Use the plugin agent `cstack-explorer` (with the plugin prefix, see the Claude Code notes in the mode skill) when the `Agent` tool lists it. Else use `Explore`.
 5. The explainer uses `Explore` with the `judge` model.
 6. Every brief says "do not edit files" and lists config `paths_hidden` as off limits. Run `git status --porcelain` after the spawns return. Any change is a finding. Revert nothing yourself. Report it.

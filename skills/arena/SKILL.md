@@ -8,7 +8,7 @@ argument-hint: "<task> [--n <count>]"
 
 # Arena
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` with `jq` from `<repo>/.cstack/config.json`. Without a config, use the defaults in `<root>/templates/config.json` and say so. `<root>` is the plugin root, two directories up from this skill's base directory.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 Open a TodoWrite list with one entry per phase before you launch anything: Frame, Fan out, Cross-judge, Pick, Graft, Verify.
 
@@ -25,7 +25,7 @@ Every candidate gets the same prompt, so the prompt is the contract.
 
 Spawn all N subagents in one message with the `Agent` tool. Use `subagent_type: "general-purpose"` for candidates that write files. Each brief has the headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT and holds: the task, the path to the shared grounding, the candidate's own output path, the mode skill's absolute path (read it first), config `paths_hidden` and `paths_off_limits` under FORBIDDEN, and the instruction to produce the artifact plus a short rationale that names the alternatives it considered and what it rejected.
 
-Agents run in the background and notify you when they finish. Wait for the notifications. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn them with `run_in_background: false`. Calls in one message still run at the same time, and the message returns when all N finish.
+Wait for all N per the mode skill's **Background** rule. In a headless session that means `run_in_background: false`.
 
 If a candidate produces no output, go on with N-1 and note the dropout.
 

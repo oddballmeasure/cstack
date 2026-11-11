@@ -9,7 +9,7 @@ description: "Use when a cstack unit has an open PR and must drive it to green (
 
 This is stage 10 of the unit flow (`docs/unit-flow.md`). It starts after `cstack:file-pr` and ends when `pr-wait.mjs --until green` exits 0, no actionable review thread is left, and step 10b (the review loop) approved the head or was skipped. Then the unit goes to stage 11, `cstack:merge-gate`.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Read `repo`, `label_prefix` and `limits` from `.cstack/config.json` with `jq`.
+`<root>` is the plugin root, two directories up from this skill's base directory. Read `repo`, `label_prefix` and `limits` from `<worktree>/.cstack/config.json` with `jq`.
 
 ## Who watches
 
@@ -27,7 +27,7 @@ Never write a watcher, a polling loop or a `sleep` loop. The guard hook blocks t
 Each stdout line is one real event and wakes you. Then:
 
 - **Monitor expired, pr-wait still running.** Arm it again with the same command. pr-wait keeps state, so nothing that arrived in between is lost.
-- **pr-wait exited 0.** Required checks are green on the head, or the PR merged. Go to **Done**. A green line that starts `no CI checks` means pr-wait found no CI. No required checks are set, and no check appeared on the head for 120 seconds. Run pr-wait from inside the repo's checkout. There the head and the base tip must both resolve and hold no CI config at the repository root (`CI_PATHS` in `gates/lib/change-watch.mjs`: `.github/workflows/`, `.gitlab-ci.yml`, `.circleci/`, `Jenkinsfile`, `.travis.yml`, Azure, Bitbucket, Buildkite, Drone, AppVeyor, Cloud Build, Woodpecker, Semaphore, Bitrise, Codefresh and TeamCity files). The list is not exhaustive. On GitHub the base tip is the one GitHub reports. On GitLab it is `origin/<base>`, and the project must also use the default CI config path. On the local forge, no `ci_command` means no CI. Otherwise pr-wait waits for checks however long they take. When its log says `fetch origin <base>` or names a head to fetch, run that `git fetch`. Detection reads root-level paths only. CI configured only on the CI server, or from a CI file in a subdirectory, still looks like no CI: set `required_checks` for it.
+- **pr-wait exited 0.** Required checks are green on the head, or the PR merged. Go to **Done**. A green line that starts `no CI checks` means pr-wait found no CI: no required checks are set, no check appeared on the head, and the checkout holds no CI config file (`CI_PATHS` and the header of `gates/lib/change-watch.mjs` give the rules). Otherwise pr-wait waits for checks however long they take. Run pr-wait from inside the repo's checkout. When its log says `fetch origin <base>` or names a head to fetch, run that `git fetch`. If CI is configured only on the CI server or in a subdirectory, set `required_checks`.
 - **pr-wait exited 1.** It needs action. Read its last lines and handle them in the order below.
 - **pr-wait exited 2.** Bad input or a second watcher. Fix the command once. If it fails again, the stage fails with kind `github`.
 - **An event needs no action.** End the wake without a message. Never post or say "still waiting".
@@ -118,10 +118,11 @@ pr-wait exited 0. Before you leave the stage:
 
 A sub-step of stage 10. It runs once per new head, after pr-wait exited 0 on that head and before the merge gate.
 
-1. List the changed paths: `git -C <worktree> diff --name-only --no-renames <base>...HEAD`, so a rename lists its old path too. If every path is documentation, skip it: a match for config `docs_paths` when set, else `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). The merge gate applies the same test. Log `skip: docs only`.
-2. If the review ledger already has a round at this HEAD, do not run another. Use that round's result.
-3. Otherwise run `cstack:review-loop` for one round on the PR diff, with the author model `models.code`. It keeps its ledger in `<store>/review-<unit>.tsv` and `<store>/review-<unit>-rounds.tsv`.
-4. Act on its result:
+1. Skip this step for a suite unit (`E2E` or `E2E-<name>`, track `e2e`): a reviewer may not read the hidden suite, so `cstack:e2e-plan` judges it. Log `skip: hidden suite`.
+2. List the changed paths: `git -C <worktree> diff --name-only --no-renames origin/<base>...HEAD`, so a rename lists its old path too. If every path is a doc, skip this step and log `skip: docs only`. `cstack:merge-gate` defines a doc (`docTest` in `gates/lib/repo.mjs`), and the merge gate applies the same test. Note that `docs_paths: []` means no file is a doc.
+3. If the review ledger already has a round at this HEAD, do not run another. Use that round's result.
+4. Otherwise run `cstack:review-loop` for one round on the PR diff, with the author model `models.code`. It keeps its ledger in `<store>/review-<unit>.tsv` and `<store>/review-<unit>-rounds.tsv`.
+5. Act on its result:
    - Approved: go to stage 11. The loop has added its line to the PR body.
    - Agreed blockers or shoulds: it ran `cstack:repair` with source `review`, which returned `retry REPAIR-<n>`. The unit goes to stage 5, then 6, 7, 8 and back to stage 10 on the new head.
    - Disputed after two replies, or budget end: settle as needs a decision through `cstack:settle`, with both sides. Do not go to the merge gate. Budget end is not approval.

@@ -155,16 +155,7 @@ Route by `classification`:
 
 Owner: `cstack:implement-ticket`, one ticket at a time in `depends_on` order from the intake. Skip each ticket whose trailer is on the branch.
 
-For each ticket, spawn the plugin's `cstack-worker` agent with the `Agent` tool. Set `model` from config `models.code` (omit it for `inherit`). The worker works inside `<wt>`. It never sees the hidden suite. Its brief, with headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT, includes:
-
-- the absolute path of `<root>/skills/cstack/SKILL.md` (read it first) and of `<root>/skills/implement-ticket/SKILL.md`;
-- the worktree path `<wt>`;
-- the unit id, the ticket id and title, its target files;
-- the requirement ids and text the ticket serves, and the lane ids from `units.tsv`, if any;
-- the feedback file `<store>/feedback-<unit>.md` (act on its latest section);
-- the trailers every commit carries: `Cstack-Unit: <unit>`, `Cstack-Ticket: <ticket>`, `Refs: #<N>`;
-- the gate the work must pass, verbatim;
-- FORBIDDEN: config `paths_hidden` and `paths_off_limits`, pushing, and any GitHub write.
+For each ticket, run `cstack:implement-ticket`. It spawns the plugin's `cstack-worker` agent inside `<wt>` and writes the brief. Pass it the unit's values: `<repo>`, `<store>`, `<wt>`, the unit id, the issue `<N>` and the ticket id. The worker never sees the hidden suite.
 
 Gate after each ticket:
 

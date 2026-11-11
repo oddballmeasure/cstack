@@ -10,11 +10,11 @@ argument-hint: "[<pr-number> | <path> | <question>]"
 
 Bring in three delegates for review or feedback. Each one runs on a different Claude model in fresh context. Model diversity is the signal. Their agreement is strong evidence. Their disagreement is a finding.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` and `limits` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models`, `limits` and `label_prefix` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 ## Members
 
-- Default members: config `models.judge`, `models.review` and `models.code`. If two resolve to the same model, replace the second with the first model from the same harness's list not in use yet (Claude Code: `fable`, `opus`, `sonnet`), and say so. Under Codex, read `models_codex` (see the Codex notes) and take replacements from Codex models only. If the human names members, use those.
+- Default members: config `models.judge`, `models.review` and `models.code`. If two resolve to the same model, replace the second per the mode skill's **Model** rule, and say so. Under Codex, that rule reads `models_codex`. If the human names members, use those.
 - The three must be three different models. If a named member is unavailable or the `Agent` tool rejects its model, report it. Do not substitute silently. Run with the members you have only if the human agrees, or under `claude -p`, where you say so first in the reply.
 - Each member is the plugin's `cstack-reviewer` agent with `model` set to that member. Claude Code lists the agent with the plugin prefix. For a design question with no diff, use `subagent_type: "Explore"` and say "do not edit files" in the brief.
 
@@ -37,7 +37,7 @@ REPORT: SCORE: <n>/10 for the work as it stands (code review only).
   Then a one-line recommendation.
 ```
 
-Wait for the three notifications. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn them with `run_in_background: false`. Calls in one message still run at the same time, and the message returns when all three finish.
+Wait for all three per the mode skill's **Background** rule. In a headless session that means `run_in_background: false`.
 
 ## 3. Synthesize
 

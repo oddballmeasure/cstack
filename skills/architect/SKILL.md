@@ -10,7 +10,7 @@ argument-hint: "<task> [--run <slug>] [--checkpoint]"
 
 Sketch types, function signatures, class shapes and module boundaries with `not implemented` bodies and pseudocode. Synthesize across candidates on different models, then fill in code against the chosen sketch.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` with `jq` from `<repo>/.cstack/config.json`. Without a config, use the defaults in `<root>/templates/config.json` and say so. `<root>` is the plugin root, two directories up from this skill's base directory.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 Under `cstack:plan`, the output is a design package that becomes the first unit, not code. Phase D then belongs to that unit's worker. Write the package to `<store>/architect/<topic>/` when a run store exists, else to `/tmp/cstack-architect/<topic>/`.
 

@@ -9,7 +9,7 @@ description: "Use when a cstack unit must bring its branch up to date with the b
 
 This is stage 7 of the unit flow (`docs/unit-flow.md`). The unit coordinator runs it. It never resolves conflicts itself. A SYNC ticket does.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Read `base_branch` and `limits.base_sync_rounds` from `.cstack/config.json` with `jq`.
+Read `base_branch` and `limits.base_sync_rounds` from `<worktree>/.cstack/config.json` with `jq`. The [mode skill's **Config** section](../cstack/SKILL.md#config) defines `<root>` and the config rules.
 
 ## Run the gate
 

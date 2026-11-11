@@ -10,7 +10,7 @@ disable-model-invocation: true
 
 Mine this conversation for durable learnings. Then route them into skill edits.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` and `label_prefix` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` and `label_prefix` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 Skip reflect when the session is trivial, off-topic, or a skill already covered it and the session followed that skill correctly. A one-off is not a learning.
 
@@ -38,7 +38,7 @@ Spawn all three in one message with the `Agent` tool, `subagent_type: "Explore"`
 
 Set `model` from the role. A role set to `inherit` means omit `model`. Tooling runs on `review`, not `gather`, for two reasons. It needs judgment to tell a durable fact from drift, and a second model family catches what the `judge` model misses.
 
-Pass each template as written, below its attribution line. Fill in the placeholders: the mode skill's absolute path, and the transcript path or the digest. Each reviewer returns its findings in its reply.
+Build each brief from [the common reviewer rules](references/reviewer-common.md) followed by the lens template, each as written below its attribution line. Fill in the placeholders: the mode skill's absolute path, and the transcript path or the digest. Each reviewer returns its findings in its reply.
 
 ## 3. Synthesize
 

@@ -10,7 +10,7 @@ argument-hint: "[<pr-number> | <path to diff>]"
 
 Make a change more correct before it merges. A reviewer that did not write the code reviews the diff in a loop. You answer each finding with the smallest fix or with evidence. Be careful of scope creep. Push back when a finding does not earn its place.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` and `limits` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` and `limits` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 ## Budget
 
@@ -29,7 +29,7 @@ The reviewer is the plugin's `cstack-reviewer` agent, spawned with the `Agent` t
 Pick its `model`:
 
 1. The author model is the model that wrote the diff. In a unit it is config `models.code`. For a human's own work it is the model the human names, else this session's model.
-2. Use config `models.review`. If it equals the author model, or is `inherit` and the session model is the author model, pick the first of `fable`, `opus`, `sonnet` that differs from the author model. Log the substitution with its reason, and say it in the report.
+2. Use config `models.review`. If it equals the author model, or is `inherit` and the session model is the author model, pick a model that differs from the author model per the mode skill's **Model** rule. Log the substitution with its reason, and say it in the report.
 3. Use the same reviewer model in every round of one loop.
 
 <!-- Room for later, not implemented: an optional config key `models.reviewer_command` could name an external CLI reviewer (another vendor's model). The loop would run it with the same brief on stdin and parse the same reply format. Today the reviewer is always a Claude model through the Agent tool. -->
@@ -45,7 +45,7 @@ Name the diff, the author model, the intent, what is out of scope, and the round
 
 Use one diff command for every round. Run the covering checks when you can (config `test_command`). Do not send code that this change breaks. Note missing or failing checks in the brief.
 
-**Docs-only diffs.** If every changed path in `git diff --name-only --no-renames <base>...HEAD` is documentation, skip the loop. A path is documentation when it passes `docTest(config)` in `gates/lib/repo.mjs`, the same test the merge gate uses. When config `docs_paths` is a list, a path is documentation only if it matches one of its globs, and `[]` means no path is. Otherwise the default list applies: `*.md`, `*.mdx`, `*.rst`, `*.txt`, `*.adoc`, `docs/**`, `LICENSE*`, `NOTICE*`, `CHANGELOG*` (any case). A repo whose markdown is product (skills, prompts) sets `docs_paths`, or its skill edits skip review. Log `skip: docs only`.
+**Docs-only diffs.** If every changed path in `git diff --name-only --no-renames <base>...HEAD` is a doc, skip the loop. `cstack:merge-gate` defines a doc (`docTest` in `gates/lib/repo.mjs`), and the merge gate uses the same test. Note that `docs_paths: []` means no file is a doc. A repo whose markdown is product (skills, prompts) sets `docs_paths`, or its skill edits skip review. Log `skip: docs only`.
 
 ## 2. The ledger
 
@@ -69,7 +69,7 @@ Findings file columns: `id`, `round`, `severity`, `location`, `claim`, `outcome`
 
 ## 3. Run a round
 
-Spawn the reviewer. Do not edit the scoped files while it runs. Wait for its notification. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn it with `run_in_background: false` and wait for its result in the foreground. Do not start a second reviewer. On a failure, record it, then start a fresh reviewer with the ledger.
+Spawn the reviewer and wait for it per the mode skill's **Background** rule. In a headless session that means `run_in_background: false`. Do not edit the scoped files while it runs. Do not start a second reviewer. On a failure, record it, then start a fresh reviewer with the ledger.
 
 Round 1 brief:
 

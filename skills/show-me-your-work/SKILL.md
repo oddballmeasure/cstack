@@ -3,13 +3,11 @@ name: show-me-your-work
 description: "Use when a cstack run is long, unattended or multi-phase, to keep an append-only decision log. One TSV row per decision (what, why, evidence, result), audited against the transcript and reviewed by a second model before hand-back. Also use when a human reviews the work after stepping away."
 ---
 
-<!-- Adapted from pstack skills/show-me-your-work/SKILL.md @ 519d36a (MIT, Lauren Tan). -->
+<!-- Adapted from pstack skills/show-me-your-work/SKILL.md @ 519d36a (MIT, Lauren Tan). scripts/log.mjs (a Node port of pstack's scripts/log.sh) and references/decision-log-template.tsv are adapted from the same directory. -->
 
 # Show me your work
 
 Keep one canonical log.
-
-`scripts/log.mjs` (a Node port of pstack's `scripts/log.sh`) and `references/decision-log-template.tsv` are also adapted from pstack `skills/show-me-your-work/` @ 519d36a (MIT, Lauren Tan).
 
 ## The format
 
