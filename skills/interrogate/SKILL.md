@@ -1,6 +1,6 @@
 ---
 name: interrogate
-description: "Adversarial multi-model code review. Use this skill whenever the user asks to tear apart, stress-test, challenge, grill, poke holes in, find blind spots in, or adversarially review code, a diff or a branch (\"interrogate\", \"tear this apart\", \"multi-model review\"), including a pasted snippet with no repo, offline. Do not answer such a request with a single-pass review of your own. This skill sends the code to reviewers on different Claude models in parallel, then gives one lead verdict in four buckets (act on, consider, noted, dismissed) with an agreement map. It changes no files."
+description: "Use when the user asks to tear apart, stress-test, grill, poke holes in, find blind spots in, or adversarially review code, a diff or a branch (\"interrogate\", \"tear this apart\", \"multi-model review\"), including a pasted snippet with no repo, offline. Adversarial multi-model code review: do not answer such a request with a single-pass review of your own. A plain review request goes to cstack:review-loop. This skill sends the code to reviewers on different Claude models in parallel, then gives one lead verdict in four buckets (act on, consider, noted, dismissed) with an agreement map. It changes no files."
 argument-hint: "[<pr-number> | <path> | <diff>]"
 ---
 

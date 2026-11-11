@@ -1,6 +1,6 @@
 ---
 name: unit
-description: "Use when the user asks cstack to work one GitHub issue end to end, or when the cstack orchestrator hands it a unit. Coordinates the 13 unit stages from preflight to settle: claim, profile, intake, isolate, implement, verify, sync, publish, PR, babysit, merge gate. Subagents write and verify the code. Gates decide every stage. Invoke as /cstack:unit <issue-number>, or with --run <slug> --unit <id> under orchestrate."
+description: "Use when the user asks cstack to work one GitHub issue end to end, or when the cstack orchestrator hands it a unit. Coordinates the 13 unit stages from preflight to settle: claim, isolate, profile, intake, implement, verify, sync, publish, PR, babysit, merge gate. Subagents write and verify the code. Gates decide every stage. Invoke as /cstack:unit <issue-number>, or with --run <slug> --unit <id> under orchestrate."
 argument-hint: "<issue-number> [--run <slug> --unit <id>]"
 ---
 

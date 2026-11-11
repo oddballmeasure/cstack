@@ -1,6 +1,6 @@
 ---
 name: leaving-pr-comments
-description: "Use whenever you write a GitHub comment on the human's behalf: a reply to a reviewer or bot, an inline review comment, a top-level PR comment, or the explanation posted before resolving or dismissing a thread. cstack:babysit-pr uses it for every reply. Sets the callout header, the direct style, the secret check and the cstack footer, and the rules for posting and resolving."
+description: "Use whenever you write a PR or MR comment on any forge on the human's behalf: a reply to a reviewer or bot, an inline review comment, a top-level PR comment, or the explanation posted before resolving or dismissing a thread. cstack:babysit-pr uses it for every reply. Sets the callout header, the direct style, the secret check and the cstack footer, and the rules for posting and resolving."
 ---
 
 <!-- Adapted from tstack skills/leaving-pr-comments/SKILL.md @ 92e38e2 (MIT, Theo Browne). -->

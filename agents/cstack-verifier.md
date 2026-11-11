@@ -1,6 +1,6 @@
 ---
 name: cstack-verifier
-description: "cstack verifier. Judges one cstack unit at an exact HEAD against its requirements, runs the tests itself, and writes one verdict JSON file. Read-only otherwise. Spawned by cstack:verify-head with a brief; not for general use."
+description: "cstack verifier. Judges one cstack unit at an exact HEAD against its requirements, runs the tests itself, and records one verdict through gates/record-verdict.mjs. Read-only otherwise. Spawned by cstack:verify-head with a brief; not for general use."
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
