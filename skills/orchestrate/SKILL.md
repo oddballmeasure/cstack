@@ -32,6 +32,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<worker>` | `node <root>/gates/worker.mjs` |
 | `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<unit name>` | `cstack-<repo name>-<slug>-<unit>`, the systemd unit of a Level B worker. `<repo name>` is config `repo` after the slash. |
+| `<prefix>` | Config `label_prefix`. |
 
 ## Preconditions
 
@@ -133,7 +134,7 @@ If `<orch> standing show` has a line that starts with `STOP` (written by `cstack
 <worker> next --store <store>
 ```
 
-It prints `launch <unit>` lines for the free slots (the run's `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` follows Cardinal's rule: nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset. `hold <unit> on gate <id> (<status>)` names a unit a human gate holds: handle it per **Human gates**.
+It prints `launch <unit>` lines for the free slots (the run's `parallel` minus the units running), in id order, with dependencies met. A line marked `(dependency override)` means that nothing runs and nothing qualifies, so the lowest planned unit starts anyway. Log every override. `defer <unit> until <iso>` names a usage-limited unit and its reset. `hold <unit> on gate <id> (<status>)` names a unit a human gate holds: handle it per **Human gates**.
 
 For each `launch` line:
 

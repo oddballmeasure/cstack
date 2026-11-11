@@ -20,7 +20,7 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 - `subagent_type: "general-purpose"` writes code and keeps the session's MCP servers.
 - `subagent_type: "Explore"` is for read-only work. It still has `Bash`, so the brief says "do not edit files", and the parent checks `git status` afterward.
 - Plugin agents from `agents/<name>.md` take the plugin prefix (`cstack:` plus the file name). Use them where a skill names one.
-- `isolation: "worktree"` gives the agent its own git worktree. Name the branch or commit it checks out. Its behaviour inside headless sessions is not measured yet (Phase 3).
+- `isolation: "worktree"` gives the agent its own git worktree. Name the branch or commit it checks out. Its behaviour inside headless sessions is not measured yet.
 - `model` takes only `opus`, `sonnet`, `haiku`, `fable`, or omit it to inherit the session model. cstack picks it from the config `models` role: `code`, `judge`, `review`, `gather`. A role set to `inherit` means omit `model`.
 - Subagents run in the background by default and notify the parent when they finish. Do not pass `run_in_background: true`.
 - Under `claude -p` the end of the turn ends the process, and every background subagent dies with it. So in a headless session cstack launched (every launch sets `CSTACK_HEADLESS=1`) pass `run_in_background: false`. Interactive sessions keep background agents. The guard refuses an `Agent` call without it there (`headless-foreground-agents`), and the `pending-work` Stop hook blocks a headless unit worker's first stop while its unit is `in-progress` or `verifying`.

@@ -117,7 +117,7 @@ The mode skill (`skills/cstack/SKILL.md`) holds ten non-negotiables and 24 princ
 
 - **L0 lint and L1 gates.** `node tests/lint/lint.mjs`, `npm test`, `npm run coverage:gates` (100% line and branch).
 - **L2 evals.** `evals/<case>/` with `claude plugin eval`. Always pass `--no-publish`.
-- **L3 scenarios.** `node tests/scenarios/run.mjs <name>` against the private testbed. One at a time. `tests/scenarios/README.md` lists them.
+- **L3 scenarios.** `node tests/scenarios/run.mjs <name>` against a testbed repo. One at a time. `tests/scenarios/README.md` lists them.
 - **L4 fixtures.** `node tests/fixtures/run-fixture.mjs f1-cli-ledger` runs a whole program on the testbed and grades it with a held-out suite. `tests/fixtures/README.md` has the details.
 
 ## Reply

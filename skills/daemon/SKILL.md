@@ -83,7 +83,7 @@ The unit runs `claude -p "/loop 10m /cstack:daemon"` in the repo with `--permiss
 
 Never use the versioned cache directory, `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>`. Claude Code installs each update into a new directory and leaves the old one, so the daemon keeps running the old version. `cstack:doctor` warns when the version under `CSTACK_PLUGIN` differs from the installed version. The marketplace clone can run ahead of the installed version when the marketplace refreshes before the plugin updates. Run `claude plugin update`, then restart the unit with `systemctl --user restart "cstack-daemon@<escaped repo path>.service"`. A running daemon loads the new version only when it restarts.
 
-Not live-tested yet: whether a headless `claude -p` session stays alive under `/loop` between firings. If it exits after the first tick, the unit's `Restart=always` with `RestartSec=600` still gives about a 10-minute cadence, one tick per start, with doctor once per start.
+If a headless `claude -p` session exits after the first tick under `/loop`, the unit's `Restart=always` with `RestartSec=600` still gives about a 10-minute cadence, one tick per start, with doctor once per start.
 
 ## Report
 

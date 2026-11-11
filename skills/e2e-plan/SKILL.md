@@ -151,7 +151,7 @@ When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must s
 
 ### 6. The author's job
 
-The author runs these steps. They follow plan section 6.1, steps 1 to 7.
+The author runs these steps.
 
 1. **Map each E to a surface.** Read `spec.md`. For each E, name the user-visible behaviour and where the user sees it. An E with no observable surface is not a lane. Report it as `QUESTION E<n>: <question>` and stop.
 2. **Pick the driver** from the brief. Reuse the project verify skill when the brief names one.

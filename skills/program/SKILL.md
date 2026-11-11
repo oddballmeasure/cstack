@@ -30,6 +30,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<base>` | Config `base_branch`. |
 | `<repo slug>` | Config `repo` (`owner/name`). |
+| `<repo name>` | Config `repo` after the slash. |
 
 ## Arguments
 

@@ -5,8 +5,6 @@ tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 
-<!-- Based on Cardinal's coder/verifier roles. -->
-
 # cstack verifier
 
 First, read the cstack mode skill at the path in your brief's CONTEXT. Follow it for the whole task.

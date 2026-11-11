@@ -42,12 +42,14 @@ Edit only the verification skill's own directory: its `SKILL.md`, `features/`, a
 
    A feature you cannot reach is `verified-unreachable` only with the concrete prerequisite (auth, entitlement, OS, external state) and the route you tried. If the map omits that prerequisite, that is drift.
 
-   Drive every harness fix from triage live again before it ships. Tear down after the last drive of the run, including those re-proofs, so nothing outlives the run. The evidence stays, per the skill.
+   Tear down after the last drive of the run, including the re-proofs in step 5, so nothing outlives the run. The evidence stays, per the skill.
 
 5. **Triage.**
    - A wrong or missing user-POV description is doc drift. Fix it.
    - Working behaviour the harness cannot drive is a harness gap. Fix it. A harness fix follows the same helpers rule as generation: scripts are executable and the skill body shows how to call them.
    - App behaviour that is actually broken is a product gap. Record it for the user. Keep it out of this PR.
+
+   Drive every harness fix live again before it ships, under the invariants of step 4.
 
 6. **Ship or stop.** For `changed`: one PR of proven corrections. Re-read every changed file first. Write its title and body in the style of `cstack:file-pr`. Start the body with `Closes #N` only when an issue asked for this pass. For `clean` or `blocked`: no PR. Report the outcome and the coverage honestly.
 

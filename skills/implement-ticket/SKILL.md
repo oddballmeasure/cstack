@@ -37,9 +37,9 @@ If the ticket id is in the list, run the gate in step 4. If the gate passes, the
 
 ### 2. Read the ticket
 
-- For `T<n>`, read the ticket from `intake.json`: title, requirement ids, `depends_on`, `target_files`. Take the requirement text from the same file.
+- For `T<n>`, read the ticket from `<store>/intake-<unit>.json`: title, requirement ids, `depends_on`, `target_files`. Take the requirement text from the same file.
 - For a repair ticket, read the latest feedback section whose heading starts with the ticket id. It holds the task, the findings and the acceptance criteria.
-- Read the classification from `intake.json` (`feature`, `bug` or `chore`). It picks the method line in the brief.
+- Read the classification from `<store>/intake-<unit>.json` (`feature`, `bug` or `chore`). It picks the method line in the brief.
 - Read the unit's lane ids with `node <root>/gates/orch.mjs --store <store> unit get <unit>`. Standalone units with no lanes have none.
 - Count earlier attempts at this ticket: the feedback sections headed `## <ticket> attempt <k>`. This attempt is the highest `k`, or 1 when there is none.
 

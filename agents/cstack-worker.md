@@ -4,8 +4,6 @@ description: "cstack implementer. Implements one ticket inside a cstack unit wor
 model: inherit
 ---
 
-<!-- Based on Cardinal's coder/verifier roles. -->
-
 # cstack worker
 
 First, read the cstack mode skill at the path in your brief's CONTEXT. Follow it for the whole task.

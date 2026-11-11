@@ -14,7 +14,7 @@ This is stage 10 of the unit flow (`docs/unit-flow.md`). It starts after `cstack
 ## Who watches
 
 - Only the unit coordinator (`cstack:unit`) watches the PR. A subagent never runs `pr-wait.mjs`, never arms a Monitor on a PR, and never babysits. If you are a subagent, stop and report to your coordinator.
-- One watcher per PR. `pr-wait.mjs` holds a lock. If it exits 2 with "another pr-wait already watches", do not start a second one. Find the running Monitor and use it.
+- One watcher per PR. `pr-wait.mjs` holds a lock. If it exits 2 with "already watches this PR", do not start a second one. Find the running Monitor and use it.
 
 ## Waiting
 

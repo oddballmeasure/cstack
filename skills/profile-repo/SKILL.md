@@ -3,11 +3,13 @@ name: profile-repo
 description: "Use when a cstack unit or plan needs the repo profile (stage 3), or the profile at .cstack/profile.json is missing or stale. Describes each tracked file (summary, capabilities, active/legacy/support) so planning can find the code that owns a behaviour. Re-describes only new and changed files, in batches of 5 per read-only explorer."
 ---
 
+<!-- Based on Cardinal's profiler (oddballmeasure/cardinal, roles/profiler.py, same owner). -->
+
 # Profile repo
 
 The profile tells later stages which file owns which behaviour. `cstack:intake` picks `target_files` from it. Hashes come from a script, never from a model.
 
-This skill follows Cardinal's profiler (oddballmeasure/cardinal, `roles/profiler.py`): bounded batches, one entry per path, and re-profiling only of files whose content changed.
+This skill works in bounded batches, writes one entry per path, and re-profiles only files whose content changed.
 
 ## The profile
 
@@ -52,7 +54,7 @@ Profilable files are the tracked files (`git ls-files`), minus vendor directorie
    mv /tmp/cstack-profile-<slug>/profile.tmp <repo>/.cstack/profile.json
    ```
 7. Run `node <root>/gates/profile-diff.mjs <repo> --write-hashes --json`. It drops removed entries and hashes the entries you just wrote. Hashes already present stay as they are, so a changed file you skipped stays `changed`.
-8. Read `approved`. True means the stage-2 gate passed. If it is false, a file changed while you profiled it, or a batch was lost. Repeat from step 2 once for the remaining stale files. A second false is failure `setup`.
+8. Read `approved`. True means the stage-3 gate passed. If it is false, a file changed while you profiled it, or a batch was lost. Repeat from step 2 once for the remaining stale files. A second false is failure `setup`.
 
 Do not edit any repo file other than the profile. Run `git status --porcelain` after the explorers return. A change to a tracked file is a finding. Report it.
 

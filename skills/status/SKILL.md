@@ -10,7 +10,7 @@ argument-hint: "[<slug>]"
 
 One short report a busy human reads in under a minute. Read only. This skill changes nothing.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Without a slug, list `<repo>/.cstack/runs/` and pick the newest store (by its `decisions.tsv`) that has a `units.tsv`, skipping `daemon` and `scout`. Say which one you picked. `<orch>` is `node <root>/gates/orch.mjs --store <store>`.
+`<root>` is the plugin root, two directories up from this skill's base directory. Without a slug, list `<repo>/.cstack/runs/` and pick the newest store (by its `decisions.tsv`) that has a `units.tsv`, skipping `daemon` and `scout`. Say which one you picked. `<orch>` is `node <root>/gates/orch.mjs --store <store>`. `<repo>` is the target repo root, `git rev-parse --show-toplevel`. `<prefix>` is config `label_prefix`. `<unit name>` is `cstack-<repo name>-<slug>-<unit>`, where `<repo name>` is config `repo` after the slash.
 
 ## Gather
 
