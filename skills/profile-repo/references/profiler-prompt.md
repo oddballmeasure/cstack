@@ -1,6 +1,8 @@
 # Profiler prompt template
 
-Build each batch explorer's brief from this template. Fill in the placeholders. The rules follow Cardinal's profiler skill (oddballmeasure/cardinal, `skills/profiler/SKILL.md`).
+<!-- Based on Cardinal's profiler skill (oddballmeasure/cardinal, skills/profiler/SKILL.md, same owner). -->
+
+Build each batch explorer's brief from this template. Fill in the placeholders.
 
 ---
 

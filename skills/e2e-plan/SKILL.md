@@ -99,8 +99,8 @@ Log the command and the commit SHA. Gates in this skill read the config from `<w
 Write the brief to `<store>/brief-e2e.md` with the Write tool. Use the headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT. It holds:
 
 - GOAL: `<store>/e2e-plan.md` and a suite under `<hidden>/` that pass the gates below.
-- CONTEXT: the absolute paths of `<root>/skills/cstack/SKILL.md` (read it first), this skill's `SKILL.md` (follow **The author's job**), `<store>/spec.md`, `<root>/templates/e2e-plan.md`; the worktree `<wt>`; the store `<store>`; the slug; the issue `<N>`; the driver and any verify skill path; the `e2e_command` as written in `<wt>/.cstack/config.json`.
-- ACCEPTANCE and VERIFY: the red check, the mutation spot-check and the gate commands from **The author's job**, verbatim with absolute paths.
+- CONTEXT: the absolute paths of `<root>/skills/cstack/SKILL.md` (read it first), this skill's `SKILL.md` (for **Amend the suite**), `<root>/skills/e2e-plan/references/author-job.md` (follow it), `<store>/spec.md`, `<root>/templates/e2e-plan.md`; the worktree `<wt>`; the store `<store>`; the slug; the issue `<N>`; the driver and any verify skill path; the `e2e_command` as written in `<wt>/.cstack/config.json`.
+- ACCEPTANCE and VERIFY: the red check, the mutation spot-check and the gate commands from `references/author-job.md`, verbatim with absolute paths.
 - FORBIDDEN: everything outside `<hidden>/`, `<store>` and `/tmp/cstack-mutation/<slug>/`; config; pushes; GitHub writes; product code.
 - REPORT: the report section of the agent file.
 
@@ -151,44 +151,7 @@ When it ends, check billing: the init event in `<store>/e2e-author.jsonl` must s
 
 ### 6. The author's job
 
-The author runs these steps. They follow plan section 6.1, steps 1 to 7.
-
-1. **Map each E to a surface.** Read `spec.md`. For each E, name the user-visible behaviour and where the user sees it. An E with no observable surface is not a lane. Report it as `QUESTION E<n>: <question>` and stop.
-2. **Pick the driver** from the brief. Reuse the project verify skill when the brief names one.
-3. **Write the lanes** into `<store>/e2e-plan.md`, in the template's format. Each E gets 1 or more lanes `E<n>.<m>`. Each lane has `Kind`, `Covers` (a subset of the E's Covers line), `Driver`, `Script` (numbered steps from the user's point of view, including setup and teardown), `Evidence` (`/tmp/cstack-e2e/<run>/<lane>.log`, or `.png` for screenshots) and one `Pass when` predicate with an exact value.
-4. **Add negative lanes.** Every R gets at least one negative lane: bad input, a missing file, permission denied, a conflict. Assert the exact error text and exit or status code from the spec.
-5. **Write the suite** under `<hidden>/`. Rules:
-   - Each test name starts with its lane id and a space, for example `E1.2 rejects an empty title`. `run-e2e.mjs` finds lanes by that prefix in TAP.
-   - One test per lane. A lane may hold several assertions.
-   - Each test sets up its own state in a fresh temporary directory and cleans it up. Lanes never depend on each other or on order.
-   - Drive the product only through its public surface, the same way a user does. Find it from the repo root (the test's working directory), never from a path inside the suite.
-   - Each failure message names the expectation and the observation, for example `expected exit 2, got 0; stderr: ""`. That line is all an implementer will see.
-   - Write the lane's evidence (command, stdout, stderr, exit code, or a screenshot) to its evidence path. Take `<run>` from env `CSTACK_E2E_RUN`, else `local`.
-   - No dependency the repo does not already have, unless the spec allows it.
-   Commit the suite with the trailers in the agent file.
-6. **Red check.** Run the suite at the worktree head through the grader:
-   ```sh
-   CSTACK_ROLE=grader node <root>/gates/run-e2e.mjs <wt> --json
-   ```
-   Every lane must FAIL, and fail because the behaviour is missing: the command or route does not exist, or it gives the wrong output. Classify each lane:
-   - `FAIL`, right reason: record the one-line reason.
-   - `PASS`: the requirement is already met, or the test asserts nothing real. Fix the test, or report the met requirement.
-   - `ERROR`: the test broke before it reached the product (syntax error, missing fixture, helper crash, timeout, lane not reported, `setup_command` failed). It is a broken test. Fix it and run again.
-   For more detail on an ERROR, add `--raw` (allowed for the grader role only). Repeat until every lane is a right-reason FAIL. Record the final run as the `## Red check` table.
-7. **Mutation spot-check.** Pick at least max(2, ceil(20% of lanes)) distinct lanes. Prefer negative lanes and lanes with exact outputs, spread over different E ids. In a scratch copy outside the repo:
-   ```sh
-   CSTACK_ROLE=e2e-author git clone --quiet <wt> /tmp/cstack-mutation/<slug>/repo
-   ```
-   - If the product exists, the scratch clone holds the reference behaviour.
-   - If it does not exist yet, write a minimal reference stub inside the scratch clone. The stub implements only what the chosen lanes need, exactly as the spec says. Never commit it and never copy it into `<wt>`.
-   For each chosen lane: run the e2e command in the scratch clone and confirm the lane PASSES against the reference. If it does not, the lane or the stub is wrong: fix it first. Then break the one behaviour the lane guards (wrong exit code, wrong text, wrong order, a missing check), run again, and confirm the lane FAILS. Restore the break before the next lane. A check you have never seen fail proves nothing, and a check that cannot pass proves nothing either. Record each row in the `## Mutation spot-check` table: the lane, what you broke, and `yes` when the lane caught it. Delete `/tmp/cstack-mutation/<slug>/` at the end.
-8. **Gate the plan:**
-   ```sh
-   node <root>/gates/check-e2e.mjs <store>/e2e-plan.md --spec <store>/spec.md --config <wt>/.cstack/config.json --json
-   ```
-   Fix the findings and rerun. After 2 failed reruns, stop and report the findings.
-
-If a suite fix after the red check changes a lane, run the red check again for the whole suite. The recorded table must match the committed suite.
+The author runs the steps in [the author's job](references/author-job.md): map each E to a surface, pick the driver, write the lanes and the suite, run the red check and the mutation spot-check, and gate the plan. The coordinator does not run them.
 
 ### 7. Gate the result (coordinator)
 
@@ -230,9 +193,9 @@ Use this when a merged suite needs new lanes, for example browser lanes after a 
 The amendment ships as its own e2e unit, through steps 3 to 8 with these changes:
 
 1. **Spec.** If a new lane tests a new E, amend `spec.md` with `cstack:spec --run <slug> --amend "<the new E>"` first. `check-spec.mjs` must pass.
-2. **Unit.** Pick a unit id `E2E-<name>`, for example `E2E-UI`, with branch `cstack/<N>-e2e-<name>`. Register it on track `e2e`: `<orch> unit add E2E-UI --track e2e --issue <N> --state ready`. Use this id wherever steps 3 to 8 say `E2E`. The gates treat a unit as a suite unit only when its id is `E2E` or `E2E-<name>` and its `units.tsv` row has track `e2e`: `orch ledger record` then accepts its pass by hand, `publish.mjs` pushes its branch, and `check-merge.mjs` skips the review round when every changed file is under the merge base's `paths_hidden`, or is `.cstack/config.json` with only `e2e_command` changed against the merge base. The gate fetches the base branch and the PR head ref, then takes the changed files from a local `git diff --no-renames` against the merge base, not from the forge's list, so a file moved into the suite counts on both sides. A SHA it still cannot find locally means a review is required, and the finding names it. Any other file or config key in the diff, docs included, needs a review round.
+2. **Unit.** Pick a unit id `E2E-<name>`, for example `E2E-UI`, with branch `cstack/<N>-e2e-<name>`. Register it on track `e2e`: `<orch> unit add E2E-UI --track e2e --issue <N> --state ready`. Use this id wherever steps 3 to 8 say `E2E`. The gates treat a unit as a suite unit only when its id is `E2E` or `E2E-<name>` and its `units.tsv` row has track `e2e`: `orch ledger record` then accepts its pass by hand, `publish.mjs` pushes its branch, and `check-merge.mjs` skips the review round for a suite unit whose diff touches only `paths_hidden` and `e2e_command`. Any other file or config key in the diff, docs included, needs a review round. The header of `gates/check-merge.mjs` has the rest.
 3. **Brief.** Add to the step 5 brief: the unit id for the commit trailer, the lanes to add, and the SHA the existing red-check table ran at. That SHA is the head of the last `approved` row in `<store>/ledger.tsv` for the unit that shipped the existing table (`E2E`, or the previous amendment).
-4. **The author's red check.** Step 6 runs on a base where earlier lanes may already pass. Only the new lanes must FAIL for the right reason. Record the red check in blocks, oldest first:
+4. **The author's red check.** Step 6 of the author's job runs on a base where earlier lanes may already pass. Only the new lanes must FAIL for the right reason. Record the red check in blocks, oldest first:
    - If `## Red check` holds one table, move it unchanged under `### At <sha from the brief>`. Keep older blocks unchanged.
    - Add `### At <worktree base SHA>` with one row per new lane from this run.
    Each lane appears in exactly one block. `check-e2e.mjs` judges every row and rejects a lane recorded twice or not at all.

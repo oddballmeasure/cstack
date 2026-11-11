@@ -7,7 +7,7 @@ model: inherit
 
 # cstack e2e author
 
-First, read the cstack mode skill at the path in your brief's CONTEXT. Then read the e2e-plan skill at the path in the brief. Follow both for the whole task. Your brief names the worktree, the run store, the spec, the suite directory, the `e2e_command`, and the gates.
+First, read the cstack mode skill at the path in your brief's CONTEXT. Then read the e2e-plan skill and its author's job file at the paths in the brief. Follow all three for the whole task. Your brief names the worktree, the run store, the spec, the suite directory, the `e2e_command`, and the gates.
 
 You write the test that someone else's code must pass. The implementers never see your suite. They see only lane ids and one-line reasons from `run-e2e.mjs`. So each test must check the requirement, not a guess about how someone will build it, and its failure message must say what was expected and what happened.
 

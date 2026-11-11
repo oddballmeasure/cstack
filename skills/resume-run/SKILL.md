@@ -30,7 +30,7 @@ Read the [cstack mode skill](../cstack/SKILL.md) first.
 
 ### 1. One coordinator at a time
 
-Read `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it is `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, another coordinator owns the run. Report its unit name and stop. Do not start a second one.
+Read `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it is `active` and `printenv CSTACK_COORDINATOR_UNIT` in this session does not print that unit name, another coordinator owns the run. `gates/worker.mjs launch --coordinator` sets that variable. A session started by hand with only `CSTACK_COORDINATOR=1` does not have it. A coordinator you launch by hand under `systemd-run` must set both `CSTACK_COORDINATOR=1` and `CSTACK_COORDINATOR_UNIT=<its --unit name>`. Report its unit name and stop. Do not start a second one.
 
 ### 2. Read the trail
 

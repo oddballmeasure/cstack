@@ -3,9 +3,11 @@ name: intake
 description: "Use when a cstack unit reaches intake (stage 4) for a GitHub issue. Decides whether cstack takes the issue (feature, bug, chore, question, reject, needs_human) and, if so, splits it into 1 to 4 tickets in dependency order, each requirement covered exactly once, with target files taken from the repo profile. Writes <store>/intake-<unit>.json that must pass gates/check-intake.mjs."
 ---
 
+<!-- Based on Cardinal's orchestrator (oddballmeasure/cardinal, skills/orchestrator/SKILL.md and roles/orchestrator.py, same owner). -->
+
 # Intake
 
-Intake turns one issue into one intake decision. It follows Cardinal's orchestrator (oddballmeasure/cardinal, `skills/orchestrator/SKILL.md` and `roles/orchestrator.py`). The format is the header of `gates/check-intake.mjs`. The example is `templates/intake.json`. The routing is in `docs/unit-flow.md`, stage 4.
+Intake turns one issue into one intake decision. The format is the header of `gates/check-intake.mjs`. The example is `templates/intake.json`. The routing is in `docs/unit-flow.md`, stage 4.
 
 Intake is read-only for the repo. It writes only into the run store.
 
@@ -68,7 +70,7 @@ A human answer can turn a `needs_human` into a workable kind. It cannot remove a
 
 ## Find owners
 
-Do this once per distinct behaviour. It replaces Cardinal's `find_repo_context` tool.
+Do this once per distinct behaviour.
 
 1. Search the profile. This lists up to 5 non-legacy files that match the query words, best first. Use only letters, digits and spaces in the words. A headless worker is refused jq's value flags, so they go in the filter:
    ```sh
@@ -90,7 +92,7 @@ Do this once per distinct behaviour. It replaces Cardinal's `find_repo_context` 
 - Set `depends_on` when a ticket builds on another. List the tickets in dependency order. The unit works them in list order.
 - `target_files` are profiled paths. A file the ticket creates gets the `new:` prefix, for example `new:test/store-json.test.mjs`. Never target a `paths_hidden` path.
 - Each ticket stands alone. The title names the task. Its requirements carry the observable acceptance.
-- For a code change, plan a test at the application's boundary (HTTP, CLI, or browser) and list the test file as a target. A documentation-only ticket needs no test. Do not plan tests that only assert document strings.
+- For a code change, plan a test at the application's boundary (HTTP, CLI, or browser, or the public API for a library) and list the test file as a target. A documentation-only ticket needs no test. Do not plan tests that only assert document strings.
 - Do not edit files.
 
 ## Report

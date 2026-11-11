@@ -8,7 +8,7 @@ argument-hint: "<task> [--n <count>]"
 
 # Arena
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` with `jq` from `<repo>/.cstack/config.json`. Without a config, use the defaults in `<root>/templates/config.json` and say so. `<root>` is the plugin root, two directories up from this skill's base directory.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 Open a TodoWrite list with one entry per phase before you launch anything: Frame, Fan out, Cross-judge, Pick, Graft, Verify.
 
@@ -18,20 +18,20 @@ Every candidate gets the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate produces.
 2. Derive the rubric: 3 to 6 concrete, gradeable criteria for success on this task. It is the picker's tool in Phase D. Candidates see only the task.
-3. Pick the runners from config `models`. Default: one runner on `code` and one on `judge`. If both name the same model, add one on `review`. A role set to `inherit` means omit `model`. Add runners when the arena covers several design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners from config `models`. Default: one runner on `code` and one on `judge`. If both name the same model, add one on `review`. A role set to `inherit` means omit `model`. Add runners when the arena covers several design directions. Use the same model N times when the work is generation-bound rather than judgment-sensitive. `--n` sets the runner count. Extra runners reuse the roles in order `code`, `judge`, `review`.
 4. Give each candidate its own output location, per [Separate Before Serializing Shared State](../cstack/references/principles/separate-before-serializing-shared-state.md). A writer gets `isolation: "worktree"`. A design candidate writes to `<out>/candidate-<n>/`, where `<out>` is `<store>/arena/<topic>/` in a run, else `/tmp/cstack-arena/<topic>/`.
 
 ## Phase B: Fan out
 
 Spawn all N subagents in one message with the `Agent` tool. Use `subagent_type: "general-purpose"` for candidates that write files. Each brief has the headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT and holds: the task, the path to the shared grounding, the candidate's own output path, the mode skill's absolute path (read it first), config `paths_hidden` and `paths_off_limits` under FORBIDDEN, and the instruction to produce the artifact plus a short rationale that names the alternatives it considered and what it rejected.
 
-Agents run in the background and notify you when they finish. Wait for the notifications. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), spawn them with `run_in_background: false`. Calls in one message still run at the same time, and the message returns when all N finish.
+Wait for all N per the mode skill's **Background** rule. In a headless session that means `run_in_background: false`.
 
 If a candidate produces no output, go on with N-1 and note the dropout.
 
 ## Phase C: Cross-judge
 
-After every candidate has finished, spawn one read-only judge (`subagent_type: "Explore"`, brief says "do not edit files"). Its model is a config role not used by any runner, `review` by default. If every role names the same model, use it and note that the judge shares the runners' model. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with its reasons. It runs while you read in Phase D.
+After every candidate has finished, spawn one read-only judge (`subagent_type: "Explore"`, brief says "do not edit files"). Its model is a config role not used by any runner, `review` by default. If every role names the same model, use it and note that the judge shares the runners' model. The judge sees the rubric and the candidates by path label, scores each criterion, and recommends a base with its reasons. In an interactive session, the judge runs while you read in Phase D. In a headless session it blocks, so read the candidates first, then spawn the judge.
 
 ## Phase D: Pick a base
 
@@ -47,7 +47,7 @@ If the candidates converge on one shape, that is strong agreement. Note it and s
 
 ## Phase F: Verify
 
-Verify the synthesized artifact like any other output, per [Prove It Works](../cstack/references/principles/prove-it-works.md). If verification finds a problem the arena missed, either Phase A was wrong (reframe and run again) or a candidate caught it and you missed the graft (go back to Phase E).
+Verify the synthesized artifact like any other output, per [Prove It Works](../cstack/references/principles/prove-it-works.md). For a type or interface sketch, it compiles with its stub bodies, and the usage sketch type-checks against it. If verification finds a problem the arena missed, either Phase A was wrong (reframe and run again) or a candidate caught it and you missed the graft (go back to Phase E).
 
 ## Outputs
 

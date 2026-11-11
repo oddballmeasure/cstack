@@ -1,6 +1,6 @@
 ---
 name: interrogate
-description: "Adversarial multi-model code review. Use this skill whenever the user asks to tear apart, stress-test, challenge, grill, poke holes in, find blind spots in, or adversarially review code, a diff or a branch (\"interrogate\", \"tear this apart\", \"multi-model review\"), including a pasted snippet with no repo, offline. Do not answer such a request with a single-pass review of your own. This skill sends the code to reviewers on different Claude models in parallel, then gives one lead verdict in four buckets (act on, consider, noted, dismissed) with an agreement map. It changes no files."
+description: "Use when the user asks to tear apart, stress-test, challenge, grill, poke holes in, find blind spots in, or adversarially review code, a diff or a branch (\"interrogate\", \"tear this apart\", \"multi-model review\"), including a pasted snippet with no repo, offline. Adversarial multi-model code review: do not answer such a request with a single-pass review of your own. A plain review request goes to cstack:review-loop. This skill sends the code to reviewers on different Claude models in parallel, then gives one lead verdict in four buckets (act on, consider, noted, dismissed) with an agreement map. It changes no files."
 argument-hint: "[<pr-number> | <path> | <diff>]"
 ---
 
@@ -10,7 +10,7 @@ argument-hint: "[<pr-number> | <path> | <diff>]"
 
 Spawn one reviewer per model to review a change adversarially. The adversarial signal comes from model diversity, not from assigned personas. The deliverable is a synthesized verdict. Do not apply changes.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 ## Step 1, Scope
 
@@ -35,11 +35,11 @@ Launch all reviewers in one message with the `Agent` tool. Each one is the plugi
 | Reviewer A | config `models.review` |
 | Reviewer B | config `models.judge` |
 
-- Every reviewer runs on a different model. If two roles name the same model, give the second reviewer the first of `fable`, `opus`, `sonnet` not in use yet, and say so.
+- Every reviewer runs on a different model. If two roles name the same model, replace the second per the mode skill's **Model** rule, and say so.
 - Prefer models that did not write the change. If a reviewer's model is the author's model, swap it the same way and say so.
 - A role set to `inherit` means omit `model`. Count it as the session model.
 - If the human names models or asks for more reviewers, use those.
-- If the `Agent` tool rejects a model, run that reviewer on the next free model from the list above and say so. Do not block the review on it.
+- If the `Agent` tool rejects a model, run that reviewer on the next free model per the mode skill's **Model** rule and say so. Do not block the review on it.
 
 Read [the reviewer prompt](references/reviewer-prompt.md). Fill in the same template for every reviewer with the stated intent, the diff or file contents, [the rubric](references/rubric.md), and [the code-quality lens](references/code-quality-review.md). Add a FORBIDDEN line: any edit, any GitHub call, config `paths_hidden` and `paths_off_limits`.
 

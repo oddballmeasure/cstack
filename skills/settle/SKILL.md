@@ -34,7 +34,7 @@ Write the comment to `<store>/comment-<unit>-<outcome>.md`. The first line start
 | Outcome | `--state` | First line starts with | Unit state (`orch unit set --state`) |
 |---|---|---|---|
 | merged | `done` | `cstack resolved this in` | `merged`, with `--sha <merge sha>` so `cstack:post-merge-ci` finds the merge commit |
-| merge-ready (autonomy stop) | `in-progress` (unchanged) | `cstack: ready to merge` | `pr-open` (unchanged) |
+| merge-ready (autonomy stop) | `in-progress` (unchanged) | `cstack: ready to merge`, or `cstack: waiting for required approval` for that verdict | `pr-open` (unchanged) |
 | needs a decision | `needs-human` | `cstack needs a decision before continuing` | `needs-human` |
 | not taken | `needs-human` | `cstack is not taking this issue:` | `needs-human` |
 | failed | `error` | `cstack stopped at` | `error` |
@@ -56,11 +56,13 @@ Proof: <the proof line from the PR body>
 ```
 cstack: ready to merge #<pr> at <head sha12>.
 
-Verdict: Ready to merge | Waiting for required approval
+Verdict: Ready to merge
 Proof: <the proof line from the PR body>
 
 <footer>
 ```
+
+For the verdict **Waiting for required approval**, write the same body with the first line `cstack: waiting for required approval on #<pr> at <head sha12>.` and `Verdict: Waiting for required approval`. Settle skips a comment whose first line it already posted, so the verdict must be in the first line: a later change from waiting to ready at the same head then posts.
 
 **needs a decision**
 
@@ -92,7 +94,7 @@ cstack stopped at <stage> (<kind>): <one line>
 ```
 
 - `<stage>` is the stage name from the unit flow, such as `Verify` or `Babysit`.
-- `<kind>` is one of: `invalid_output`, `tests_failed`, `no_change`, `verification`, `ci_failed`, `ci_timeout`, `base_conflict`, `pr_violation`, `git`, `github`, `setup`, `usage_limit`, `crash`.
+- `<kind>` is one of: `invalid_output`, `tests_failed`, `no_change`, `verification`, `ci_failed`, `ci_timeout`, `base_conflict`, `pr_violation`, `git`, `github`, `setup`, `usage_limit`, `crash`, `deploy`.
 - `<one line>` says what failed, at most 200 characters. For `crash` and `usage_limit`, write only `details are in the run store`. Stack traces and provider errors stay private.
 - Never put secrets, tokens or local home paths in a comment.
 

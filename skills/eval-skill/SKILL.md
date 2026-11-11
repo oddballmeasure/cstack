@@ -55,7 +55,11 @@ git -C <plugin> worktree add /tmp/<skill>-variant <variant ref>
 # copy the same evals/ into both, then confirm: diff -r /tmp/<skill>-base/evals /tmp/<skill>-variant/evals
 claude plugin eval /tmp/<skill>-base --ablation none --no-publish --case '<skill>-*' --json /tmp/<skill>-base.json
 claude plugin eval /tmp/<skill>-variant --ablation none --no-publish --case '<skill>-*' --json /tmp/<skill>-variant.json
+git -C <plugin> worktree remove --force /tmp/<skill>-base
+git -C <plugin> worktree remove --force /tmp/<skill>-variant
 ```
+
+A fresh worktree is an untrusted plugin directory, so its first run asks you to confirm, and under `claude -p` it can stall there. Add `--trust-plugin` only for a worktree of this repo that you checked out yourself.
 
 Plugin against no plugin:
 

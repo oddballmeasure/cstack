@@ -1,6 +1,6 @@
 ---
 name: unit
-description: "Use when the user asks cstack to work one GitHub issue end to end, or when the cstack orchestrator hands it a unit. Coordinates the 13 unit stages from preflight to settle: claim, profile, intake, isolate, implement, verify, sync, publish, PR, babysit, merge gate. Subagents write and verify the code. Gates decide every stage. Invoke as /cstack:unit <issue-number>, or with --run <slug> --unit <id> under orchestrate."
+description: "Use when the user asks cstack to work one GitHub issue end to end, or when the cstack orchestrator hands it a unit. Coordinates the 13 unit stages from preflight to settle: claim, isolate, profile, intake, implement, verify, sync, publish, PR, babysit, merge gate. Subagents write and verify the code. Gates decide every stage. Invoke as /cstack:unit <issue-number>, or with --run <slug> --unit <id> under orchestrate."
 argument-hint: "<issue-number> [--run <slug> --unit <id>]"
 ---
 
@@ -155,16 +155,7 @@ Route by `classification`:
 
 Owner: `cstack:implement-ticket`, one ticket at a time in `depends_on` order from the intake. Skip each ticket whose trailer is on the branch.
 
-For each ticket, spawn the plugin's `cstack-worker` agent with the `Agent` tool. Set `model` from config `models.code` (omit it for `inherit`). The worker works inside `<wt>`. It never sees the hidden suite. Its brief, with headings GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT, includes:
-
-- the absolute path of `<root>/skills/cstack/SKILL.md` (read it first) and of `<root>/skills/implement-ticket/SKILL.md`;
-- the worktree path `<wt>`;
-- the unit id, the ticket id and title, its target files;
-- the requirement ids and text the ticket serves, and the lane ids from `units.tsv`, if any;
-- the feedback file `<store>/feedback-<unit>.md` (act on its latest section);
-- the trailers every commit carries: `Cstack-Unit: <unit>`, `Cstack-Ticket: <ticket>`, `Refs: #<N>`;
-- the gate the work must pass, verbatim;
-- FORBIDDEN: config `paths_hidden` and `paths_off_limits`, pushing, and any GitHub write.
+For each ticket, run `cstack:implement-ticket`. It spawns the plugin's `cstack-worker` agent inside `<wt>` and writes the brief. Pass it the unit's values: `<repo>`, `<store>`, `<wt>`, the unit id, the issue `<N>` and the ticket id. The worker never sees the hidden suite.
 
 Gate after each ticket:
 
@@ -238,7 +229,7 @@ After any new commit, stages 6, 7 and 8 run before you arm the Monitor again.
 
 Owner: `cstack:review-loop`, as `cstack:babysit-pr` step 10b describes. It runs once per new head, after pr-wait exits 0 and before the merge gate. Skip it when every changed path is documentation (`skip: docs only`), or when `<store>/review-<unit>-rounds.tsv` already has an `APPROVE` round at HEAD. The orch ledger holds verifier verdicts, not review rounds.
 
-The reviewer is the plugin's `cstack-reviewer` agent on `models.review`, fresh each round. It must differ from `models.code`. The budget is `limits.review_rounds` rounds over the unit's life, up to 5 for security, auth, data loss or concurrency.
+The reviewer is the plugin's `cstack-reviewer` agent on `models.review`, fresh each round. It must differ from `models.code`. The budget is `limits.review_rounds` rounds over the unit's life, plus 2 for security, auth, data loss or concurrency.
 
 - Approved: stage 11. The PR body carries `Reviewed with review-loop: <N> rounds with <model>. Verdict: approved`.
 - Agreed blocker or should: `cstack:repair` with source `review` returns `retry REPAIR-<n>`. Go to stage 5, then 6, 7, 8 and 10.
@@ -260,7 +251,7 @@ Pass `--merge` only when the run's effective autonomy is `send`: `node <root>/ga
 
 ### 12 Settle
 
-Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. After a merge, record the merge commit too: `<orch> unit set <unit> --state merged --sha <merge sha>`. Under orchestrate, also push the final report: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
+Owner: `cstack:settle`. Post the outcome with `node <root>/gates/settle.mjs <N> --state <state> --comment-file <file> --repo-dir <repo>`, and set the unit state. After a merge, record the merge commit too: `<orch> unit set <unit> --state merged --sha <merge sha>`. Under orchestrate, write the final report (**Final report**, below) first, then push it: `<orch> inbox push unit <unit> <unit state> --report <store>/report-<unit>.md`.
 
 ## On failure
 

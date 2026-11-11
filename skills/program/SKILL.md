@@ -30,6 +30,7 @@ Shell variables do not persist between Bash calls. Resolve each name once, then 
 | `<log>` | `node <root>/skills/show-me-your-work/scripts/log.mjs <store>/decisions.tsv` |
 | `<base>` | Config `base_branch`. |
 | `<repo slug>` | Config `repo` (`owner/name`). |
+| `<repo name>` | Config `repo` after the slash. |
 
 ## Arguments
 
@@ -91,7 +92,7 @@ Each step names its owner skill, its gate, and where it goes on failure. Run eac
 ### 0. Preflight
 
 1. Run `cstack:doctor` on `<repo>`. Any FAIL is failure `setup`: report it and stop. Without `.cstack/config.json`, ask the human to run `/cstack:setup-cstack`, and stop. A `FAIL config committed` means the config is not on the base branch yet, so PR #0's worktree would have none: ask the human to merge setup's `cstack/setup` change (or run setup again to open it), and stop.
-2. Check that no other coordinator owns the run: `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it prints `active` and `printenv CSTACK_COORDINATOR` in this session is not `1`, report the unit name and stop.
+2. Check that no other coordinator owns the run: `node <root>/gates/supervise.mjs status cstack-<repo name>-<slug>-coordinator`. If it prints `active` and `printenv CSTACK_COORDINATOR_UNIT` in this session does not print that unit name, another coordinator owns the run: report the unit name and stop. `gates/worker.mjs launch --coordinator` sets that variable. A session started by hand with only `CSTACK_COORDINATOR=1` does not have it. A coordinator you launch by hand under `systemd-run` must set both `CSTACK_COORDINATOR=1` and `CSTACK_COORDINATOR_UNIT=<its --unit name>`.
 3. Create `<store>` with `mkdir -p`. Run `<orch> init`. Write `run.json` (see **The run record**).
 4. Run `<settings>`. Log its lines.
 5. If `--autonomy=send` was given and `<settings>` prints `autonomy stop`, the run cannot merge. Interactive: ask once with `AskUserQuestion`: "Continue under stop (default)" or "Stop now, so I can relaunch with `CSTACK_PROGRAM_AUTONOMY=send`". Headless: continue under stop. In both cases, log it and put it first in the final report.

@@ -40,7 +40,7 @@ Spawn exactly one `Agent`:
 - `subagent_type`: `cstack-verifier`, the plugin's verifier agent. Claude Code lists it with the plugin prefix.
 - `model`: from step 2.
 - No `isolation`. It reads the unit worktree at `sha`.
-- `run_in_background: false`. Wait for its result in the foreground. Do not poll. Under `claude -p` the end of the turn ends the session, and a background subagent dies with it.
+- `run_in_background: false`, per the mode skill's **Background** rule: the next gate needs the result.
 
 Brief:
 
@@ -62,6 +62,7 @@ Verdict format: the header of <plugin root>/gates/check-verdict.mjs
 
 ACCEPTANCE
 Record exactly one verdict, as one single-quoted argument, never a heredoc: node <plugin root>/gates/record-verdict.mjs --store <store> --unit <unit> --sha <sha> --by <judge model> --verdict '<json>'. It writes <verdict path>. Nothing else changes.
+Keep apostrophes and backslashes out of the JSON: reword the text instead.
 head_sha is <sha>. Every requirement id above is assessed.
 findings lists only unresolved problems that block approval, each specific enough to fix.
 

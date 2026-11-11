@@ -8,7 +8,8 @@
 //   1. Fresh clone of the testbed under tests/fixtures/results/<fixture>-<ts>/testbed (gitignored).
 //   2. Replace testbed main with the fixture's empty project and push it.
 //   3. Launch the program as a detached headless coordinator under systemd-run, with
-//      CSTACK_COORDINATOR=1, CSTACK_RUN=<slug> and CSTACK_PROGRAM_AUTONOMY=send.
+//      CSTACK_COORDINATOR=1, CSTACK_COORDINATOR_UNIT=<its unit name>, CSTACK_RUN=<slug> and
+//      CSTACK_PROGRAM_AUTONOMY=send.
 //   4. Poll `systemctl --user is-active` every 60 s; stop the run when budget.toml `hours` runs out.
 //   5. Check out origin/main, run the held-out grader and cstack's own suite (run-e2e as grader), and
 //      write tests/fixtures/<fixture>/results/<date>.json plus <outDir>/result.json. The grader is copied to a
@@ -301,7 +302,7 @@ function launch() {
       script,
       `#!/bin/sh
 cd ${q(clone)}
-exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_CODEX_SANDBOX=${sandbox} CSTACK_COORDINATOR=1 CSTACK_COORDINATOR_UNIT=${coordinator} CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_HARNESS=codex CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   codex exec --json -C ${q(clone)} ${box} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" < /dev/null > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,
@@ -315,7 +316,7 @@ exec env -u OPENAI_API_KEY -u CODEX_API_KEY CSTACK_GUARD_HIDE=${hide} CSTACK_COD
     script,
     `#!/bin/sh
 cd ${q(clone)}
-exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
+exec env -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN CSTACK_GUARD_HIDE=${hide} CSTACK_COORDINATOR=1 CSTACK_COORDINATOR_UNIT=${coordinator} CSTACK_HEADLESS=1 CSTACK_RUN=${slug} CSTACK_PROGRAM_AUTONOMY=send PATH=${q(PATH)} \\
   claude -p --output-format stream-json --verbose --strict-mcp-config --plugin-dir ${q(plugin)} --permission-mode dontAsk --settings ${q(settings)} \\
   "$(cat ${q(path.join(outDir, "prompt.txt"))})" > ${q(path.join(outDir, "coordinator.jsonl"))} 2> ${q(path.join(outDir, "coordinator.stderr.log"))}
 `,

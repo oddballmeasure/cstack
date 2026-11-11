@@ -65,7 +65,7 @@ Don't mix modes: no reference tables inside a tutorial, no tutorial hand-holding
 
 ## Make statements load one at a time (ASD-STE100 rules)
 
-ASD-STE100 (Simplified Technical English) is the controlled-language standard for maintenance manuals. cstack uses it about 80% of the time. Complex technical decisions can use longer explanation.
+ASD-STE100 (Simplified Technical English) is the controlled-language standard for maintenance manuals. Use it for procedures and reference. Explanation and ADRs may use longer sentences.
 
 - One instruction per sentence. One thought per sentence everywhere else.
 - Split instructions longer than about 20 words and other sentences longer than about 25.
@@ -97,8 +97,8 @@ ASD-STE100 (Simplified Technical English) is the controlled-language standard fo
 - PR descriptions and commit messages are writing too. Every layer except Diátaxis applies to them. A PR body is a briefing that a reviewer can read in under a minute. Do not paste run logs, SHA lists, or metric tables. Link them.
 - Product UI strings are not documentation. Use your product's copy guidelines for those.
 - Write real paths. Make every count or tree claim true at the commit that lands it, and include the command that regenerates it.
-- In the cstack repo, skills live in `skills/<name>/SKILL.md`, with optional `references/*.md` and `scripts/*`. The authoring rules live in `docs/conventions.md`. Follow its frontmatter, attribution, and banned-content rules. Never write the em dash character (U+2014) in a skill or agent file.
-- Name another skill as `cstack:<name>`, and only when that skill exists in `skills/`.
+- Follow the repo's authoring conventions file for skill layout, frontmatter, attribution, and banned content. In cstack it is `docs/conventions.md`, which also bans the em dash character (U+2014) in skill and agent files.
+- Name another skill by its real name, and only when that skill exists. In cstack, that is `cstack:<name>` for a directory in `skills/`.
 
 ## Worked example
 

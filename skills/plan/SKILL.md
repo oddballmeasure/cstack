@@ -40,7 +40,7 @@ When the spec has one or two requirements with an obvious approach, the plan is 
 
 ### 1. Read
 
-Read `spec.md` (requirements R, e2e requirements E), `e2e-plan.md` (lanes with `Covers`), and `<repo>/.cstack/profile.json`. For a question the profile cannot answer, use `cstack:how`. Explorers read code only in a sparse worktree from `gates/isolate.mjs`, never in the main checkout, so they never see `paths_hidden`. Keep bulk in subagents (the plugin's `cstack-explorer` agent, model `models.gather`). Take file pointers back, not dumps.
+Read `spec.md` (requirements R, e2e requirements E), `e2e-plan.md` (lanes with `Covers`), and `<repo>/.cstack/profile.json`. For a question the profile cannot answer, use `cstack:how`. Explorers read code only in a sparse worktree, never in the main checkout, so they never see `paths_hidden`. Make it with `node <root>/gates/isolate.mjs <repo> cstack/explore-<slug> /tmp/cstack-explore-<slug> --base origin/<base_branch>`. When the explorers are done, run `git -C <repo> worktree remove --force /tmp/cstack-explore-<slug>` and `git -C <repo> branch -D cstack/explore-<slug>`. Keep bulk in subagents (the plugin's `cstack-explorer` agent, model `models.gather`). Take file pointers back, not dumps.
 
 ### 2. Settle open questions
 
@@ -89,7 +89,7 @@ Read the run's effective autonomy with `node <root>/gates/run-settings.mjs --sto
 Log the `H2` row as soon as H2 is decided, before step 7, so a resumed run does not skip or repeat it.
 
 - **`send`.** Skip H2. Log `"H2" "skipped" "autonomy send"`. Go to step 7. Named gates are not skipped: they are checkpoints the guideline asked for, and `cstack:orchestrate` asks for each one under any autonomy.
-- **`stop`.** Ask once with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it, run the gate again, and ask again. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. The person resolves it by running `<orch> gate resolve H2 --answer <a>` in their own terminal. Never run it yourself: the mode skill's rule is that only a human's answer resolves a gate. The deny rule on headless sessions is a second layer behind that rule, not the reason for it. A later session resumes after the person resolves it.
+- **`stop`.** Ask once per plan revision with `AskUserQuestion`: "Approve this plan?" Options: "Approve (default)", "Change it" (the human says what). Put the unit list (id, title, size, depends on, lanes) and each product call from step 2 with its default in the question text. On a change, apply it and run the gate again. The changed plan is a new revision, so ask about it once. Under `claude -p` there is no `AskUserQuestion`. Park the gate instead and stop: `<orch> gate park H2 --question "Approve plan <store>/plan.md?" --options "approve|change" --default approve`. Put the question first in your report. The person resolves it by running `<orch> gate resolve H2 --answer <a>` in their own terminal. Never run it yourself: the mode skill's rule is that only a human's answer resolves a gate. The deny rule on headless sessions is a second layer behind that rule, not the reason for it. A later session resumes after the person resolves it.
 
 ### 7. File the issues
 
@@ -109,14 +109,21 @@ Brief: <store>/units/U<n>.md
 <footer line from <root>/templates/footer.md>
 ```
 
-Then:
+Then, for each unit:
 
-```sh
-node <root>/gates/forge.mjs issue create --title "<unit title>" --body-file <store>/issue-U<n>.md $LABEL
-<orch> unit set U<n> --issue <number it prints> --state ready
-```
+1. Search for an issue with the same title: `node <root>/gates/forge.mjs issue list --search "<title>" --in title --state open`. If one exists, reuse it, so a resumed plan never files twice: run only the `unit set` line below with its number.
+2. If the unit's dependencies are met, file it as ready:
+   ```sh
+   node <root>/gates/forge.mjs issue create --title "<unit title>" --body-file <store>/issue-U<n>.md --label <prefix>:ready
+   <orch> unit set U<n> --issue <number it prints> --state ready
+   ```
+3. Otherwise, file it with no state label:
+   ```sh
+   node <root>/gates/forge.mjs issue create --title "<unit title>" --body-file <store>/issue-U<n>.md
+   <orch> unit set U<n> --issue <number it prints>
+   ```
 
-Set `LABEL=--label <prefix>:ready` and `--state ready` only for units whose dependencies are met. A `gate:<id>` dependency is not met until the gate is approved. A unit with unmet dependencies gets no state label and stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge. Before you create an issue, search for one with the same title (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state open`). Reuse it when it exists, so a resumed plan never files twice.
+A `gate:<id>` dependency is not met until the gate is approved. A unit with unmet dependencies stays `planned`, so no standalone run can pick it up early. cstack:orchestrate adds `<prefix>:ready` when its dependencies merge. `orch unit ready` lists a planned unit once its dependencies merge.
 
 ### 8. Log
 

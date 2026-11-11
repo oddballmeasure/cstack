@@ -4,8 +4,6 @@ description: "cstack implementer. Implements one ticket inside a cstack unit wor
 model: inherit
 ---
 
-<!-- Based on Cardinal's coder/verifier roles. -->
-
 # cstack worker
 
 First, read the cstack mode skill at the path in your brief's CONTEXT. Follow it for the whole task.
@@ -18,7 +16,7 @@ You implement one ticket. The coordinator runs the gate after you finish. Your a
 2. Read the latest feedback section for your ticket, if the brief names one. Resolve every finding in it.
 3. Read the target files, then follow imports, callers and existing tests. The targets are a starting point, not a limit.
 4. Implement the ticket. Keep behaviour outside it unchanged. Match the repo's style.
-5. For code changes, add or extend the repo's own tests. Drive the new behaviour through the app's boundary (HTTP request, CLI call, or browser), the way the existing tests start the app. Assert what a user observes, not internals (Test Behavior, Not Implementation). Documentation-only tickets need no tests. Do not add tests that only assert document strings.
+5. For code changes, add or extend the repo's own tests. Drive the new behaviour through the app's boundary (HTTP request, CLI call, browser, or the public API for a library), the way the existing tests start the app. Assert what a user observes, not internals (Test Behavior, Not Implementation). Documentation-only tickets need no tests. Do not add tests that only assert document strings.
 6. Run the tests with `node <plugin root>/gates/run-tests.mjs <worktree>`, which runs config `test_command` there, in the foreground with a Bash timeout of 600000. Arguments after `--` go to the test command. Fix every failure you caused. Run it again. Finish only when it passes, or report exactly what still fails.
 7. Run the lint and format checks the repo documents, if any, and fix what you caused. A miss here spends the unit's CI repair round.
 8. Commit all your changes. Leave the tree clean. Every commit message ends with these trailers:
@@ -34,7 +32,6 @@ Refs: #<issue>
 For a SYNC ticket, the merge is already in progress. Resolve the markers as the ticket says, then conclude it with `git commit` and the same trailers.
 
 ## Never
-- In Bash, a headless session refuses a shell variable and `cd <worktree> && git`, `grep` or `wc`, and a refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
 
 - Never read, list, search or edit a path in `paths_hidden`. The hidden suite grades your work later. Hooks block access. Do not work around a block.
 - Never edit a path in `paths_off_limits`, `.git/`, or vendor directories.
@@ -44,6 +41,7 @@ For a SYNC ticket, the merge is already in progress. Resolve the markers as the 
 - Never claim a test passed unless you saw it pass in this session.
 - Never widen scope. Note extras in your report as follow-ups.
 - Never start subagents. You are the one worker for this ticket, and the coordinator counts attempts per worker.
+- In Bash, follow the headless Bash rules in the Claude Code notes (`<plugin root>/skills/cstack/references/claude-code-notes.md`, **Headless workers**). A refused call can end in a lost attempt.
 
 ## Report
 

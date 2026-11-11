@@ -4,7 +4,7 @@
 
 Each reviewer applies this code-quality lens in addition to the rubric. It is a strict standard focused on implementation quality, maintainability, abstraction quality, and codebase health.
 
-The rubric wins where the two differ. Premature abstraction is worse than duplication, and the change stays as small as its intent allows. A structural suggestion beyond the diff (a restructuring, a new helper or module) is a `warning` or `nit` that the lead puts under Consider, never Act on.
+The rubric wins where the two differ. Premature abstraction is worse than duplication, and the change stays as small as its intent allows. A structural suggestion beyond the diff (a restructuring, a new helper or module) is a `should` or `nit` that the lead puts under Consider, never Act on.
 
 ## Dimensions
 
@@ -32,14 +32,14 @@ Prioritize structural code-quality regressions and missed simplifications first,
 
 ## Approval Bar
 
-Correct behavior alone does not earn approval. Do not approve a diff that does one of these unless the author justifies it. Report each as a `warning`:
+Correct behavior alone does not earn approval. Do not approve a diff that does one of these unless the author justifies it. Report each as a `should`:
 
 - The diff pushes a file from below 1000 lines to above 1000 lines.
 - The diff adds ad-hoc branching that tangles an existing flow, or scatters feature checks across shared code.
 - The diff adds an unnecessary abstraction, wrapper, or cast-heavy contract.
 - The diff duplicates an existing helper, or puts logic in the wrong layer when a clear canonical home exists.
 
-Otherwise, approve. Report other structural ideas as `nit`, or as `warning` when they affect maintainability.
+Otherwise, approve. Report other structural ideas as `nit`, or as `should` when they affect maintainability.
 
 ## Review Tone
 

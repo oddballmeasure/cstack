@@ -1,6 +1,6 @@
 ---
 name: cstack-explorer
-description: "cstack explorer. Read-only search and reading across a repo for cstack:profile-repo and cstack:how. Returns conclusions with file:line pointers, not file dumps. Spawned by cstack skills with a brief."
+description: "cstack explorer. Read-only search and reading across a repo. Returns conclusions with file:line pointers, not file dumps. Spawned by cstack skills (profile-repo, how, maintain-verification-skill) with a brief."
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---

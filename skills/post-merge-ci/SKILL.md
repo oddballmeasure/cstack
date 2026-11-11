@@ -38,10 +38,10 @@ Exit 0: nothing red. Exit 1: a merge is `filed`, `filing`, `expired` or `file-er
 ## Procedure
 
 1. Run the gate. Read `pending` and each merge's state.
-2. While `pending` is above 0, wait for it under the `Monitor` tool, never with `sleep`:
+2. Under `cstack:orchestrate` mid-run, do not block the program on pending merges. Run the gate once per drain, and use `--wait` only at Close. Otherwise, while `pending` is above 0, wait for it under the `Monitor` tool, never with `sleep`:
    - command: `node <root>/gates/post-merge.mjs --store <store> --wait`
    - timeout_ms: `3600000`
-   It judges again every minute and prints its report when nothing waits. Under `cstack:orchestrate` mid-run, do not block the program on it. Run the gate once per drain instead, and use `--wait` only at Close.
+   It judges again every minute and prints its report when nothing waits.
 3. For each red merge, log one row with `cstack:show-me-your-work`: the PR, the merge SHA, the state, the follow-up issue.
    - `filed`: report the issue and its label.
    - `filing`: search the repo for an issue with the title from the row (`node <root>/gates/forge.mjs issue list --search "<title>" --in title --state all`). Report what you find. Do not file one by hand without the human.

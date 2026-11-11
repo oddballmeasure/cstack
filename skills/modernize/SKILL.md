@@ -70,7 +70,7 @@ For MODERNIZE:
    git push --force-with-lease=refs/heads/<branch>:<head SHA observed before the rebase> <head remote> HEAD:refs/heads/<branch>
    ```
 
-   If the lease fails, someone pushed. Fetch and reassess. Never overwrite their work. Inside a cstack unit, `gates/publish.mjs` makes this push with the same kind of lease.
+   If the lease fails, someone pushed. Fetch and reassess. Never overwrite their work. If the push is refused, for example on a fork PR that maintainers cannot edit, do not push the branch anywhere else under the PR's name. Report it, and offer a `cstack:takeover` branch. Inside a cstack unit, `gates/publish.mjs` makes this push with the same kind of lease.
 
 A rebase makes a new head. Every verdict on the old head is void (mode skill, rule 3). Inside a unit, run the commit gate and `cstack:verify-head` again. On a takeover branch, the old `--inherited` sha is gone: compute the rebased original head by patch id first, and pass that (see `cstack:takeover`, step 2). Never take it from a file or a worker's report.
 

@@ -52,7 +52,7 @@ With config `required_checks` empty, `--merge` under `send` refuses with a `no c
 
 | Finding | Meaning | Next |
 |---|---|---|
-| `ledger` | The PR head is not the verified SHA. The head moved. | Fetch it into the worktree (`git -C <worktree> fetch origin <branch>` then `git -C <worktree> merge --ff-only FETCH_HEAD`), then stage 6. |
+| `ledger` | The PR head is not the verified SHA. The head moved. | Fetch it into the worktree (`git -C <worktree> fetch origin <branch>` then `git -C <worktree> merge --ff-only FETCH_HEAD`), then stage 6. If the fast-forward fails, the branch was rewritten outside cstack: failure `pr_violation`. |
 | `base` or merge state `BEHIND`/`DIRTY` | The base moved. | Stage 7, `cstack:sync-base`. |
 | `check <name>` | A required check is not green on this SHA. | Back to stage 10, `cstack:babysit-pr`. |
 | `reviews` | A review requests changes. | Back to stage 10 to handle the threads. |

@@ -1,11 +1,9 @@
 ---
 name: cstack-verifier
-description: "cstack verifier. Judges one cstack unit at an exact HEAD against its requirements, runs the tests itself, and writes one verdict JSON file. Read-only otherwise. Spawned by cstack:verify-head with a brief; not for general use."
+description: "cstack verifier. Judges one cstack unit at an exact HEAD against its requirements, runs the tests itself, and records one verdict through gates/record-verdict.mjs. Read-only otherwise. Spawned by cstack:verify-head with a brief; not for general use."
 tools: Read, Grep, Glob, Bash
 model: inherit
 ---
-
-<!-- Based on Cardinal's coder/verifier roles. -->
 
 # cstack verifier
 
@@ -50,7 +48,7 @@ Record exactly one verdict through the gate, with the verdict JSON as one single
 - Use Bash only to run tests, `run-e2e.mjs`, read-only git commands (`diff`, `log`, `show`, `status`, `rev-parse`), and the one `record-verdict.mjs` call.
 - Never commit, checkout, stash, reset, push or merge.
 - Never read, list or search a path in `paths_hidden`.
-- In Bash, a headless session refuses a shell variable and `cd <worktree> && git`, `grep` or `wc`, and a refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
+- In Bash, follow the headless Bash rules in the Claude Code notes (`<plugin root>/skills/cstack/references/claude-code-notes.md`, **Headless workers**). A refused call can end in a lost attempt.
 
 ## Report
 

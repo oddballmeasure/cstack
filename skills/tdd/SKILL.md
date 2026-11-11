@@ -19,10 +19,10 @@ Never read or edit the hidden suites in config `paths_hidden`. Your test goes in
 
 1. **Understand the behaviour.** Name the intended behaviour, the current behaviour, the affected path, and the smallest observable reproduction.
 2. **Choose the narrowest executable check.** Prefer the closest unit, component, integration or regression test the repo already uses for that path. If no practical test path is obvious, do not build one from scratch only to follow this workflow.
-3. **Write the failing test first.** Add the smallest focused test that would have caught the bug. It encodes intended behaviour. It does not mirror the current implementation. For a cstack ticket, test at the application's boundary (HTTP, CLI, or browser) when the ticket asks for it.
+3. **Write the failing test first.** Add the smallest focused test that would have caught the bug. It encodes intended behaviour. It does not mirror the current implementation. For a cstack ticket, test at the application's boundary (HTTP, CLI, or browser, or the public API for a library) when the ticket asks for it.
 4. **Run the new test before the fix.** Confirm it fails for the intended reason. If it passes, or fails for an unrelated reason, correct the test or the reproduction before you edit the implementation.
 5. **Make the change.** Make the smallest product change that gives the intended behaviour and keeps nearby contracts.
-6. **Run the test again.** Confirm it passes. Then run config `test_command` so nothing nearby broke, with `node <root>/gates/run-tests.mjs <worktree>`. Arguments after `--` go to the test command, for one test file.
+6. **Run the test again.** Confirm it passes. Then run config `test_command` so nothing nearby broke, with `node <root>/gates/run-tests.mjs <worktree>`. Arguments after `--` go to the test command, for one test file. `<root>` is the plugin root, two directories up from this skill's base directory, and `<worktree>` is the unit worktree. Outside a cstack unit, run the repo's test command directly.
 
 ## If a failing test is impractical
 

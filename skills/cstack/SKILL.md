@@ -11,7 +11,14 @@ Read the notes for the harness you run in, once per session. In Claude Code, rea
 
 Other cstack skills live at `../<name>/SKILL.md` from this file. Put this file's absolute path in every subagent brief.
 
-The per-repo config is `.cstack/config.json`. Read it with `jq` or Node. The rules below refer to its keys.
+## Config
+
+The per-repo config is `.cstack/config.json`. The rules below and every cstack skill refer to its keys.
+
+- `<root>` is the plugin root, two directories up from a skill's base directory. `<repo>` is the target repo root, `git rev-parse --show-toplevel`.
+- Inside a cstack unit, read `<worktree>/.cstack/config.json`. Elsewhere, read `<repo>/.cstack/config.json`.
+- Read it with `jq` or Node, never with grep.
+- Without a config, a read-only skill uses `<root>/templates/config.json` and says so. A run skill stops (see **Triggers**).
 
 ## Non-negotiables
 
@@ -135,9 +142,9 @@ Under both levels, do reversible work without asking. The hard stops in rule 7 a
 Spawn with the `Agent` tool.
 
 - **Type.** `general-purpose` for work that writes files. `Explore` for read-only work. `Explore` keeps `Bash`, so the brief says "do not edit files", and you run `git status` afterward. Use a plugin agent where a skill names one.
-- **Model.** Take it from config `models` by role. `code` for implementers. `judge` for verifiers and synthesis. `review` for reviewers. `gather` for explorers. A role set to `inherit` means omit `model`.
+- **Model.** Take it from config `models` by role. `code` for implementers. `judge` for verifiers and synthesis. `review` for reviewers. `gather` for explorers. A role set to `inherit` means omit `model`. When a skill needs a model that differs from one already in use, take the first of `fable`, `opus`, `sonnet` that differs, and say so. Under Codex, read `models_codex` and take replacements from Codex models only (see the Codex notes).
 - **Isolation.** Writers use `isolation: "worktree"` and name the branch or commit to check out. Two writers never share a checkout.
-- **Background.** Agents run in the background by default. Do other work, or wait with `Monitor`. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), pass `run_in_background: false` and wait in the foreground: under `claude -p` the end of the turn ends the session and its background subagents, and the guard refuses a background spawn there. To run several at once, spawn them in one message.
+- **Background.** Agents run in the background by default. Do other work, or wait for their notifications. Do not poll. In a headless session cstack launched (`CSTACK_HEADLESS=1`), pass `run_in_background: false` and wait in the foreground: under `claude -p` the end of the turn ends the session and its background subagents, and the guard refuses a background spawn there. A coordinator that needs the result before its next gate (`cstack:unit` and its stage skills) spawns in the foreground in every session. To run several at once, spawn them in one message. Calls in one message still run at the same time, and the message returns when all of them finish.
 - **Depth.** Nesting stops at depth 3. The third level has no `Agent` tool, so it is a leaf. Plan coordinator, sub-coordinator, worker inside that.
 - **Brief.** Write each brief with these headings: GOAL, SCOPE, CONTEXT, ACCEPTANCE, VERIFY, FORBIDDEN, REPORT. Give file pointers, not pasted bulk. Put this skill's absolute path in CONTEXT and tell the agent to read it first. FORBIDDEN lists the hidden and off-limits paths from config.
 - **Ownership.** You own every subagent's output. Review its diff yourself. Write your own summary. Do not pass its report through. Its claims are model claims under rule 1.

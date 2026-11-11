@@ -10,9 +10,9 @@ argument-hint: "<task> [--run <slug>] [--checkpoint]"
 
 Sketch types, function signatures, class shapes and module boundaries with `not implemented` bodies and pseudocode. Synthesize across candidates on different models, then fill in code against the chosen sketch.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` with `jq` from `<repo>/.cstack/config.json`. Without a config, use the defaults in `<root>/templates/config.json` and say so. `<root>` is the plugin root, two directories up from this skill's base directory.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` per its **Config** section, which also defines `<root>` and `<repo>`.
 
-Under `cstack:plan`, the output is a design package that becomes the first unit, not code. Phase D then belongs to that unit's worker. Write the package to `<store>/architect/<topic>/` when a run store exists, else to `/tmp/cstack-architect/<topic>/`.
+Under `cstack:plan`, the output is a design package that becomes the first unit, not code. Phase D then belongs to that unit's worker. Write the package to `<store>/architect/<topic>/` when a run store exists (`--run <slug>` sets `<store>` to `<repo>/.cstack/runs/<slug>/`), else to `/tmp/cstack-architect/<topic>/`.
 
 ## Start
 
@@ -44,7 +44,7 @@ Arena returns one synthesized design package. Its synthesis note fills the ratio
 
 Default: go straight to Phase D with the synthesized design. No human checkpoint.
 
-Opt in when the caller passes `--checkpoint` or asks to see the design first. Then show the synthesized design and wait for sign-off with `AskUserQuestion`. Under `claude -p`, park it instead: `node <root>/gates/orch.mjs --store <store> gate park architect-<topic> --question "<one line>" --options "approve|change" --default approve`.
+Opt in when the caller passes `--checkpoint` or asks to see the design first. Then show the synthesized design and wait for sign-off with `AskUserQuestion`. Under `claude -p`, park it instead: `node <root>/gates/orch.mjs --store <store> gate park architect-<topic> --question "<one line>" --options "approve|change" --default approve`. With no run store, a headless run takes the default `approve` and logs it.
 
 The synthesis can ship as its own commit either way, as the scaffold-first mode of [Foundational Thinking](../cstack/references/principles/foundational-thinking.md). Planned and scoped breakage during fill-in is fine, per [Outcome-Oriented Execution](../cstack/references/principles/outcome-oriented-execution.md).
 

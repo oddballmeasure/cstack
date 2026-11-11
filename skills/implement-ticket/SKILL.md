@@ -37,9 +37,9 @@ If the ticket id is in the list, run the gate in step 4. If the gate passes, the
 
 ### 2. Read the ticket
 
-- For `T<n>`, read the ticket from `intake.json`: title, requirement ids, `depends_on`, `target_files`. Take the requirement text from the same file.
+- For `T<n>`, read the ticket from `<store>/intake-<unit>.json`: title, requirement ids, `depends_on`, `target_files`. Take the requirement text from the same file.
 - For a repair ticket, read the latest feedback section whose heading starts with the ticket id. It holds the task, the findings and the acceptance criteria.
-- Read the classification from `intake.json` (`feature`, `bug` or `chore`). It picks the method line in the brief.
+- Read the classification from `<store>/intake-<unit>.json` (`feature`, `bug` or `chore`). It picks the method line in the brief.
 - Read the unit's lane ids with `node <root>/gates/orch.mjs --store <store> unit get <unit>`. Standalone units with no lanes have none.
 - Count earlier attempts at this ticket: the feedback sections headed `## <ticket> attempt <k>`. This attempt is the highest `k`, or 1 when there is none.
 
@@ -52,7 +52,7 @@ Spawn exactly one `Agent`:
 - `subagent_type`: `cstack-worker`, the plugin's worker agent. Claude Code lists it with the plugin prefix.
 - `model`: config `models.code`. If it is `inherit`, omit `model`.
 - No `isolation`. The unit worktree already isolates the work, and the worker must commit there.
-- `run_in_background: false`. Wait for its result in the foreground. Do not poll. Under `claude -p` the end of the turn ends the session, and a background subagent dies with it.
+- `run_in_background: false`, per the mode skill's **Background** rule: the next gate needs the result.
 
 Write the brief with these headings. Give paths, not pasted bulk.
 
@@ -75,7 +75,7 @@ Method: <one line, see below>
 
 ACCEPTANCE
 - The ticket is implemented. Behaviour outside it is unchanged.
-- Code changes come with tests in the repo's own suite that drive the app's boundary.
+- Code changes come with tests in the repo's own suite that drive the app's boundary (for a library, its public API).
 - `node <plugin root>/gates/run-tests.mjs <worktree>` passes at your final commit. It runs config test_command in the worktree. Run other repo tools from the directory that holds them, spelled as the allow rule spells them: `cd <worktree>/frontend && npm ci` passes where `npm ci --prefix <worktree>/frontend` is refused.
 - Every commit carries the three trailers.
 

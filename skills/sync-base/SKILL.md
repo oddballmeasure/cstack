@@ -9,7 +9,7 @@ description: "Use when a cstack unit must bring its branch up to date with the b
 
 This is stage 7 of the unit flow (`docs/unit-flow.md`). The unit coordinator runs it. It never resolves conflicts itself. A SYNC ticket does.
 
-`<root>` is the plugin root, two directories up from this skill's base directory. Read `base_branch` and `limits.base_sync_rounds` from `.cstack/config.json` with `jq`.
+Read `base_branch` and `limits.base_sync_rounds` from `<worktree>/.cstack/config.json` with `jq`. The [mode skill's **Config** section](../cstack/SKILL.md#config) defines `<root>` and the config rules.
 
 ## Run the gate
 
@@ -17,7 +17,7 @@ This is stage 7 of the unit flow (`docs/unit-flow.md`). The unit coordinator run
 node <root>/gates/sync-base.mjs <worktree> --json
 ```
 
-The script refuses a dirty worktree (exit 2). A dirty tree here means an implementer left work uncommitted. That is a stage 5 failure, not a sync problem. Return to `cstack:unit`.
+The script refuses a dirty worktree with exit 2 and a message that starts `worktree has uncommitted changes`. A dirty tree here means an implementer left work uncommitted. That is a stage 5 failure, not a sync problem. Return to `cstack:unit`.
 
 Read `outcome` from the JSON.
 
@@ -26,7 +26,7 @@ Read `outcome` from the JSON.
 | `up-to-date` | 0 | Stage 8, publish. |
 | `merged` | 0 | The merge commit is a new HEAD. Re-run the stage 5 gate, then stage 6. |
 | `conflict` | 1 | SYNC ticket, then stage 5 and 6. |
-| fetch or merge error | 2 | Failure kind `git`. |
+| fetch or merge error | 2 | Failure kind `git`. This is any exit 2 whose message does not start `worktree has uncommitted changes`. |
 
 ## On `merged`
 

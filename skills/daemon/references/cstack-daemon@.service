@@ -15,8 +15,9 @@ Wants=network-online.target
 Type=simple
 # /%I is the unescaped repo path. The daemon works in the repo's main checkout.
 WorkingDirectory=/%I
-# systemd does not inherit the login PATH. Put node, claude, gh, git and jq on it.
-Environment=PATH=%h/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin
+# Edit: systemd does not inherit the login PATH. List every directory that holds node, claude, gh, git and jq on
+# this host, for example a Homebrew or nvm bin directory.
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 # Edit: the cstack plugin root. Use a path that follows plugin updates, never a versioned cache directory
 # (~/.claude/plugins/cache/<marketplace>/<plugin>/<version>), which pins the daemon to that version.
 # The default is Claude Code's clone of the cstack marketplace, whose plugin is the repo root. A git checkout of

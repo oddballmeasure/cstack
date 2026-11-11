@@ -39,7 +39,7 @@ Level 4 is usually one small script that imports the same library the app ships 
 3. **Look where grep stops.** Read the source of the library you call. Check its pinned version and any local patch. Work out when things run: microtasks, teardown, retries, process exit. Follow what a symbol search misses: the JSON an API returns, a DB column, a wire format, another language reading the same bytes, a feature flag, code three hops downstream.
 4. **Be honest about each risk.** Give it a real chance of happening and a real cost if it does. Keep the risks you confirmed. List the ones you checked and cleared separately. Cite a real `file:line`. A search that finds nothing is still an answer. Never invent a caller or an API.
 5. **Prove the one fact.** Write a script or test that runs the real code, run it, and paste what happened. If you cannot run it, mark the fact unproven and give the script.
-6. **For a big or wide change, run it as a `cstack:arena`.** Ask more than one model the same question and merge the answers. Different models catch different real bugs.
+6. **For a big or wide change, ask two models.** Run the same question on two models in parallel, as `cstack:interrogate` does, and union the confirmed risks. Different models catch different real bugs.
 
 ## What to hand back
 

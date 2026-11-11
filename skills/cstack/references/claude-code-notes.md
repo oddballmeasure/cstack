@@ -10,7 +10,7 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 | --- | --- |
 | `Agent` | Spawn a subagent. Fields: `subagent_type`, `model`, `isolation`, `run_in_background`, `prompt`, `description`. |
 | `Skill` | Run another cstack skill by name, for example `cstack:unslop`. It works inside subagents. |
-| `AskUserQuestion` | Ask the human a decision question. It is absent in `claude -p`, so ask in plain text there and take the safe default. |
+| `AskUserQuestion` | Ask the human a decision question. It is absent in `claude -p`. There, take the safe default, log it, and put the question first in the final message. |
 | `TodoWrite` | Keep the step list. When the session has no `TodoWrite`, keep the list in the reply and update it at each phase. |
 | `Monitor` | Wait on a watcher script. The session ends its turn, stays alive, and wakes on the event. It works in `-p` mode. |
 | `Grep`, `Glob` | When the session lacks them, use `Bash` with `rg`. |
@@ -20,7 +20,7 @@ cstack skills use Claude Code tool names directly. This file lists the tools and
 - `subagent_type: "general-purpose"` writes code and keeps the session's MCP servers.
 - `subagent_type: "Explore"` is for read-only work. It still has `Bash`, so the brief says "do not edit files", and the parent checks `git status` afterward.
 - Plugin agents from `agents/<name>.md` take the plugin prefix (`cstack:` plus the file name). Use them where a skill names one.
-- `isolation: "worktree"` gives the agent its own git worktree. Name the branch or commit it checks out. Its behaviour inside headless sessions is not measured yet (Phase 3).
+- `isolation: "worktree"` gives the agent its own git worktree. Name the branch or commit it checks out. Its behaviour inside headless sessions is not measured yet.
 - `model` takes only `opus`, `sonnet`, `haiku`, `fable`, or omit it to inherit the session model. cstack picks it from the config `models` role: `code`, `judge`, `review`, `gather`. A role set to `inherit` means omit `model`.
 - Subagents run in the background by default and notify the parent when they finish. Do not pass `run_in_background: true`.
 - Under `claude -p` the end of the turn ends the process, and every background subagent dies with it. So in a headless session cstack launched (every launch sets `CSTACK_HEADLESS=1`) pass `run_in_background: false`. Interactive sessions keep background agents. The guard refuses an `Agent` call without it there (`headless-foreground-agents`), and the `pending-work` Stop hook blocks a headless unit worker's first stop while its unit is `in-progress` or `verifying`.
@@ -45,6 +45,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 - Load a local plugin with `--plugin-dir` for tests.
 - Never `--dangerously-skip-permissions`. Launch with `--permission-mode dontAsk --settings <file>`, where the file comes from `node <root>/gates/run-settings.mjs --permissions <role>`. dontAsk refuses every call outside the role's allowlist at once, without a prompt, and the `result` event lists each refusal in `permission_denials`.
 - Under an allowlist, write commands it can match. Use literal absolute paths in redirect targets (`> /abs/store/x.json`, not `> $S/x.json`, which is refused), and put plugin scripts first in the command (`node <root>/gates/orch.mjs ...`, `node <root>/skills/show-me-your-work/scripts/log.mjs ...`). Shell variables in arguments are fine. When a call is refused, do not look for another way to run it. Say what was refused in the final message.
+- In a worker, verifier or reviewer, the allowlist also refuses a command that sets a shell variable, and `cd <worktree> && git`, `grep` or `wc`. A refused call can end in a lost attempt. Use absolute paths and `git -C <worktree>`, and prefer the Read and Grep tools for reading. Run the repo's own tools from the worktree, spelled as the repo's allow rules spell them: `cd <worktree> && uv run ruff check .` can pass where `uv run --directory <worktree> ruff check .` is refused.
 
 ## Paths
 
@@ -54,7 +55,7 @@ Hooks must match parsed `tool_input` fields, not the raw input text. Check `file
 | User rules | `~/.claude/rules/*.md`, loaded into each new session |
 | Skills | `.claude/skills/`, `~/.claude/skills/`, or a plugin's `skills/` |
 | Plugin manifest | `.claude-plugin/plugin.json` |
-| Transcripts | `~/.claude/projects/<slug>/<session>.jsonl`. The slug is the workspace path with each `/` and `.` changed to `-`. Subagent transcripts are in `<session>/subagents/`. |
+| Transcripts | `~/.claude/projects/<slug>/<session>.jsonl`. The slug is the workspace path with `/` and `.` changed to `-`, and other punctuation may change too. Match it against `ls ~/.claude/projects/`. Subagent transcripts are in `<session>/subagents/`. |
 | cstack config and runs | `.cstack/config.json`, `.cstack/runs/<slug>/` |
 
 ## No built-in PR tool

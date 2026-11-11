@@ -10,13 +10,13 @@ disable-model-invocation: true
 
 Mine this conversation for durable learnings. Then route them into skill edits.
 
-Read the [cstack mode skill](../cstack/SKILL.md) first. `<root>` is the plugin root, two directories up from this skill's base directory. Read config `models` and `label_prefix` with `jq` from `<repo>/.cstack/config.json`. Without a config, use `<root>/templates/config.json` and say so.
+Read the [cstack mode skill](../cstack/SKILL.md) first. Read config `models` and `label_prefix` per its **Config** section, which also defines `<root>` and `<repo>`.
 
 Skip reflect when the session is trivial, off-topic, or a skill already covered it and the session followed that skill correctly. A one-off is not a learning.
 
 ## 1. Find the active transcript
 
-Transcripts are in `~/.claude/projects/<slug>/`. The slug is the session's primary working directory with each `/` and `.` changed to `-`. Look only in this one directory. Do not glob across `~/.claude/projects/*/`. That reads private sessions from unrelated projects.
+In Claude Code, transcripts are in `~/.claude/projects/<slug>/`. The slug is the session's primary working directory with `/` and `.` changed to `-`, and other punctuation may change too. List the directory names with `ls ~/.claude/projects/` and pick the one that matches the working directory. Look only in that one directory. In Codex, see the Transcripts row in [the Codex notes](../cstack/references/codex-notes.md). Do not glob across `~/.claude/projects/*/`. That reads private sessions from unrelated projects.
 
 ```bash
 dir=~/.claude/projects/<slug>
@@ -36,9 +36,9 @@ Spawn all three in one message with the `Agent` tool, `subagent_type: "Explore"`
 | Tooling | `review` | [tooling-reviewer](references/tooling-reviewer.md) |
 | Divergent | `judge` | [divergent-reviewer](references/divergent-reviewer.md) |
 
-Set `model` from the role. A role set to `inherit` means omit `model`. Tooling runs on `review`, not `gather`, for two reasons. It needs judgment to tell a durable fact from drift, and a second model family catches what the `judge` model misses.
+Set `model` from the role. A role set to `inherit` means omit `model`. Tooling runs on `review`, not `gather`, for two reasons. It needs judgment to tell a durable fact from drift, and a second model catches what the `judge` model misses.
 
-Pass each template as written, below its attribution line. Fill in the placeholders: the mode skill's absolute path, and the transcript path or the digest. Each reviewer returns its findings in its reply.
+Build each brief from [the common reviewer rules](references/reviewer-common.md) followed by the lens template, each as written below its attribution line. Fill in the placeholders: the mode skill's absolute path, and the transcript path or the digest. Each reviewer returns its findings in its reply.
 
 ## 3. Synthesize
 
