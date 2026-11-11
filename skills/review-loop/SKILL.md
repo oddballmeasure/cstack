@@ -130,4 +130,4 @@ Reviewed with review-loop: <N> rounds with <model>. Verdict: approved
 
 ## Report
 
-Rounds run and the budget (3, or 5 with the reason for the extension, for example an auth or data-loss change), the reviewer model (and any substitution), what the review changed, the diff size before and after, each finding with its id, severity and outcome, the reasons for every declined or disputed finding, usage per round (or `not exposed`), and the verdict: `approved`, `changes requested`, `needs-human`, or `budget end`. Log the stop with `cstack:show-me-your-work`.
+Rounds run and the budget (`limits.review_rounds`, or that plus 2 with the reason for the extension, for example an auth or data-loss change), the reviewer model (and any substitution), what the review changed, the diff size before and after, each finding with its id, severity and outcome, the reasons for every declined or disputed finding, usage per round (or `not exposed`), and the verdict: `approved`, `changes requested`, `needs-human`, or `budget end`. Log the stop with `cstack:show-me-your-work`.

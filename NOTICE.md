@@ -65,7 +65,7 @@ https://github.com/t3dotgg/tstack at commit 92e38e2.
 
 ## Cardinal
 
-Cardinal is the maintainer's own earlier harness, in a private repository. References to its source paths are for provenance; nothing in cstack depends on it.
+Cardinal is the maintainer's own earlier harness, in the public repository oddballmeasure/cardinal. References to its source paths are for provenance; nothing in cstack depends on it.
 
 `docs/conventions.md`, the doctor checks and the label scheme follow Cardinal (oddballmeasure/cardinal), same owner. Phase 5 ports Cardinal's daemon rules: `gates/post-merge.mjs` and `skills/post-merge-ci/` from `daemon/post_merge.py`, and the worker loop in `gates/worker.mjs` and `skills/orchestrate/` from `daemon/workers.py` and `daemon/loop.py`. Phase 8 ports the rest:
 

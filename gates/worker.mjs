@@ -24,7 +24,9 @@
 // --coordinator launches the run's coordinator instead (`/cstack:orchestrate --run <slug>`, or with --resume
 // `/cstack:resume-run <slug>`) as cstack-<repo>-<slug>-coordinator with CSTACK_COORDINATOR=1, so the
 // pending-work Stop hook applies to it, and CSTACK_COORDINATOR_UNIT=<that name>, so program and resume-run can tell
-// the run's own coordinator from a second session that only sets CSTACK_COORDINATOR=1. Workers get neither. It has no exit hook and no unit row. When <store>/run.json has
+// the run's own coordinator from a second session that only sets CSTACK_COORDINATOR=1. Workers get neither. A
+// coordinator launched any other way under systemd (tests/fixtures/run-fixture.mjs, a hand launch) must set both.
+// It has no exit hook and no unit row. When <store>/run.json has
 // "entry": "program", the coordinator runs `/cstack:program --resume <slug>` instead.
 // Every session gets CSTACK_HEADLESS=1, which the guard and the pending-work Stop hook read: under -p or exec the
 // end of the turn ends the process. The PATH comes from workerPath (gates/lib/workers.mjs).
